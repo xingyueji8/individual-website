@@ -2020,6 +2020,7 @@
     const APP_HISTORY_LAYER = "app";
 
     function showEntryScreen() {
+      window.SiteAgent?.close({ clear: true });
       if (state.runtimeSecurity.blocked) return;
       stopRuntimeBotProtection();
       entryScreen.hidden = false;
@@ -2159,6 +2160,7 @@
       const security = state.runtimeSecurity;
       if (security.blocked) return;
       security.blocked = true;
+      window.SiteAgent?.close({ clear: true });
       stopRuntimeBotProtection({ preserveBlocked: true });
       state.auth = { authenticated: false, user: null };
       state.guestVerified = false;
@@ -3811,11 +3813,12 @@
      * - reader.read() 每取得一小段文字，就更新同一个 AI 气泡；
      * - TextDecoder 的 stream 选项可避免一个汉字被两个网络数据块拆开时出现乱码。
      */
-    async function streamAiAnswer(question, bubble) {
+    async function streamAiAnswer(question, bubble, signal) {
       const response = await fetch("/api/ai?stream=1", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "text/plain" },
         body: JSON.stringify({ question }),
+        signal,
       });
 
       if (!response.ok) {
@@ -4400,6 +4403,7 @@
     });
 
     document.getElementById("account-logout").addEventListener("click", async () => {
+      window.SiteAgent?.close({ clear: true });
       await api("/api/auth/logout", { method: "POST" }).catch(() => null);
       localStorage.removeItem("xyj_entry_mode");
       sessionStorage.removeItem("xyj_guest_handoff");
@@ -4499,6 +4503,7 @@
     /* ---------- 17. AI 提问表单。 ---------- */
     document.getElementById("chat-form").addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (window.SiteAgent) { await window.SiteAgent.submit(); return; }
       if (!hasFullAccess()) { showAuthLock("ai"); return; }
       const input = document.getElementById("chat-input"); const status = document.getElementById("chat-status"); const submit = event.currentTarget.querySelector("button");
       const question = input.value.trim(); if (!question) return;
@@ -4555,5 +4560,7 @@
   </script>
   <script src="/experience.js"></script>
   <script src="/community.js"></script>
+  <link rel="stylesheet" href="/site-agent.css">
+  <script src="/site-agent.js"></script>
 </body>
 </html>
