@@ -48,6 +48,14 @@
 
   const englishPhrases = new Map(Object.entries({
     "打开 AI 对话": "Open AI chat",
+    "点我聊天": "Chat with me",
+    "可聊天、查找并确认下载站内资源": "Chat, find site resources, and confirm downloads",
+    "发送消息，或查找并下载站内资源": "Message or find and download site resources",
+    "不可下载": "Download unavailable",
+    "操作已确认": "Action confirmed",
+    "已请求下载": "Download requested",
+    "此文章当前不可下载": "This article is not currently downloadable",
+    "正在确认权限…": "Checking permission…",
     "关闭对话": "Close chat",
     "蓝发月亮卫衣小伙伴": "Blue-haired moon hoodie companion",
     "对话记录": "Conversation",
