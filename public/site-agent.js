@@ -114,12 +114,13 @@
     const sidebarRect = sidebar.getBoundingClientRect();
     const navRect = sidebarNav.getBoundingClientRect();
     const noteRect = sidebarNote.getBoundingClientRect();
-    const top = Math.max(0, navRect.bottom - sidebarRect.top + 8);
+    const collapsed = document.querySelector(".app-shell")?.classList.contains("sidebar-collapsed");
+    /* Leave a full movement/jump clearance below Settings so the pet can never cover it. */
+    const top = Math.max(0, navRect.bottom - sidebarRect.top + 20);
     const bottom = Math.max(0, sidebarRect.bottom - noteRect.top + 6);
     stage.style.top = `${Math.round(top)}px`;
     stage.style.bottom = `${Math.round(bottom)}px`;
-    const canShow = !document.querySelector(".app-shell")?.classList.contains("sidebar-collapsed")
-      && stage.clientWidth >= 72 && stage.clientHeight >= 107;
+    const canShow = stage.clientWidth >= (collapsed ? 54 : 72) && stage.clientHeight >= 107;
     stage.classList.toggle("is-unavailable", !canShow);
     if (!canShow) return;
     petX = clamp(petX, 0, Math.max(0, stage.clientWidth - pet.offsetWidth));

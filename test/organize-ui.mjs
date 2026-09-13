@@ -76,6 +76,18 @@ assert.match(studio.document.getElementById("photo-batch-target").textContent, /
 studio.document.querySelector('[data-studio-category="gallery"]').click();
 assert.equal(studio.document.getElementById("section-kind").value, "gallery");
 assert.deepEqual([...studio.document.getElementById("subsection-section").options].map(item => item.value), ["photos"]);
+assert.ok(studio.document.getElementById("studio-primary-nav").classList.contains("hidden"));
+assert.ok(!studio.document.getElementById("studio-content-navigation").classList.contains("hidden"));
+assert.equal(studio.document.getElementById("view-media").parentElement.id, "content-inline-editor-host");
+assert.ok(studio.document.getElementById("view-media").classList.contains("active"));
+assert.equal(studio.document.getElementById("media-section").value, "photos");
+const childHierarchy = [...studio.document.querySelectorAll("#content-structure-nav button")]
+  .find(button => button.textContent === "Child");
+assert.ok(childHierarchy);
+childHierarchy.click();
+assert.equal(studio.document.getElementById("subsection-id").value, "photo-child");
+assert.equal(studio.document.getElementById("media-subsection").value, "photo-child");
+assert.match(studio.document.getElementById("content-inline-scope").textContent, /Photos \/ Child/);
 studio.document.getElementById("subsection-parent").value = "photo-parent";
 assert.equal(studio.document.getElementById("subsection-parent").value, "photo-parent");
 assert.ok(studio.document.getElementById("content-section-assets-panel").hasAttribute("hidden"));
