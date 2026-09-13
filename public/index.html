@@ -3965,7 +3965,7 @@
        * 全站缩放、回弹和白光扩散之外，否则按下时按钮会移位并丢失 click。
        */
       const canAnimate = (control) => control
-        && !control.matches(":disabled, .image-nav")
+        && !control.matches(":disabled, .image-nav, .agent-pet")
         && control.id !== "avatar-refresh";
       const playBounce = (control) => {
         if (reducedMotion.matches || !canAnimate(control)) return;

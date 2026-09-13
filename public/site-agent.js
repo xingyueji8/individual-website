@@ -22,10 +22,7 @@
   const sprite = document.createElement("span");
   sprite.className = "agent-pet-sprite";
   sprite.setAttribute("aria-hidden", "true");
-  const petHint = document.createElement("span");
-  petHint.className = "agent-pet-hint";
-  petHint.textContent = "点我";
-  pet.append(sprite, petHint);
+  pet.append(sprite);
   stage.append(pet);
   sidebar.append(stage);
 
@@ -82,6 +79,7 @@
   let controllerTarget = null;
   let petTimer = null;
   let petOpen = false;
+  let petHovered = false;
   let petX = 0;
   let petY = 0;
 
@@ -146,8 +144,40 @@
     petTimer = setTimeout(movePet, delay);
   }
 
+  /*
+    A CSS transform can still be travelling after its timer has been cleared.
+    Capture the character's painted position before opening or greeting so the
+    button, sprite and speech bubble always remain on the same hit target.
+  */
+  function freezePetMotion() {
+    clearTimeout(petTimer);
+    const stageRect = stage.getBoundingClientRect();
+    const petRect = pet.getBoundingClientRect();
+    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
+    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
+    petX = clamp(petRect.left - stageRect.left, 0, maxX);
+    petY = clamp(petRect.top - stageRect.top, 0, maxY);
+    pet.classList.add("is-motion-frozen");
+    stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
+    stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
+  }
+
+  function greetPet() {
+    petHovered = true;
+    freezePetMotion();
+    pet.dataset.state = "wave";
+  }
+
+  function finishGreeting() {
+    petHovered = false;
+    if (petOpen) return;
+    pet.classList.remove("is-motion-frozen");
+    pet.dataset.state = "idle";
+    schedulePet(650);
+  }
+
   function movePet() {
-    if (petOpen || stage.classList.contains("is-unavailable")) return;
+    if (petOpen || petHovered || stage.classList.contains("is-unavailable")) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       pet.dataset.state = "idle";
       return;
@@ -172,6 +202,7 @@
   }
 
   function setOpen(value) {
+    if (value) freezePetMotion();
     petOpen = value;
     panel.hidden = !value;
     composer.hidden = !value;
@@ -186,8 +217,13 @@
         petInput.focus();
       });
     } else {
-      pet.dataset.state = "idle";
-      schedulePet(550);
+      if (petHovered) {
+        pet.dataset.state = "wave";
+      } else {
+        pet.classList.remove("is-motion-frozen");
+        pet.dataset.state = "idle";
+        schedulePet(550);
+      }
     }
   }
 
@@ -460,6 +496,9 @@
     }
   }
 
+  pet.addEventListener("pointerenter", greetPet);
+  pet.addEventListener("pointerleave", finishGreeting);
+  pet.addEventListener("pointerdown", freezePetMotion);
   pet.addEventListener("click", open);
   close.addEventListener("click", () => closeAgent());
   petForm.addEventListener("submit", event => {

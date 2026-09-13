@@ -8,8 +8,13 @@
   right: 13px;
   z-index: 24;
   min-height: 0;
-  overflow: hidden;
-  border-radius: 16px;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   pointer-events: none;
   transition: opacity .46s cubic-bezier(.22,.72,.18,1);
 }
@@ -40,6 +45,11 @@
   filter: drop-shadow(0 8px 7px rgba(33,64,78,.22));
   isolation: isolate;
 }
+.agent-pet-stage::before,
+.agent-pet-stage::after,
+.agent-pet::before,
+.agent-pet::after { display:none !important; content:none !important; }
+.agent-pet.is-motion-frozen { transition-duration:0s !important; }
 .agent-pet-sprite {
   position: absolute;
   inset: 0;
@@ -51,41 +61,18 @@
   transform-origin: 50% 88%;
   will-change: transform,background-position;
 }
-.agent-pet[data-state="walk"] .agent-pet-sprite { background-position: 50% 0; animation:agent-step .48s ease-in-out infinite alternate; }
-.agent-pet[data-state="run"] .agent-pet-sprite { background-position: 100% 0; animation:agent-run .28s ease-in-out infinite alternate; }
-.agent-pet[data-state="wave"] .agent-pet-sprite { background-position: 0 100%; animation:agent-wave .72s ease-in-out infinite alternate; }
-.agent-pet[data-state="jump"] .agent-pet-sprite { background-position: 50% 100%; animation:agent-jump 1.05s cubic-bezier(.2,.75,.22,1) infinite; }
-.agent-pet[data-state="sit"] .agent-pet-sprite { background-position: 100% 100%; animation:agent-breathe 1.65s ease-in-out infinite alternate; }
+.agent-pet[data-state="walk"] .agent-pet-sprite { animation:agent-walk-cycle .72s steps(1,end) infinite; }
+.agent-pet[data-state="run"] .agent-pet-sprite { animation:agent-run-cycle .48s steps(1,end) infinite; }
+.agent-pet[data-state="wave"] .agent-pet-sprite { animation:agent-wave-cycle 1.05s steps(1,end) infinite; }
+.agent-pet[data-state="jump"] .agent-pet-sprite { animation:agent-jump-cycle 1.05s steps(1,end) infinite; }
+.agent-pet[data-state="sit"] .agent-pet-sprite { animation:agent-sit-cycle 2.25s steps(1,end) infinite; }
 .agent-pet[data-state="idle"] .agent-pet-sprite { animation:agent-breathe 1.9s ease-in-out infinite alternate; }
 .agent-pet.is-facing-left .agent-pet-sprite { scale:-1 1; }
 .agent-pet:hover .agent-pet-sprite,
 .agent-pet:focus-visible .agent-pet-sprite { filter:saturate(1.08) brightness(1.04); }
-.agent-pet:focus-visible { outline:2px solid rgba(71,143,177,.46) !important; outline-offset:2px; border-radius:18px !important; }
+.agent-pet:focus-visible { outline:0 !important; filter:drop-shadow(0 0 7px rgba(103,177,207,.48)) drop-shadow(0 8px 7px rgba(33,64,78,.22)); }
 .agent-pet:active:not(.is-facing-left) .agent-pet-sprite { scale:1 .94; }
 .agent-pet.is-facing-left:active .agent-pet-sprite { scale:-1 .94; }
-.agent-pet-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 2px;
-  z-index: 3;
-  translate: -50% 3px;
-  padding: 3px 7px;
-  border: 1px solid rgba(255,255,255,.76);
-  border-radius: 999px;
-  color: #28434c;
-  background: rgba(248,252,252,.58);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.88),0 4px 12px rgba(31,62,74,.10);
-  -webkit-backdrop-filter: blur(12px) saturate(1.25);
-  backdrop-filter: blur(12px) saturate(1.25);
-  font-size: .61rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity .4s ease,translate .4s cubic-bezier(.18,.86,.22,1.12);
-}
-.agent-pet:hover .agent-pet-hint,
-.agent-pet:focus-visible .agent-pet-hint { opacity:.92; translate:-50% 0; }
-
 .agent-dialog {
   --agent-tail-x: 28px;
   position: fixed;
@@ -237,14 +224,37 @@ html[data-theme="dark"] .agent-dialog-tail { border-color:rgba(213,233,239,.18);
 html[data-theme="dark"] .agent-resource-card { border-color:rgba(213,233,239,.17); background:rgba(255,255,255,.055); }
 html[data-theme="dark"] .agent-composer .chat-status { background:rgba(17,29,35,.9); }
 html[data-theme="dark"] .agent-close { border-color:rgba(213,233,239,.22); color:#edf7f9; background:rgba(255,255,255,.035); }
-html[data-theme="dark"] .agent-pet-hint { color:#edf7f9; border-color:rgba(213,233,239,.22); background:rgba(17,29,35,.7); }
-
 @keyframes agent-rise { from { opacity:0; transform:translateY(11px) scale(.96); } to { opacity:1; transform:none; } }
 @keyframes agent-breathe { from { transform:translateY(0) scale(1); } to { transform:translateY(-2px) scale(1.012); } }
-@keyframes agent-step { from { transform:translateY(0) rotate(-1.5deg); } to { transform:translateY(-2px) rotate(1.5deg); } }
-@keyframes agent-run { from { transform:translateY(0) rotate(-2deg) scaleY(.99); } to { transform:translateY(-3px) rotate(2deg) scaleY(1.015); } }
-@keyframes agent-wave { from { transform:rotate(-1deg); } to { transform:rotate(2deg) translateY(-1px); } }
-@keyframes agent-jump { 0%,100% { transform:translateY(0) scale(1); } 45% { transform:translateY(-8px) scale(1.02,.98); } 72% { transform:translateY(0) scale(.98,1.02); } }
+/* Every moving action swaps complete body poses: the limbs now move instead of a static cutout bobbing around. */
+@keyframes agent-walk-cycle {
+  0%,100% { background-position:0 0; transform:translateY(0) rotate(0); }
+  24% { background-position:50% 0; transform:translateY(-1px) rotate(-1deg); }
+  50% { background-position:0 0; transform:translateY(0) rotate(0); }
+  74% { background-position:100% 0; transform:translateY(-1px) rotate(1deg); }
+}
+@keyframes agent-run-cycle {
+  0%,100% { background-position:50% 0; transform:translateY(0) rotate(-1deg); }
+  34% { background-position:100% 0; transform:translateY(-3px) rotate(1deg); }
+  67% { background-position:50% 0; transform:translateY(-1px) rotate(-1deg); }
+}
+@keyframes agent-wave-cycle {
+  0%,16%,100% { background-position:0 0; transform:translateY(0) rotate(0); }
+  17%,44% { background-position:0 100%; transform:translateY(-1px) rotate(-1deg); }
+  45%,67% { background-position:0 0; transform:translateY(0) rotate(0); }
+  68%,92% { background-position:0 100%; transform:translateY(-1px) rotate(1deg); }
+}
+@keyframes agent-jump-cycle {
+  0%,15%,100% { background-position:0 0; transform:translateY(0) scale(1); }
+  16%,34% { background-position:50% 0; transform:translateY(-2px) scale(1.01,.99); }
+  35%,72% { background-position:50% 100%; transform:translateY(-8px) scale(1.02,.98); }
+  73%,88% { background-position:50% 0; transform:translateY(-1px) scale(.99,1.01); }
+}
+@keyframes agent-sit-cycle {
+  0%,12%,100% { background-position:0 0; transform:translateY(0); }
+  13%,86% { background-position:100% 100%; transform:translateY(1px); }
+  87%,99% { background-position:0 0; transform:translateY(0); }
+}
 
 @media (max-width:760px),(hover:none) and (pointer:coarse) {
   .sidebar .agent-pet-stage { display:none !important; }
