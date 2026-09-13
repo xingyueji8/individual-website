@@ -4503,7 +4503,7 @@
     /* ---------- 17. AI 提问表单。 ---------- */
     document.getElementById("chat-form").addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (window.SiteAgent) { await window.SiteAgent.submit(); return; }
+      if (window.SiteAgent) { await window.SiteAgent.submit(document.getElementById("chat-input")); return; }
       if (!hasFullAccess()) { showAuthLock("ai"); return; }
       const input = document.getElementById("chat-input"); const status = document.getElementById("chat-status"); const submit = event.currentTarget.querySelector("button");
       const question = input.value.trim(); if (!question) return;

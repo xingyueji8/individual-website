@@ -57,7 +57,7 @@ studio.run(await readFile("public/studio-background.js", "utf8"));
 const main = [...studioHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(source => source.includes("const app ="));
 assert.ok(main);
-studio.run(main.replace("resetChangelog();checkSession();", "resetChangelog();"));
+studio.run(main.replace("checkSession();", ""));
 studio.run(`app.sections=${JSON.stringify(sections)};app.subsections=${JSON.stringify(subsections)};
   app.media=[{id:'photo-a',kind:'photo',filename:'a.png',caption:'Photo A',note:'A note',section_id:'photos',subsection_id:'photo-child',previewUrl:'/media/photo-a?preview=1',visibility:'public'}];
   app.users=[{id:'alice',username:'alice',nickname:'Alice',status:'approved'}];

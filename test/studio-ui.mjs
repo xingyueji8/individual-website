@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const studioHtml = await readFile(new URL("../public/studio.html", import.meta.url), "utf8");
 const photoScript = await readFile(new URL("../public/studio-organize.js", import.meta.url), "utf8");
+const navigationCss = await readFile(new URL("../public/studio-navigation.css", import.meta.url), "utf8");
 new Function(photoScript);
 const inlineScripts = [...studioHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
   .map((match) => match[1])
@@ -12,6 +13,13 @@ assert.ok(inlineScripts.length > 0, "Studio must contain inline application Java
 for (const source of inlineScripts) new Function(source);
 
 assert.match(studioHtml, /id="subsection-download-policy"/);
+assert.match(studioHtml, /data-view="site-content">网站内容/);
+assert.doesNotMatch(studioHtml, /data-view="sections">大板块与小板块/);
+assert.match(studioHtml, /id="view-site-content"/);
+assert.match(studioHtml, /id="studio-back-button"/);
+assert.match(studioHtml, /id="content-structure-nav"/);
+assert.match(studioHtml, /function confirmStudioNavigation/);
+assert.match(navigationCss, /\.content-structure-nav button\.active[\s\S]*color:#102e38 !important/);
 assert.match(studioHtml, /站长私有备注（仅后台可见）/);
 assert.match(studioHtml, /className="upload-job-rate"/);
 assert.match(studioHtml, /function uploadPartRequest\(/);

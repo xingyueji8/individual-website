@@ -47,6 +47,16 @@
   }));
 
   const englishPhrases = new Map(Object.entries({
+    "和小伙伴聊聊": "Chat with the companion",
+    "打开小伙伴对话": "Open companion chat",
+    "关闭小伙伴对话": "Close companion chat",
+    "小伙伴对话": "Companion chat",
+    "AI 小伙伴": "AI Companion",
+    "聊天或查找站内资源": "Chat or find site resources",
+    "点我": "Chat",
+    "你好呀，需要我帮你找什么？": "Hi! What would you like me to find?",
+    "发送消息，或查找站内资源…": "Message or find site resources…",
+    "发送消息，或查找站内资源": "Message or find site resources",
     "打开 AI 对话": "Open AI chat",
     "点我聊天": "Chat with me",
     "可聊天、查找并确认下载站内资源": "Chat, find site resources, and confirm downloads",

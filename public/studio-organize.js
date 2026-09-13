@@ -251,14 +251,13 @@ async function submitPhotoUploads(event) {
     refreshMediaSubsectionOptions(sectionId, subsectionId); document.getElementById("media-subsection").value = subsectionId; renderMedia();
     notice.textContent = `已上传 ${completed} 张${failures ? `，${failures} 张失败，可在预览队列重试` : ""}。`;
   } catch (error) { notice.textContent = `上传已处理，但列表刷新失败：${error.message}`; }
-  finally { sendingPhotos = false; submit.disabled = false; }
+  finally { sendingPhotos = false; submit.disabled = false; if (!photoSelection.length) markStudioClean(event.currentTarget); }
 }
 
 function initializePhotoManagement() {
   document.getElementById("asset-section").addEventListener("change",()=>{app.currentAssetFolder="";refreshAssetSubsectionOptions();renderAssetFolderOptions();renderAssetBrowser()});
   document.querySelectorAll("[data-studio-category]").forEach(control=>control.addEventListener("click",()=>{
-    studioSectionCategory=control.dataset.studioCategory;switchView("sections");resetSectionForm();document.getElementById("section-kind").value=studioSectionCategory;
-    resetSubsectionForm();renderSectionList();renderSubsectionList();
+    enterSectionManager(control.dataset.studioCategory);
   }));
   document.getElementById("media-file").addEventListener("change", event => addSelectedPhotos([...event.target.files]));
   const drop = document.getElementById("photo-drop-zone");
