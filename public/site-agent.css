@@ -3,6 +3,8 @@
   --pet-x: 0px;
   --pet-y: 0px;
   --pet-duration: 2.8s;
+  --pet-action-duration: 2.1s;
+  --pet-easing: linear;
   position: absolute;
   left: 13px;
   right: 13px;
@@ -44,14 +46,16 @@
   border-radius: 0 !important;
   color: var(--ink);
   background: transparent !important;
+  background-image: none !important;
   box-shadow: none !important;
+  outline: 0;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   cursor: pointer;
   pointer-events: auto;
   transform: translate3d(var(--pet-x),var(--pet-y),0);
   transform-origin: 50% 92%;
-  transition: transform var(--pet-duration) cubic-bezier(.22,.72,.18,1), filter .46s ease !important;
+  transition: transform var(--pet-duration) var(--pet-easing), filter .46s ease !important;
   filter: drop-shadow(0 8px 7px rgba(33,64,78,.22));
   isolation: isolate;
 }
@@ -71,11 +75,11 @@
   transform-origin: 50% 88%;
   will-change: transform,background-position;
 }
-.agent-pet[data-state="walk"] .agent-pet-sprite { animation:agent-walk-cycle .72s steps(1,end) infinite; }
-.agent-pet[data-state="run"] .agent-pet-sprite { animation:agent-run-cycle .48s steps(1,end) infinite; }
-.agent-pet[data-state="wave"] .agent-pet-sprite { animation:agent-wave-cycle 1.05s steps(1,end) infinite; }
-.agent-pet[data-state="jump"] .agent-pet-sprite { animation:agent-jump-cycle 1.05s steps(1,end) infinite; }
-.agent-pet[data-state="sit"] .agent-pet-sprite { animation:agent-sit-cycle 2.25s steps(1,end) infinite; }
+.agent-pet[data-state="walk"][data-moving="true"] .agent-pet-sprite { animation:agent-walk-cycle .94s steps(1,end) infinite; }
+.agent-pet[data-state="run"][data-moving="true"] .agent-pet-sprite { animation:agent-run-cycle .68s steps(1,end) infinite; }
+.agent-pet[data-state="wave"] .agent-pet-sprite { animation:agent-wave-cycle var(--pet-action-duration) steps(1,end) 1 both; }
+.agent-pet[data-state="jump"] .agent-pet-sprite { animation:agent-jump-cycle var(--pet-action-duration) steps(1,end) 1 both; }
+.agent-pet[data-state="sit"] .agent-pet-sprite { animation:agent-sit-cycle var(--pet-action-duration) steps(1,end) 1 both; }
 .agent-pet[data-state="idle"] .agent-pet-sprite { animation:agent-breathe 1.9s ease-in-out infinite alternate; }
 .agent-pet.is-facing-left .agent-pet-sprite { scale:-1 1; }
 .agent-pet:hover .agent-pet-sprite,
@@ -244,26 +248,28 @@ html[data-theme="dark"] .agent-close { border-color:rgba(213,233,239,.22); color
   74% { background-position:100% 0; transform:translateY(-1px) rotate(1deg); }
 }
 @keyframes agent-run-cycle {
-  0%,100% { background-position:50% 0; transform:translateY(0) rotate(-1deg); }
-  34% { background-position:100% 0; transform:translateY(-3px) rotate(1deg); }
-  67% { background-position:50% 0; transform:translateY(-1px) rotate(-1deg); }
+  0%,100% { background-position:50% 0; transform:translateY(0) rotate(-2deg); }
+  34% { background-position:100% 0; transform:translateY(-3px) rotate(2deg); }
+  67% { background-position:50% 0; transform:translateY(-1px) rotate(-2deg); }
 }
 @keyframes agent-wave-cycle {
-  0%,16%,100% { background-position:0 0; transform:translateY(0) rotate(0); }
-  17%,44% { background-position:0 100%; transform:translateY(-1px) rotate(-1deg); }
-  45%,67% { background-position:0 0; transform:translateY(0) rotate(0); }
-  68%,92% { background-position:0 100%; transform:translateY(-1px) rotate(1deg); }
+  0%,12%,100% { background-position:0 0; transform:translateY(0) rotate(0); }
+  13%,42% { background-position:0 100%; transform:translateY(-1px) rotate(-1deg); }
+  43%,58% { background-position:0 0; transform:translateY(0) rotate(0); }
+  59%,88% { background-position:0 100%; transform:translateY(-1px) rotate(1deg); }
+  89%,99% { background-position:0 0; transform:translateY(0) rotate(0); }
 }
 @keyframes agent-jump-cycle {
-  0%,15%,100% { background-position:0 0; transform:translateY(0) scale(1); }
-  16%,34% { background-position:50% 0; transform:translateY(-2px) scale(1.01,.99); }
-  35%,72% { background-position:50% 100%; transform:translateY(-8px) scale(1.02,.98); }
-  73%,88% { background-position:50% 0; transform:translateY(-1px) scale(.99,1.01); }
+  0%,14%,100% { background-position:0 0; transform:translateY(0) scale(1); }
+  15%,31% { background-position:50% 0; transform:translateY(1px) scale(1.02,.98); }
+  32%,70% { background-position:50% 100%; transform:translateY(-9px) scale(.99,1.02); }
+  71%,88% { background-position:50% 0; transform:translateY(1px) scale(1.03,.97); }
+  89%,99% { background-position:0 0; transform:translateY(0) scale(1); }
 }
 @keyframes agent-sit-cycle {
-  0%,12%,100% { background-position:0 0; transform:translateY(0); }
-  13%,86% { background-position:100% 100%; transform:translateY(1px); }
-  87%,99% { background-position:0 0; transform:translateY(0); }
+  0%,8%,100% { background-position:0 0; transform:translateY(0); }
+  9%,92% { background-position:100% 100%; transform:translateY(1px); }
+  93%,99% { background-position:0 0; transform:translateY(0); }
 }
 
 @media (max-width:760px),(hover:none) and (pointer:coarse) {

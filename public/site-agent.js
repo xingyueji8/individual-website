@@ -2,13 +2,15 @@
   "use strict";
 
   const sidebar = document.querySelector(".sidebar");
+  const appShell = sidebar?.closest(".app-shell");
   const sidebarNav = sidebar?.querySelector(".nav");
   const sidebarNote = sidebar?.querySelector(".sidebar-note");
   const mainMessages = document.getElementById("chat-messages");
   const mainForm = document.getElementById("chat-form");
   const mainInput = document.getElementById("chat-input");
   const mainStatus = document.getElementById("chat-status");
-  if (!sidebar || !sidebarNav || !sidebarNote || !mainMessages || !mainForm || !mainInput || !mainStatus) return;
+  if (!appShell || !sidebar || !sidebarNav || !sidebarNote || !mainMessages || !mainForm || !mainInput || !mainStatus) return;
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
   /* The pet overlays the sidebar's real free space and never enters its flex flow. */
   const stage = document.createElement("div");
@@ -17,6 +19,7 @@
   pet.type = "button";
   pet.className = "agent-pet";
   pet.dataset.state = "idle";
+  pet.dataset.moving = "false";
   pet.title = "和小伙伴聊聊";
   pet.setAttribute("aria-label", "打开小伙伴对话");
   const sprite = document.createElement("span");
@@ -78,10 +81,14 @@
   let controller = null;
   let controllerTarget = null;
   let petTimer = null;
+  let sidebarRelayoutTimer = null;
+  let petActionToken = 0;
+  let lastPetAction = "idle";
   let petOpen = false;
   let petHovered = false;
   let petX = 0;
   let petY = 0;
+  let petPositioned = false;
 
   function approved() {
     try { return hasFullAccess(); } catch { return false; }
@@ -114,50 +121,171 @@
     const sidebarRect = sidebar.getBoundingClientRect();
     const navRect = sidebarNav.getBoundingClientRect();
     const noteRect = sidebarNote.getBoundingClientRect();
-    const collapsed = document.querySelector(".app-shell")?.classList.contains("sidebar-collapsed");
-    /* Leave a full movement/jump clearance below Settings so the pet can never cover it. */
+    /* Keep the stage in the genuine unused sidebar area, below Settings and above the footer. */
     const top = Math.max(0, navRect.bottom - sidebarRect.top + 20);
     const bottom = Math.max(0, sidebarRect.bottom - noteRect.top + 6);
     stage.style.top = `${Math.round(top)}px`;
     stage.style.bottom = `${Math.round(bottom)}px`;
-    const canShow = stage.clientWidth >= (collapsed ? 54 : 72) && stage.clientHeight >= 107;
+
+    const wasUnavailable = stage.classList.contains("is-unavailable");
+    /*
+      During the 460 ms sidebar width transition the stage briefly becomes
+      narrower than the character. Let it overflow that intermediate frame
+      instead of hiding it and leaving its action timer permanently stopped.
+    */
+    const canShow = !appShell.hidden && stage.clientWidth >= 40 && stage.clientHeight >= 107;
     stage.classList.toggle("is-unavailable", !canShow);
-    if (!canShow) return;
-    petX = clamp(petX, 0, Math.max(0, stage.clientWidth - pet.offsetWidth));
-    petY = clamp(petY, 0, Math.max(0, stage.clientHeight - pet.offsetHeight));
+    if (!canShow) {
+      if (!appShell.hidden && !petOpen && !petHovered && !reducedMotion.matches && petTimer === null) {
+        schedulePet(850);
+      }
+      return;
+    }
+
+    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
+    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
+    if (!petPositioned) {
+      petX = maxX / 2;
+      petY = maxY;
+      petPositioned = true;
+    }
+    petX = clamp(petX, 0, maxX);
+    petY = clamp(petY, 0, maxY);
     stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
     stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
     updateDialogPosition();
+    if (wasUnavailable && !petOpen && !petHovered && !reducedMotion.matches && petTimer === null) {
+      schedulePet(1200);
+    }
   }
 
-  function pickAction() {
+  function pickNaturalAction() {
     const roll = Math.random();
-    if (roll < .28) return "walk";
+    const collapsed = appShell.classList.contains("sidebar-collapsed");
+
+    /* Never chain a sprint directly into sitting or another sprint. */
+    if (lastPetAction === "run" || lastPetAction === "walk") {
+      if (roll < .34) return "idle";
+      if (roll < .62) return "wave";
+      if (roll < .78) return "jump";
+      return "walk";
+    }
+    if (lastPetAction === "sit") {
+      if (roll < .42) return "idle";
+      if (roll < .70) return "wave";
+      if (roll < .91) return "walk";
+      return "jump";
+    }
+    /* The collapsed rail is too narrow for a believable sprint. */
+    if (collapsed) {
+      if (roll < .24) return "walk";
+      if (roll < .47) return "wave";
+      if (roll < .58) return "jump";
+      if (roll < .73) return "sit";
+      return "idle";
+    }
+    if (roll < .34) return "walk";
     if (roll < .42) return "run";
     if (roll < .58) return "wave";
-    if (roll < .70) return "jump";
-    if (roll < .83) return "sit";
+    if (roll < .68) return "jump";
+    if (roll < .80) return "sit";
     return "idle";
   }
 
-  function schedulePet(delay = 120) {
-    clearTimeout(petTimer);
-    petTimer = setTimeout(movePet, delay);
+  function clearPetTimer() {
+    if (petTimer !== null) clearTimeout(petTimer);
+    petTimer = null;
+  }
+
+  function schedulePet(delay, callback = movePet) {
+    clearPetTimer();
+    petTimer = setTimeout(() => {
+      petTimer = null;
+      callback();
+    }, Math.max(0, delay));
+  }
+
+  function chooseMovementTarget(action) {
+    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
+    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
+    if (maxX < 8 && maxY < 18) return null;
+
+    let nextX;
+    let nextY;
+    if (maxX >= 36) {
+      const goingRight = petX <= maxX / 2;
+      nextX = goingRight
+        ? maxX * (.65 + Math.random() * .35)
+        : maxX * (Math.random() * .35);
+      const verticalRange = action === "run" ? 24 : 16;
+      nextY = clamp(petY + (Math.random() * 2 - 1) * verticalRange, 0, maxY);
+    } else {
+      const goingDown = petY <= maxY / 2;
+      nextX = Math.random() * maxX;
+      nextY = goingDown
+        ? maxY * (.62 + Math.random() * .38)
+        : maxY * (Math.random() * .38);
+    }
+
+    let distance = Math.hypot(nextX - petX, nextY - petY);
+    const minimumTravel = appShell.classList.contains("sidebar-collapsed")
+      ? 12
+      : (action === "run" ? 52 : 30);
+    if (distance < minimumTravel) {
+      if (maxX >= 36) {
+        nextX = petX <= maxX / 2 ? maxX : 0;
+        nextY = clamp(petY + (Math.random() * 2 - 1) * (action === "run" ? 20 : 12), 0, maxY);
+      } else {
+        nextX = clamp(petX + (Math.random() * 2 - 1) * maxX, 0, maxX);
+        nextY = petY <= maxY / 2 ? maxY : 0;
+      }
+      distance = Math.hypot(nextX - petX, nextY - petY);
+    }
+    if (distance < 8) return null;
+    return { x: nextX, y: nextY, distance };
+  }
+
+  function stationaryActionDuration(action) {
+    if (action === "wave") return 1.9 + Math.random() * .55;
+    if (action === "jump") return 1.3 + Math.random() * .25;
+    if (action === "sit") return 5.8 + Math.random() * 2.8;
+    return 3.2 + Math.random() * 3.2;
+  }
+
+  function finishPetAction(action, token) {
+    if (token !== petActionToken) return;
+    pet.dataset.moving = "false";
+    if (petOpen || petHovered) return;
+    pet.dataset.state = "idle";
+    lastPetAction = action;
+
+    const rest = action === "run"
+      ? 3400 + Math.random() * 2200
+      : action === "walk"
+        ? 2400 + Math.random() * 2000
+        : action === "sit"
+          ? 2800 + Math.random() * 1800
+          : action === "idle"
+            ? 1100 + Math.random() * 1200
+            : 1800 + Math.random() * 1600;
+    schedulePet(rest);
   }
 
   /*
     A CSS transform can still be travelling after its timer has been cleared.
-    Capture the character's painted position before opening or greeting so the
-    button, sprite and speech bubble always remain on the same hit target.
+    Capture the painted position so clicking, hovering or changing sidebar
+    width never separates the hit target from the visible character.
   */
   function freezePetMotion() {
-    clearTimeout(petTimer);
+    petActionToken += 1;
+    clearPetTimer();
     const stageRect = stage.getBoundingClientRect();
     const petRect = pet.getBoundingClientRect();
     const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
     const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
     petX = clamp(petRect.left - stageRect.left, 0, maxX);
     petY = clamp(petRect.top - stageRect.top, 0, maxY);
+    pet.dataset.moving = "false";
     pet.classList.add("is-motion-frozen");
     stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
     stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
@@ -166,6 +294,7 @@
   function greetPet() {
     petHovered = true;
     freezePetMotion();
+    stage.style.setProperty("--pet-action-duration", "2.1s");
     pet.dataset.state = "wave";
   }
 
@@ -173,33 +302,90 @@
     petHovered = false;
     if (petOpen) return;
     pet.classList.remove("is-motion-frozen");
+    pet.dataset.moving = "false";
     pet.dataset.state = "idle";
-    schedulePet(650);
+    schedulePet(1500);
   }
 
   function movePet() {
-    if (petOpen || petHovered || stage.classList.contains("is-unavailable")) return;
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (petOpen || petHovered) return;
+    if (stage.classList.contains("is-unavailable")) {
+      if (!appShell.hidden) schedulePet(850);
+      return;
+    }
+    if (reducedMotion.matches) {
+      pet.dataset.moving = "false";
       pet.dataset.state = "idle";
       return;
     }
-    const action = pickAction();
-    const movement = action === "walk" || action === "run";
-    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
-    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
-    const duration = action === "run" ? 1.35 + Math.random() * .8 : action === "walk" ? 2.5 + Math.random() * 1.5 : 1.35 + Math.random() * 1.9;
-    if (movement) {
-      const nextX = Math.random() * maxX;
-      const nextY = Math.random() * maxY;
-      pet.classList.toggle("is-facing-left", nextX < petX);
-      petX = nextX;
-      petY = nextY;
+
+    const action = pickNaturalAction();
+    const moving = action === "walk" || action === "run";
+    const token = ++petActionToken;
+    lastPetAction = action;
+
+    if (moving) {
+      const target = chooseMovementTarget(action);
+      /* A walking or running pose is never shown without real displacement. */
+      if (!target) {
+        pet.dataset.moving = "false";
+        pet.dataset.state = "idle";
+        lastPetAction = "idle";
+        schedulePet(2400 + Math.random() * 1800);
+        return;
+      }
+
+      const speed = action === "run" ? 58 : 28;
+      const duration = clamp(
+        target.distance / speed,
+        action === "run" ? 1.8 : 2.3,
+        action === "run" ? 3.8 : 5.2
+      );
+      pet.classList.toggle("is-facing-left", target.x < petX - 1);
+      pet.dataset.moving = "true";
+      pet.dataset.state = action;
+      stage.style.setProperty("--pet-duration", `${duration.toFixed(2)}s`);
+      stage.style.setProperty("--pet-easing", "linear");
+      stage.style.setProperty("--pet-action-duration", `${duration.toFixed(2)}s`);
+
+      /* Commit the body pose first, then begin actual travel on the next frame. */
+      pet.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        if (token !== petActionToken || petOpen || petHovered || stage.classList.contains("is-unavailable")) return;
+        petX = target.x;
+        petY = target.y;
+        stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
+        stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
+        schedulePet(duration * 1000 + 60, () => finishPetAction(action, token));
+      });
+      return;
     }
+
+    const duration = stationaryActionDuration(action);
+    pet.dataset.moving = "false";
     pet.dataset.state = action;
-    stage.style.setProperty("--pet-duration", `${duration.toFixed(2)}s`);
-    stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
-    stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
-    schedulePet(duration * 1000 + 180 + Math.random() * 650);
+    stage.style.setProperty("--pet-action-duration", `${duration.toFixed(2)}s`);
+    schedulePet(duration * 1000, () => finishPetAction(action, token));
+  }
+
+  function beginSidebarRelayout() {
+    clearTimeout(sidebarRelayoutTimer);
+    freezePetMotion();
+    pet.dataset.state = "idle";
+    layoutStage();
+    sidebarRelayoutTimer = setTimeout(finishSidebarRelayout, 560);
+  }
+
+  function finishSidebarRelayout() {
+    clearTimeout(sidebarRelayoutTimer);
+    sidebarRelayoutTimer = null;
+    layoutStage();
+    if (!petOpen && !petHovered && !stage.classList.contains("is-unavailable")) {
+      pet.classList.remove("is-motion-frozen");
+      pet.dataset.moving = "false";
+      pet.dataset.state = "idle";
+      schedulePet(1500);
+    }
   }
 
   function setOpen(value) {
@@ -209,8 +395,10 @@
     composer.hidden = !value;
     document.body.classList.toggle("agent-open", value);
     pet.classList.toggle("is-talking", value);
-    clearTimeout(petTimer);
+    clearPetTimer();
     if (value) {
+      pet.dataset.moving = "false";
+      stage.style.setProperty("--pet-action-duration", "2.1s");
       pet.dataset.state = "wave";
       requestAnimationFrame(() => {
         updateDialogPosition();
@@ -219,11 +407,14 @@
       });
     } else {
       if (petHovered) {
+        pet.dataset.moving = "false";
+        stage.style.setProperty("--pet-action-duration", "2.1s");
         pet.dataset.state = "wave";
       } else {
         pet.classList.remove("is-motion-frozen");
+        pet.dataset.moving = "false";
         pet.dataset.state = "idle";
-        schedulePet(550);
+        schedulePet(1500);
       }
     }
   }
@@ -515,11 +706,34 @@
   });
   addEventListener("resize", layoutStage);
   sidebar.addEventListener("scroll", updateDialogPosition, { passive: true });
-  if ("ResizeObserver" in window) new ResizeObserver(layoutStage).observe(sidebar);
+
+  let lastSidebarCollapsed = appShell.classList.contains("sidebar-collapsed");
+  const sidebarModeObserver = new MutationObserver((mutations) => {
+    const collapsed = appShell.classList.contains("sidebar-collapsed");
+    if (collapsed !== lastSidebarCollapsed) {
+      lastSidebarCollapsed = collapsed;
+      beginSidebarRelayout();
+      return;
+    }
+    if (mutations.some((mutation) => mutation.attributeName === "hidden")) {
+      requestAnimationFrame(layoutStage);
+    }
+  });
+  sidebarModeObserver.observe(appShell, { attributes: true, attributeFilter: ["class", "hidden"] });
+
+  sidebar.addEventListener("transitionend", (event) => {
+    if (["width", "flex-basis", "padding-left", "padding-right"].includes(event.propertyName)) {
+      finishSidebarRelayout();
+    }
+  });
+
+  if ("ResizeObserver" in window) {
+    const petLayoutObserver = new ResizeObserver(layoutStage);
+    petLayoutObserver.observe(sidebar);
+    petLayoutObserver.observe(sidebarNav);
+    petLayoutObserver.observe(sidebarNote);
+  }
   requestAnimationFrame(() => {
-    layoutStage();
-    petX = Math.max(0, (stage.clientWidth - pet.offsetWidth) / 2);
-    petY = Math.max(0, stage.clientHeight - pet.offsetHeight);
     layoutStage();
     schedulePet(900);
   });
