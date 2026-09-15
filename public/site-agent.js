@@ -121,7 +121,7 @@
     const sidebarRect = sidebar.getBoundingClientRect();
     const navRect = sidebarNav.getBoundingClientRect();
     const noteRect = sidebarNote.getBoundingClientRect();
-    /* Keep the stage in the genuine unused sidebar area, below Settings and above the footer. */
+    /* Anchor below Settings; a short free area may overflow, but must never hide the character. */
     const top = Math.max(0, navRect.bottom - sidebarRect.top + 20);
     const bottom = Math.max(0, sidebarRect.bottom - noteRect.top + 6);
     stage.style.top = `${Math.round(top)}px`;
@@ -129,11 +129,12 @@
 
     const wasUnavailable = stage.classList.contains("is-unavailable");
     /*
-      During the 460 ms sidebar width transition the stage briefly becomes
-      narrower than the character. Let it overflow that intermediate frame
-      instead of hiding it and leaving its action timer permanently stopped.
+      Expanded sidebars can have less than one character-height of free space
+      between Settings and the footer. That is a positioning constraint, not a
+      reason to hide the pet: overflow keeps it on the sidebar surface while
+      its top edge remains safely below the navigation.
     */
-    const canShow = !appShell.hidden && stage.clientWidth >= 40 && stage.clientHeight >= 107;
+    const canShow = !appShell.hidden;
     stage.classList.toggle("is-unavailable", !canShow);
     if (!canShow) {
       if (!appShell.hidden && !petOpen && !petHovered && !reducedMotion.matches && petTimer === null) {

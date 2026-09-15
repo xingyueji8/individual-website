@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [html, js, css, worker] = await Promise.all([
+const [html, js, css, worker, sprite] = await Promise.all([
   readFile(new URL("../public/index.html", import.meta.url), "utf8"),
   readFile(new URL("../public/site-agent.js", import.meta.url), "utf8"),
   readFile(new URL("../public/site-agent.css", import.meta.url), "utf8"),
   readFile(new URL("../src/worker.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/assets/agent-companion-sprites-v3.png", import.meta.url)),
 ]);
 
 assert.match(html, /site-agent\.css/);
@@ -21,7 +22,9 @@ assert.match(js, /\/api\/agent\/cancel/);
 assert.match(js, /controller\?\.abort\(\)/);
 assert.match(js, /pending\.has\(token\)/);
 assert.match(js, /name\.textContent = item\.title/);
-assert.match(css, /agent-companion-sprites-v2\.png/);
+assert.match(css, /agent-companion-sprites-v3\.png/);
+assert.doesNotMatch(css, /agent-companion-sprites-v2\.png/);
+assert.deepEqual([...sprite.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
 assert.match(js, /pet\.dataset\.state = "idle"/);
 for (const state of ["walk", "run", "wave", "jump", "sit"]) assert.match(css, new RegExp(`data-state="${state}"`));
 for (const cycle of ["walk", "run", "wave", "jump", "sit"]) assert.match(css, new RegExp(`@keyframes agent-${cycle}-cycle`));
@@ -35,7 +38,8 @@ assert.match(html, /!control\.matches\(":disabled, \.image-nav, \.agent-pet"\)/)
 assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar > \.agent-pet-stage/);
 assert.doesNotMatch(css, /\.app-shell\.sidebar-collapsed \.agent-pet-stage \{ opacity: 0/);
 assert.match(js, /navRect\.bottom - sidebarRect\.top \+ 20/);
-assert.match(js, /stage\.clientWidth >= 40/);
+assert.match(js, /const canShow = !appShell\.hidden/);
+assert.doesNotMatch(js, /canShow[^;]*(?:clientWidth|clientHeight)/);
 assert.match(js, /if \(!petPositioned\)[\s\S]*petX = maxX \/ 2;[\s\S]*petY = maxY/);
 assert.match(js, /pet\.dataset\.moving = "true"/);
 assert.match(js, /if \(!target\)[\s\S]*pet\.dataset\.state = "idle"/);
@@ -51,6 +55,7 @@ assert.match(css, /data-state="run"\]\[data-moving="true"\]/);
 assert.match(css, /--pet-easing: linear/);
 assert.match(css, /agent-sit-cycle var\(--pet-action-duration\)[^;]*1 both/);
 assert.match(css, /\.agent-pet \{[\s\S]*background: transparent !important;[\s\S]*box-shadow: none !important/);
+assert.match(css, /\.agent-pet \{[\s\S]*filter: none !important/);
 assert.doesNotMatch(js, /oldShell\.replaceWith/);
 assert.doesNotMatch(js, /data-section="ai-helper"[\s\S]*stopImmediatePropagation/);
 assert.match(css, /\.agent-pet-stage/);
