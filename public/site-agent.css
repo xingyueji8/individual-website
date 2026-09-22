@@ -58,12 +58,62 @@
   transition: transform var(--pet-duration) var(--pet-easing), filter .46s ease !important;
   filter: none !important;
   isolation: isolate;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/*
+  The global glass-button theme deliberately carries virtual-ID specificity.
+  This real, repeated ID isolates the character control from every button skin
+  and press transform so its transparent hit area can never become a panel.
+*/
+#agent-pet-control#agent-pet-control.agent-pet {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  position: absolute !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  overflow: visible !important;
+  animation: none !important;
+  transform: translate3d(var(--pet-x),var(--pet-y),0) !important;
+  transition: transform var(--pet-duration) var(--pet-easing), filter .46s ease !important;
 }
 .agent-pet-stage::before,
 .agent-pet-stage::after,
-.agent-pet::before,
-.agent-pet::after { display:none !important; content:none !important; }
-.agent-pet.is-motion-frozen { transition-duration:0s !important; }
+#agent-pet-control#agent-pet-control.agent-pet::before,
+#agent-pet-control#agent-pet-control.agent-pet::after {
+  display:none !important;
+  content:none !important;
+  background:none !important;
+  box-shadow:none !important;
+}
+#agent-pet-control#agent-pet-control.agent-pet.is-motion-frozen { transition-duration:0s !important; }
+#agent-pet-control#agent-pet-control.agent-pet.is-detached {
+  position:fixed !important;
+  left:0 !important;
+  top:0 !important;
+  z-index:1490 !important;
+  cursor:grab;
+}
+#agent-pet-control#agent-pet-control.agent-pet.is-dragging { cursor:grabbing; }
+#agent-pet-control#agent-pet-control.agent-pet.is-screen-hidden {
+  opacity:0 !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
 .agent-pet-sprite {
   position: absolute;
   inset: 0;
@@ -81,6 +131,11 @@
 .agent-pet[data-state="wave"] .agent-pet-sprite { animation:agent-wave-cycle var(--pet-action-duration) steps(1,end) 1 both; }
 .agent-pet[data-state="jump"] .agent-pet-sprite { animation:agent-jump-cycle var(--pet-action-duration) steps(1,end) 1 both; }
 .agent-pet[data-state="sit"] .agent-pet-sprite { animation:agent-sit-cycle var(--pet-action-duration) steps(1,end) 1 both; }
+.agent-pet.is-detached[data-state="sit"] .agent-pet-sprite {
+  animation:none !important;
+  background-position:100% 100%;
+  transform:translateY(1px);
+}
 .agent-pet[data-state="idle"] .agent-pet-sprite { animation:agent-breathe 1.9s ease-in-out infinite alternate; }
 .agent-pet.is-facing-left .agent-pet-sprite { scale:-1 1; }
 .agent-pet:hover .agent-pet-sprite,
@@ -93,7 +148,12 @@
   position: fixed;
   z-index: 1500;
   width: min(286px,calc(100vw - 20px));
+  min-width: min(240px,calc(100vw - 20px));
+  min-height: min(150px,calc(100dvh - 20px));
+  max-width: calc(100vw - 20px);
   max-height: min(238px,calc(100dvh - 132px));
+  box-sizing: border-box;
+  flex-direction: column;
   border: 1px solid rgba(255,255,255,.88);
   border-radius: 17px;
   color: var(--ink);
@@ -104,6 +164,8 @@
   overflow: visible;
   animation: agent-rise .52s cubic-bezier(.18,.86,.22,1.12);
 }
+.agent-dialog:not([hidden]) { display:flex; }
+.agent-dialog.is-resizing { animation:none; }
 .agent-dialog-tail {
   position: absolute;
   left: var(--agent-tail-x);
@@ -123,10 +185,12 @@
   gap: 2px;
   padding: 10px 12px 8px;
   border-bottom: 1px solid rgba(255,255,255,.66);
+  flex:0 0 auto;
 }
 .agent-dialog-head strong { font-family:var(--button-font,inherit); font-size:.83rem; }
 .agent-dialog-head span { color:var(--muted); font-size:.64rem; }
 .agent-dialog .agent-mini-messages {
+  flex:1 1 auto;
   height: auto;
   max-height: 184px;
   min-height: 58px;
@@ -135,6 +199,31 @@
   background: transparent;
   border-radius: 0 0 17px 17px;
 }
+.agent-dialog.is-user-sized .agent-mini-messages { min-height:0; max-height:none; }
+.agent-resize-handle {
+  position:absolute;
+  z-index:5;
+  display:block;
+  touch-action:none;
+  user-select:none;
+}
+.agent-resize-handle.is-n,
+.agent-resize-handle.is-s { left:12px; right:12px; height:10px; cursor:ns-resize; }
+.agent-resize-handle.is-n { top:-5px; }
+.agent-resize-handle.is-s { bottom:-5px; }
+.agent-resize-handle.is-e,
+.agent-resize-handle.is-w { top:12px; bottom:12px; width:10px; cursor:ew-resize; }
+.agent-resize-handle.is-e { right:-5px; }
+.agent-resize-handle.is-w { left:-5px; }
+.agent-resize-handle.is-ne,
+.agent-resize-handle.is-nw,
+.agent-resize-handle.is-se,
+.agent-resize-handle.is-sw { width:16px; height:16px; }
+.agent-resize-handle.is-ne { top:-6px; right:-6px; cursor:nesw-resize; }
+.agent-resize-handle.is-nw { top:-6px; left:-6px; cursor:nwse-resize; }
+.agent-resize-handle.is-se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+.agent-resize-handle.is-sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
+body.agent-dialog-resizing { cursor:default; user-select:none; }
 .agent-dialog .bubble { max-width:94%; padding:8px 10px; font-size:.76rem; line-height:1.5; }
 .agent-dialog .bubble.agent-info { white-space:normal; }
 
@@ -275,9 +364,11 @@ html[data-theme="dark"] .agent-close { border-color:rgba(213,233,239,.22); color
 
 @media (max-width:760px),(hover:none) and (pointer:coarse) {
   .sidebar .agent-pet-stage { display:none !important; }
+  #agent-pet-control#agent-pet-control.agent-pet.is-detached { display:none !important; }
   .agent-dialog { display:none !important; }
   .agent-composer { left:10px; right:10px; bottom:max(10px,env(safe-area-inset-bottom)); padding-right:45px; }
 }
 @media (prefers-reduced-motion:reduce) {
   .agent-pet,.agent-pet-sprite,.agent-dialog,.agent-composer,.agent-close { animation:none !important; transition-duration:.01ms !important; }
+  #agent-pet-control#agent-pet-control.agent-pet { transition-duration:.01ms !important; }
 }

@@ -17,7 +17,9 @@
   stage.className = "agent-pet-stage";
   const pet = document.createElement("button");
   pet.type = "button";
+  pet.id = "agent-pet-control";
   pet.className = "agent-pet";
+  pet.draggable = false;
   pet.dataset.state = "idle";
   pet.dataset.moving = "false";
   pet.title = "和小伙伴聊聊";
@@ -45,6 +47,14 @@
   greeting.textContent = "你好呀，需要我帮你找什么？";
   petMessages.append(greeting);
   panel.append(petMessages);
+  const resizeDirections = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+  resizeDirections.forEach(direction => {
+    const handle = document.createElement("span");
+    handle.className = `agent-resize-handle is-${direction}`;
+    handle.dataset.resize = direction;
+    handle.setAttribute("aria-hidden", "true");
+    panel.append(handle);
+  });
   document.body.append(panel);
 
   const composer = document.createElement("div");
@@ -89,6 +99,12 @@
   let petX = 0;
   let petY = 0;
   let petPositioned = false;
+  let petDetached = false;
+  let petDrag = null;
+  let suppressPetClick = false;
+  let activeMovement = null;
+  let dialogResize = null;
+  let dialogUserPositioned = false;
 
   function approved() {
     try { return hasFullAccess(); } catch { return false; }
@@ -102,11 +118,70 @@
     target.scrollTop = target.scrollHeight;
   }
 
+  function petStyleHost() {
+    return petDetached ? pet : stage;
+  }
+
+  function applyPetPosition() {
+    const host = petStyleHost();
+    host.style.setProperty("--pet-x", `${Math.round(petX)}px`);
+    host.style.setProperty("--pet-y", `${Math.round(petY)}px`);
+  }
+
+  function setPetActionDuration(value) {
+    petStyleHost().style.setProperty("--pet-action-duration", value);
+  }
+
+  function keepDetachedInViewport() {
+    if (!petDetached) return;
+    petX = clamp(petX, 6, Math.max(6, innerWidth - pet.offsetWidth - 6));
+    petY = clamp(petY, 6, Math.max(6, innerHeight - pet.offsetHeight - 6));
+    applyPetPosition();
+  }
+
+  function sidebarBlankBounds() {
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const navRect = sidebarNav.getBoundingClientRect();
+    const noteRect = sidebarNote.getBoundingClientRect();
+    return {
+      left: sidebarRect.left + 4,
+      right: sidebarRect.right - 4,
+      top: Math.max(sidebarRect.top + 4, navRect.bottom + 8),
+      bottom: Math.min(sidebarRect.bottom - 4, noteRect.top - 8),
+    };
+  }
+
+  function isOverSidebarBlank(left, top) {
+    const bounds = sidebarBlankBounds();
+    const centerX = left + pet.offsetWidth / 2;
+    const centerY = top + pet.offsetHeight / 2;
+    return centerX >= bounds.left && centerX <= bounds.right
+      && centerY >= bounds.top && centerY <= bounds.bottom;
+  }
+
   function updateDialogPosition() {
     if (panel.hidden || !pet.isConnected) return;
     const rect = pet.getBoundingClientRect();
+    if (dialogResize) return;
+    const maxWidth = Math.max(1, innerWidth - 20);
+    const maxHeight = Math.max(1, innerHeight - 20);
+    if (panel.offsetWidth > maxWidth) panel.style.width = `${maxWidth}px`;
+    if (panel.offsetHeight > maxHeight) panel.style.height = `${maxHeight}px`;
     const width = panel.offsetWidth;
     const height = panel.offsetHeight;
+
+    if (dialogUserPositioned) {
+      const current = panel.getBoundingClientRect();
+      const left = clamp(current.left, 10, Math.max(10, innerWidth - width - 10));
+      const top = clamp(current.top, 10, Math.max(10, innerHeight - height - 10));
+      const petAbove = rect.bottom < top + height / 2;
+      panel.classList.toggle("tail-on-top", petAbove);
+      panel.style.left = `${Math.round(left)}px`;
+      panel.style.top = `${Math.round(top)}px`;
+      panel.style.setProperty("--agent-tail-x", `${Math.round(clamp(rect.left + rect.width / 2 - left - 10, 18, Math.max(18, width - 34)))}px`);
+      return;
+    }
+
     const left = clamp(rect.left + rect.width / 2 - 42, 10, innerWidth - width - 10);
     let top = rect.top - height - 13;
     const below = top < 10;
@@ -136,10 +211,17 @@
     */
     const canShow = !appShell.hidden;
     stage.classList.toggle("is-unavailable", !canShow);
+    pet.classList.toggle("is-screen-hidden", !canShow);
     if (!canShow) {
       if (!appShell.hidden && !petOpen && !petHovered && !reducedMotion.matches && petTimer === null) {
         schedulePet(850);
       }
+      return;
+    }
+
+    if (petDetached) {
+      keepDetachedInViewport();
+      updateDialogPosition();
       return;
     }
 
@@ -152,8 +234,7 @@
     }
     petX = clamp(petX, 0, maxX);
     petY = clamp(petY, 0, maxY);
-    stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
-    stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
+    applyPetPosition();
     updateDialogPosition();
     if (wasUnavailable && !petOpen && !petHovered && !reducedMotion.matches && petTimer === null) {
       schedulePet(1200);
@@ -209,41 +290,38 @@
   function chooseMovementTarget(action) {
     const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
     const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
-    if (maxX < 8 && maxY < 18) return null;
+    /* The artwork faces horizontally, so never fake a walk by sliding vertically. */
+    const edgeInset = Math.min(4, maxX / 2);
+    const minX = edgeInset;
+    const safeMaxX = Math.max(minX, maxX - edgeInset);
+    const horizontalSpan = safeMaxX - minX;
+    const minimumTravel = action === "run" ? 48 : 24;
+    if (horizontalSpan < minimumTravel) return null;
 
-    let nextX;
-    let nextY;
-    if (maxX >= 36) {
-      const goingRight = petX <= maxX / 2;
-      nextX = goingRight
-        ? maxX * (.65 + Math.random() * .35)
-        : maxX * (Math.random() * .35);
-      const verticalRange = action === "run" ? 24 : 16;
-      nextY = clamp(petY + (Math.random() * 2 - 1) * verticalRange, 0, maxY);
-    } else {
-      const goingDown = petY <= maxY / 2;
-      nextX = Math.random() * maxX;
-      nextY = goingDown
-        ? maxY * (.62 + Math.random() * .38)
-        : maxY * (Math.random() * .38);
-    }
+    const currentX = clamp(petX, minX, safeMaxX);
+    const roomLeft = currentX - minX;
+    const roomRight = safeMaxX - currentX;
+    let direction;
+    if (roomRight < minimumTravel) direction = -1;
+    else if (roomLeft < minimumTravel) direction = 1;
+    else direction = Math.random() < .5 ? -1 : 1;
 
-    let distance = Math.hypot(nextX - petX, nextY - petY);
-    const minimumTravel = appShell.classList.contains("sidebar-collapsed")
-      ? 12
-      : (action === "run" ? 52 : 30);
-    if (distance < minimumTravel) {
-      if (maxX >= 36) {
-        nextX = petX <= maxX / 2 ? maxX : 0;
-        nextY = clamp(petY + (Math.random() * 2 - 1) * (action === "run" ? 20 : 12), 0, maxY);
-      } else {
-        nextX = clamp(petX + (Math.random() * 2 - 1) * maxX, 0, maxX);
-        nextY = petY <= maxY / 2 ? maxY : 0;
-      }
-      distance = Math.hypot(nextX - petX, nextY - petY);
+    let available = direction > 0 ? roomRight : roomLeft;
+    if (available < minimumTravel) {
+      direction *= -1;
+      available = direction > 0 ? roomRight : roomLeft;
     }
-    if (distance < 8) return null;
-    return { x: nextX, y: nextY, distance };
+    if (available < minimumTravel) return null;
+
+    const desiredTravel = action === "run"
+      ? 56 + Math.random() * 46
+      : 28 + Math.random() * 42;
+    const travel = Math.min(available, Math.max(minimumTravel, desiredTravel));
+    const nextX = clamp(currentX + direction * travel, minX, safeMaxX);
+    const nextY = clamp(petY + (Math.random() * 2 - 1) * 6, 0, maxY);
+    const distance = Math.hypot(nextX - currentX, nextY - petY);
+    if (distance < minimumTravel - 1) return null;
+    return { x: nextX, y: nextY, distance, direction };
   }
 
   function stationaryActionDuration(action) {
@@ -255,7 +333,13 @@
 
   function finishPetAction(action, token) {
     if (token !== petActionToken) return;
+    activeMovement = null;
     pet.dataset.moving = "false";
+    if (petDetached) {
+      pet.dataset.state = "sit";
+      pet.classList.add("is-motion-frozen");
+      return;
+    }
     if (petOpen || petHovered) return;
     pet.dataset.state = "idle";
     lastPetAction = action;
@@ -280,28 +364,40 @@
   function freezePetMotion() {
     petActionToken += 1;
     clearPetTimer();
-    const stageRect = stage.getBoundingClientRect();
+    activeMovement = null;
     const petRect = pet.getBoundingClientRect();
-    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
-    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
-    petX = clamp(petRect.left - stageRect.left, 0, maxX);
-    petY = clamp(petRect.top - stageRect.top, 0, maxY);
+    if (petDetached) {
+      petX = clamp(petRect.left, 6, Math.max(6, innerWidth - pet.offsetWidth - 6));
+      petY = clamp(petRect.top, 6, Math.max(6, innerHeight - pet.offsetHeight - 6));
+    } else {
+      const stageRect = stage.getBoundingClientRect();
+      const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
+      const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
+      petX = clamp(petRect.left - stageRect.left, 0, maxX);
+      petY = clamp(petRect.top - stageRect.top, 0, maxY);
+    }
     pet.dataset.moving = "false";
     pet.classList.add("is-motion-frozen");
-    stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
-    stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
+    applyPetPosition();
   }
 
   function greetPet() {
+    if (petDetached || petDrag) return;
     petHovered = true;
     freezePetMotion();
-    stage.style.setProperty("--pet-action-duration", "2.1s");
+    setPetActionDuration("2.1s");
     pet.dataset.state = "wave";
   }
 
   function finishGreeting() {
+    if (petDrag) return;
     petHovered = false;
     if (petOpen) return;
+    if (petDetached) {
+      pet.dataset.moving = "false";
+      pet.dataset.state = "sit";
+      return;
+    }
     pet.classList.remove("is-motion-frozen");
     pet.dataset.moving = "false";
     pet.dataset.state = "idle";
@@ -310,6 +406,12 @@
 
   function movePet() {
     if (petOpen || petHovered) return;
+    if (petDetached) {
+      clearPetTimer();
+      pet.dataset.moving = "false";
+      pet.dataset.state = "sit";
+      return;
+    }
     if (stage.classList.contains("is-unavailable")) {
       if (!appShell.hidden) schedulePet(850);
       return;
@@ -342,7 +444,8 @@
         action === "run" ? 1.8 : 2.3,
         action === "run" ? 3.8 : 5.2
       );
-      pet.classList.toggle("is-facing-left", target.x < petX - 1);
+      pet.classList.toggle("is-facing-left", target.direction < 0);
+      pet.classList.remove("is-motion-frozen");
       pet.dataset.moving = "true";
       pet.dataset.state = action;
       stage.style.setProperty("--pet-duration", `${duration.toFixed(2)}s`);
@@ -352,12 +455,13 @@
       /* Commit the body pose first, then begin actual travel on the next frame. */
       pet.getBoundingClientRect();
       requestAnimationFrame(() => {
-        if (token !== petActionToken || petOpen || petHovered || stage.classList.contains("is-unavailable")) return;
+        if (token !== petActionToken || petOpen || petHovered || petDetached || stage.classList.contains("is-unavailable")) return;
+        const startRect = pet.getBoundingClientRect();
         petX = target.x;
         petY = target.y;
-        stage.style.setProperty("--pet-x", `${Math.round(petX)}px`);
-        stage.style.setProperty("--pet-y", `${Math.round(petY)}px`);
-        schedulePet(duration * 1000 + 60, () => finishPetAction(action, token));
+        activeMovement = { action, token, startLeft: startRect.left, startTop: startRect.top, expected: target.distance };
+        applyPetPosition();
+        schedulePet(duration * 1000 + 180, () => finishPetAction(action, token));
       });
       return;
     }
@@ -365,12 +469,30 @@
     const duration = stationaryActionDuration(action);
     pet.dataset.moving = "false";
     pet.dataset.state = action;
-    stage.style.setProperty("--pet-action-duration", `${duration.toFixed(2)}s`);
+    setPetActionDuration(`${duration.toFixed(2)}s`);
     schedulePet(duration * 1000, () => finishPetAction(action, token));
+  }
+
+  function finishMovementFromTransition(event) {
+    if (event.propertyName !== "transform" || event.target !== pet || !activeMovement) return;
+    const movement = activeMovement;
+    if (movement.token !== petActionToken) return;
+    const rect = pet.getBoundingClientRect();
+    const actualDistance = Math.hypot(rect.left - movement.startLeft, rect.top - movement.startTop);
+    /* Even if another stylesheet ever blocks travel again, never leave a running pose at a wall. */
+    if (actualDistance < Math.min(8, movement.expected * .2)) {
+      pet.dataset.moving = "false";
+      pet.dataset.state = "idle";
+    }
+    finishPetAction(movement.action, movement.token);
   }
 
   function beginSidebarRelayout() {
     clearTimeout(sidebarRelayoutTimer);
+    if (petDetached) {
+      layoutStage();
+      return;
+    }
     freezePetMotion();
     pet.dataset.state = "idle";
     layoutStage();
@@ -381,6 +503,7 @@
     clearTimeout(sidebarRelayoutTimer);
     sidebarRelayoutTimer = null;
     layoutStage();
+    if (petDetached) return;
     if (!petOpen && !petHovered && !stage.classList.contains("is-unavailable")) {
       pet.classList.remove("is-motion-frozen");
       pet.dataset.moving = "false";
@@ -389,9 +512,179 @@
     }
   }
 
+  function detachPetAt(left, top) {
+    if (!petDetached) {
+      petDetached = true;
+      document.body.append(pet);
+      pet.classList.add("is-detached");
+    }
+    petX = left;
+    petY = top;
+    pet.classList.add("is-motion-frozen");
+    keepDetachedInViewport();
+  }
+
+  function dockPetAt(left, top) {
+    const stageRect = stage.getBoundingClientRect();
+    petDetached = false;
+    stage.append(pet);
+    pet.classList.remove("is-detached", "is-dragging");
+    pet.style.removeProperty("--pet-x");
+    pet.style.removeProperty("--pet-y");
+    pet.style.removeProperty("--pet-duration");
+    pet.style.removeProperty("--pet-easing");
+    pet.style.removeProperty("--pet-action-duration");
+    const maxX = Math.max(0, stage.clientWidth - pet.offsetWidth);
+    const maxY = Math.max(0, stage.clientHeight - pet.offsetHeight);
+    petX = clamp(left - stageRect.left, 0, maxX);
+    petY = clamp(top - stageRect.top, 0, maxY);
+    petPositioned = true;
+    applyPetPosition();
+    pet.dataset.moving = "false";
+    if (petOpen) {
+      pet.dataset.state = "wave";
+      setPetActionDuration("2.1s");
+    } else {
+      pet.dataset.state = "idle";
+      pet.classList.remove("is-motion-frozen");
+      schedulePet(1300);
+    }
+  }
+
+  function beginPetDrag(event) {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    freezePetMotion();
+    petHovered = false;
+    const rect = pet.getBoundingClientRect();
+    petDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      moved: false,
+    };
+    try { pet.setPointerCapture(event.pointerId); } catch {}
+  }
+
+  function moveDraggedPet(event) {
+    if (!petDrag || event.pointerId !== petDrag.pointerId) return;
+    const distance = Math.hypot(event.clientX - petDrag.startX, event.clientY - petDrag.startY);
+    if (!petDrag.moved && distance < 5) return;
+    if (!petDrag.moved) {
+      petDrag.moved = true;
+      suppressPetClick = true;
+      detachPetAt(petDrag.startLeft, petDrag.startTop);
+      pet.classList.add("is-dragging");
+      try { pet.setPointerCapture(event.pointerId); } catch {}
+    }
+    event.preventDefault();
+    petX = clamp(event.clientX - petDrag.offsetX, 6, Math.max(6, innerWidth - pet.offsetWidth - 6));
+    petY = clamp(event.clientY - petDrag.offsetY, 6, Math.max(6, innerHeight - pet.offsetHeight - 6));
+    applyPetPosition();
+    pet.dataset.moving = "false";
+    pet.dataset.state = isOverSidebarBlank(petX, petY) ? "idle" : "sit";
+    updateDialogPosition();
+  }
+
+  function finishPetDrag(event) {
+    if (!petDrag || event.pointerId !== petDrag.pointerId) return;
+    const moved = petDrag.moved;
+    petDrag = null;
+    try { pet.releasePointerCapture(event.pointerId); } catch {}
+    pet.classList.remove("is-dragging");
+    if (!moved) return;
+
+    const left = petX;
+    const top = petY;
+    if (isOverSidebarBlank(left, top)) {
+      dockPetAt(left, top);
+    } else {
+      pet.dataset.moving = "false";
+      pet.dataset.state = "sit";
+      pet.classList.add("is-motion-frozen");
+    }
+    updateDialogPosition();
+    setTimeout(() => { suppressPetClick = false; }, 0);
+  }
+
+  function beginDialogResize(event) {
+    const handle = event.target.closest?.(".agent-resize-handle");
+    if (!handle || event.button !== 0 || event.isPrimary === false) return;
+    const rect = panel.getBoundingClientRect();
+    dialogResize = {
+      pointerId: event.pointerId,
+      direction: handle.dataset.resize,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    };
+    dialogUserPositioned = true;
+    panel.classList.add("is-resizing", "is-user-sized");
+    document.body.classList.add("agent-dialog-resizing");
+    panel.style.width = `${Math.round(rect.width)}px`;
+    panel.style.height = `${Math.round(rect.height)}px`;
+    panel.style.maxWidth = "none";
+    panel.style.maxHeight = "none";
+    event.preventDefault();
+    event.stopPropagation();
+    try { handle.setPointerCapture(event.pointerId); } catch {}
+  }
+
+  function resizeDialog(event) {
+    if (!dialogResize || event.pointerId !== dialogResize.pointerId) return;
+    const margin = 10;
+    const minWidth = Math.min(240, innerWidth - margin * 2);
+    const minHeight = Math.min(150, innerHeight - margin * 2);
+    const dx = event.clientX - dialogResize.startX;
+    const dy = event.clientY - dialogResize.startY;
+    const direction = dialogResize.direction;
+    let left = dialogResize.left;
+    let top = dialogResize.top;
+    let width = dialogResize.width;
+    let height = dialogResize.height;
+
+    if (direction.includes("e")) {
+      width = clamp(dialogResize.width + dx, minWidth, innerWidth - margin - dialogResize.left);
+    }
+    if (direction.includes("s")) {
+      height = clamp(dialogResize.height + dy, minHeight, innerHeight - margin - dialogResize.top);
+    }
+    if (direction.includes("w")) {
+      left = clamp(dialogResize.left + dx, margin, dialogResize.right - minWidth);
+      width = dialogResize.right - left;
+    }
+    if (direction.includes("n")) {
+      top = clamp(dialogResize.top + dy, margin, dialogResize.bottom - minHeight);
+      height = dialogResize.bottom - top;
+    }
+
+    panel.style.left = `${Math.round(left)}px`;
+    panel.style.top = `${Math.round(top)}px`;
+    panel.style.width = `${Math.round(width)}px`;
+    panel.style.height = `${Math.round(height)}px`;
+    event.preventDefault();
+  }
+
+  function finishDialogResize(event) {
+    if (!dialogResize || event.pointerId !== dialogResize.pointerId) return;
+    dialogResize = null;
+    panel.classList.remove("is-resizing");
+    document.body.classList.remove("agent-dialog-resizing");
+    updateDialogPosition();
+  }
+
   function setOpen(value) {
     if (value) freezePetMotion();
     petOpen = value;
+    if (value) dialogUserPositioned = false;
     panel.hidden = !value;
     composer.hidden = !value;
     document.body.classList.toggle("agent-open", value);
@@ -399,7 +692,7 @@
     clearPetTimer();
     if (value) {
       pet.dataset.moving = "false";
-      stage.style.setProperty("--pet-action-duration", "2.1s");
+      setPetActionDuration("2.1s");
       pet.dataset.state = "wave";
       requestAnimationFrame(() => {
         updateDialogPosition();
@@ -407,9 +700,14 @@
         petInput.focus();
       });
     } else {
-      if (petHovered) {
+      if (petDetached) {
+        petHovered = false;
         pet.dataset.moving = "false";
-        stage.style.setProperty("--pet-action-duration", "2.1s");
+        pet.dataset.state = "sit";
+        pet.classList.add("is-motion-frozen");
+      } else if (petHovered) {
+        pet.dataset.moving = "false";
+        setPetActionDuration("2.1s");
         pet.dataset.state = "wave";
       } else {
         pet.classList.remove("is-motion-frozen");
@@ -422,6 +720,13 @@
 
   function open() {
     if (!approved()) {
+      if (petDetached) {
+        const token = ++petActionToken;
+        pet.dataset.moving = "false";
+        setPetActionDuration("2.1s");
+        pet.dataset.state = "wave";
+        schedulePet(2100, () => finishPetAction("wave", token));
+      }
       try { showAuthLock("ai"); } catch {}
       return;
     }
@@ -691,8 +996,30 @@
 
   pet.addEventListener("pointerenter", greetPet);
   pet.addEventListener("pointerleave", finishGreeting);
-  pet.addEventListener("pointerdown", freezePetMotion);
-  pet.addEventListener("click", open);
+  pet.addEventListener("pointerdown", beginPetDrag);
+  pet.addEventListener("transitionend", finishMovementFromTransition);
+  pet.addEventListener("dragstart", event => event.preventDefault());
+  pet.addEventListener("click", event => {
+    if (suppressPetClick) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    open();
+  });
+  panel.addEventListener("pointerdown", beginDialogResize);
+  addEventListener("pointermove", event => {
+    moveDraggedPet(event);
+    resizeDialog(event);
+  }, { passive: false });
+  addEventListener("pointerup", event => {
+    finishPetDrag(event);
+    finishDialogResize(event);
+  });
+  addEventListener("pointercancel", event => {
+    finishPetDrag(event);
+    finishDialogResize(event);
+  });
   close.addEventListener("click", () => closeAgent());
   petForm.addEventListener("submit", event => {
     event.preventDefault();
