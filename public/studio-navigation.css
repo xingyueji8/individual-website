@@ -108,8 +108,13 @@
 .content-manager-toolbar > div { display:grid; gap:2px; min-width:0; }
 .content-manager-toolbar strong { color:#172a31; }
 .content-manager-toolbar small { color:#6e7d83; font-size:.72rem; }
+.content-manager-title-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; }
+.content-panel-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.content-panel-controls .btn { min-height:34px; white-space:nowrap; }
+.content-panel-controls [aria-expanded="false"] { border-style:dashed; }
 .content-manager-layout { display:grid; grid-template-columns:minmax(285px,.58fr) minmax(0,1.42fr); gap:16px; align-items:start; }
-.content-editor-stack { min-width:0; }
+.content-manager-layout.has-one-panel { grid-template-columns:minmax(0,1fr); }
+.content-editor-stack { position:relative; min-width:0; }
 .content-editor-stack .panel { padding:16px; }
 .content-editor-stack .form-grid { grid-template-columns:1fr; gap:11px; }
 .content-editor-stack .form-grid .wide { grid-column:auto; }
@@ -123,7 +128,42 @@
 .manager-form-heading .actions { margin:0; flex:0 0 auto; }
 .studio-source-list { display:none !important; }
 
-.content-inline-workspace { min-width:0; }
+.content-inline-workspace { position:relative; min-width:0; }
+.has-article-panel-controls .manager-form-heading { padding-right:34px; flex-wrap:wrap; }
+.has-article-panel-controls .content-inline-heading { min-height:34px; padding-right:40px; }
+/* Keep the X a bare, readable icon even under the global virtual-ID glass theme. */
+#view-sections#view-sections .content-panel-close {
+  position:absolute;
+  top:7px;
+  right:7px;
+  z-index:4;
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  margin:0;
+  padding:5px;
+  border:0 !important;
+  border-radius:7px;
+  color:var(--ink,#263d45) !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  cursor:pointer;
+}
+#view-sections#view-sections .content-inline-workspace > .content-panel-close { top:0; right:0; }
+#view-sections#view-sections .content-panel-close::before,
+#view-sections#view-sections .content-panel-close::after { display:none !important; content:none !important; }
+#view-sections#view-sections .content-panel-close:hover { background:rgba(120,145,154,.14) !important; }
+#view-sections#view-sections .content-panel-close:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.content-panel-close svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; pointer-events:none; }
+#content-settings-panel[hidden],
+#content-editor-panel[hidden],
+#content-panel-controls[hidden],
+#content-panels-empty[hidden],
+#view-sections#view-sections .content-panel-close[hidden] { display:none !important; }
+.content-panels-empty { grid-column:1/-1; margin:0; padding:24px 16px; color:var(--muted,#6e7d83); line-height:1.7; }
 .content-inline-heading {
   display:flex;
   align-items:baseline;

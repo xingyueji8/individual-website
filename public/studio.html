@@ -449,10 +449,20 @@
       <!-- ==================== 个人空间大板块管理 ==================== -->
       <section id="view-sections" class="view">
         <div class="content-manager-toolbar">
-          <div><strong id="content-manager-title">文章板块与内容</strong><small>在左侧选择层级；板块设置与该层级内容会在本页同时显示</small></div>
+          <div>
+            <div class="content-manager-title-row">
+              <strong id="content-manager-title">文章板块与内容</strong>
+              <div id="content-panel-controls" class="content-panel-controls" role="group" aria-label="显示编辑面板">
+                <button id="content-settings-open" class="btn small ghost" type="button" data-content-panel-open="settings" aria-controls="content-settings-panel" aria-expanded="true">大板块设置</button>
+                <button id="content-editor-open" class="btn small ghost" type="button" data-content-panel-open="editor" aria-controls="content-editor-panel" aria-expanded="true">文章内容</button>
+              </div>
+            </div>
+            <small>在左侧选择层级；板块设置与该层级内容会在本页同时显示</small>
+          </div>
         </div>
-        <div class="content-manager-layout">
-          <div class="content-editor-stack">
+        <div id="content-manager-layout" class="content-manager-layout">
+          <div id="content-settings-panel" class="content-editor-stack">
+            <button class="content-panel-close" type="button" data-content-panel-close="settings" aria-label="关闭板块设置面板" title="关闭面板（保留未保存的修改）"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
             <section class="section-editor-level active" data-section-editor-level="section">
               <form id="section-form" class="panel" style="margin-top:0">
                 <div class="manager-form-heading"><div><h3>大板块设置</h3><p>编辑当前大板块，或新建一个同类板块。</p></div><div class="actions"><button id="new-section" class="btn small" type="button">新建大板块</button><button id="refresh-sections" class="btn small ghost" type="button">刷新</button></div></div>
@@ -487,10 +497,12 @@
               <div id="subsection-list" class="list studio-source-list" aria-hidden="true"></div>
             </section>
           </div>
-          <section class="content-inline-workspace" aria-label="当前层级内容编辑">
+          <section id="content-editor-panel" class="content-inline-workspace" aria-label="当前层级内容编辑">
+            <button class="content-panel-close" type="button" data-content-panel-close="editor" aria-label="关闭文章内容面板" title="关闭面板（保留未保存的修改）"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
             <div class="content-inline-heading"><strong id="content-inline-title">文章内容</strong><small id="content-inline-scope">选择左侧板块层级后，在这里管理对应内容</small></div>
             <div id="content-inline-editor-host"></div>
           </section>
+          <p id="content-panels-empty" class="content-panels-empty" hidden>面板已收起。点击上方对应的面板按钮重新显示；未保存的修改仍会保留。</p>
         </div>
       </section>
 
@@ -1097,6 +1109,30 @@
     function showStudio(){document.getElementById("login-shell").classList.add("hidden");document.getElementById("studio").classList.remove("hidden")}
 
     const studioDirtyForms = new Set();
+    const articlePanelVisibility = { settings: true, editor: true };
+    function syncArticlePanels(){
+      const enabled=studioSectionCategory==="content";
+      const settingsVisible=!enabled||articlePanelVisibility.settings;
+      const editorVisible=!enabled||articlePanelVisibility.editor;
+      const layout=document.getElementById("content-manager-layout");
+      document.getElementById("content-panel-controls").hidden=!enabled;
+      document.querySelectorAll("[data-content-panel-close]").forEach(control=>{control.hidden=!enabled});
+      document.getElementById("content-settings-panel").hidden=!settingsVisible;
+      document.getElementById("content-editor-panel").hidden=!editorVisible;
+      document.getElementById("content-settings-open").setAttribute("aria-expanded",String(settingsVisible));
+      document.getElementById("content-editor-open").setAttribute("aria-expanded",String(editorVisible));
+      document.getElementById("content-settings-open").textContent=app.sectionEditorLevel==="subsection"?"小板块设置":"大板块设置";
+      layout.classList.toggle("has-article-panel-controls",enabled);
+      layout.classList.toggle("has-one-panel",settingsVisible!==editorVisible);
+      document.getElementById("content-panels-empty").hidden=settingsVisible||editorVisible;
+    }
+    function setArticlePanelVisible(name,visible){
+      if(studioSectionCategory!=="content"||!Object.hasOwn(articlePanelVisibility,name))return;
+      // Visibility only: leave form nodes, unsaved inputs, selection and dirty tracking intact.
+      articlePanelVisibility[name]=visible;
+      syncArticlePanels();
+      if(!visible)document.getElementById(`content-${name}-open`).focus();
+    }
     function markStudioDirty(form){if(form)studioDirtyForms.add(form)}
     function markStudioClean(form){if(form)studioDirtyForms.delete(form)}
     function activeStudioDirtyForms(){const view=document.querySelector(".view.active");return [...studioDirtyForms].filter(form=>view?.contains(form))}
@@ -1140,6 +1176,7 @@
     }
     function syncContentManagerMeta(){
       const meta=contentCategoryMeta();
+      syncArticlePanels();
       document.getElementById("content-manager-title").textContent=`${meta.label}板块与内容`;
       document.getElementById("side-content-title").textContent=`${meta.label}层级`;
       document.getElementById("content-inline-title").textContent=`${meta.label}内容`;
@@ -1178,6 +1215,7 @@
       renderContentStructureNav();
     }
     function renderContentStructureNav(){
+      syncArticlePanels();
       const host=document.getElementById("content-structure-nav");if(!host)return;clear(host);
       const sections=app.sections.filter(item=>item.kind===studioSectionCategory);
       if(!sections.length){const empty=document.createElement("p");empty.className="content-structure-empty";empty.textContent="此分类还没有大板块，请点击“新增”。";host.append(empty);return}
@@ -1197,6 +1235,8 @@
       const first=app.sections.filter(item=>item.kind===kind).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))[0];if(first)editSection(first);else document.getElementById("content-inline-scope").textContent="请先新建一个大板块";return true;
     }
     function initializeStudioSafetyNavigation(){
+      document.querySelectorAll("[data-content-panel-open]").forEach(control=>control.addEventListener("click",()=>setArticlePanelVisible(control.dataset.contentPanelOpen,true)));
+      document.querySelectorAll("[data-content-panel-close]").forEach(control=>control.addEventListener("click",()=>setArticlePanelVisible(control.dataset.contentPanelClose,false)));
       ["section-form","subsection-form","content-form","media-form"].forEach(id=>{const form=document.getElementById(id);form.addEventListener("input",event=>{if(!event.target.closest("button"))markStudioDirty(form)});form.addEventListener("change",event=>{if(!event.target.closest("button"))markStudioDirty(form)})});
       document.getElementById("studio-back-button").addEventListener("click",studioGoBack);
       document.querySelectorAll("[data-view-target]").forEach(control=>control.addEventListener("click",()=>switchView(control.dataset.viewTarget)));

@@ -21,6 +21,14 @@ assert.match(studioHtml, /id="content-structure-nav"/);
 assert.match(studioHtml, /id="studio-primary-nav"/);
 assert.match(studioHtml, /id="studio-content-navigation"/);
 assert.match(studioHtml, /id="content-inline-editor-host"/);
+for (const panel of ["settings", "editor"]) {
+  assert.match(studioHtml, new RegExp(`id="content-${panel}-panel"`));
+  assert.match(studioHtml, new RegExp(`data-content-panel-close="${panel}"`));
+  assert.match(studioHtml, new RegExp(`data-content-panel-open="${panel}"`));
+  assert.match(navigationCss, new RegExp(`#content-${panel}-panel\\[hidden\\]`));
+}
+assert.match(navigationCss, /\.content-manager-layout\.has-one-panel \{ grid-template-columns:minmax\(0,1fr\)/);
+assert.match(navigationCss, /#view-sections#view-sections \.content-panel-close \{[\s\S]*background:transparent !important/);
 assert.match(studioHtml, /function initializeEmbeddedContentEditors/);
 assert.match(studioHtml, /function syncInlineContentSelection/);
 assert.match(studioHtml, /classList\.toggle\("content-mode",name==="sections"\)/);
