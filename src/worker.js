@@ -9,6 +9,7 @@ import { ENTRY_BACKGROUND_SETTING, normalizeEntryBackgroundConfig, readEntryBack
   entryBackgroundPhotos, entryBackgroundChoices, entryBackgroundSelectionAvailable } from "./entry-background.mjs";
 import { AGENT_PLANNER_PROMPT, parseAgentPlan, searchAgentResources, ensureAgentActions,
   issueAgentActions, consumeAgentAction } from "./site-agent.mjs";
+import { initializeShares, adminShares, resolveShare, sharedContent, shareListing } from "./shares.mjs";
 
 const APP_VERSION = "2.2.0.0";
 const DEFAULT_CANONICAL_HOSTNAME = "xingyueji.com.cn";
@@ -1446,6 +1447,7 @@ async function initializeSchema(env) {
     }
     await env.DB.prepare("INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('inline_ownership_initialized','1',?)").bind(timestamp).run();
   }
+  await initializeShares(env);
   schemaReady = true;
 }
 
@@ -1596,6 +1598,7 @@ async function canAccessTarget(env, kind, targetId, visibility, context) {
 
 const requestSecurity = new WeakMap();
 async function contentSecurity(request, env, seed = {}) {
+  await requireShareNavigationLogin(request, env);
   if (!requestSecurity.has(request)) requestSecurity.set(request, (async () => createContentSecurity(
     request, env, seed.context || await websiteAccessContext(request, env), {
       error: (status, message) => new HttpError(status, message), hash: sha256,
@@ -2819,6 +2822,7 @@ async function adminLogin(request, env) {
   return jsonWithCookies({ ok: true }, 200, [
     secureCookie(request, session.token, session.ttl),
     guestSessionCookie(request, "", 0),
+    shareVisitorCookie("", 0),
   ]);
 }
 
@@ -3022,6 +3026,7 @@ async function requireGuestSession(request, env) {
 }
 
 async function requireWebsiteVisitor(request, env) {
+  await requireShareNavigationLogin(request, env);
   // 公开站点的显式游客身份优先；账号与 Studio Cookie 仍可留存但不得参与读取。
   const guest = await getGuestSession(request, env);
   if (guest) return { type: "guest", ...guest };
@@ -3029,6 +3034,22 @@ async function requireWebsiteVisitor(request, env) {
   if (user) return { type: "user", user };
   if (await isAdmin(request, env)) return { type: "admin" };
   return { type: "guest", ...(await requireGuestSession(request, env)) };
+}
+
+function shareVisitorCookie(value = "1", maxAge = 86400) {
+  return `xyj_share=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
+async function requireShareNavigationLogin(request, env) {
+  if (!getCookie(request, "xyj_share")) return;
+  if ((await getUserSession(request, env, false))?.status === "approved" || await isAdmin(request, env)) return;
+  throw new HttpError(401, "分享链接仅允许浏览所分享的作品，访问其他板块或功能请注册／登录", "SHARE_LOGIN_REQUIRED");
+}
+
+function shareHooks() {
+  return { error: (status, message) => new HttpError(status, message), hash: sha256,
+    token: () => [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, "0")).join(""),
+    readJson, accessTables: ACCESS_TABLES, sanitize: sanitizeRichHtml };
 }
 
 function safeReferrerHost(request) {
@@ -3599,6 +3620,7 @@ async function registerUser(request, env, ctx) {
   return jsonWithCookies({ ok: true, user: publicUser(user), authenticated: Boolean(session) }, 201, [
     session ? userSessionCookie(request, session.token, session.cookieMaxAge) : "",
     guestSessionCookie(request, "", 0),
+    shareVisitorCookie("", 0),
   ]);
 }
 
@@ -3631,6 +3653,7 @@ async function loginUser(request, env) {
   return jsonWithCookies({ ok: true, user: publicUser(user) }, 200, [
     userSessionCookie(request, session.token, session.cookieMaxAge),
     guestSessionCookie(request, "", 0),
+    shareVisitorCookie("", 0),
   ]);
 }
 
@@ -4147,9 +4170,9 @@ async function askAiStream(request, env, sessionUser) {
   return streamBufferedText(answer);
 }
 
-async function serveMedia(request, env, id) {
+async function serveMedia(request, env, id, share = null) {
   if (!env.BUCKET) throw new HttpError(503, "R2 存储桶尚未绑定");
-  const security = await contentSecurity(request, env);
+  const security = share ? { requireView: () => share.require("media", id), canDownload: () => true } : await contentSecurity(request, env);
   const requestParams = new URL(request.url).searchParams;
   security.requireView("media", id, { allowLocked: requestParams.get("mosaic") === "1" });
   if (requestParams.get("mosaic") === "1") {
@@ -4177,6 +4200,7 @@ async function serveMedia(request, env, id) {
    * 这样即使游客手工修改地址，也不能绕过前端隐藏的下载按钮。
    */
   const isPublicBackground = params.get("background") === "1";
+  if (share && isPublicBackground) throw new HttpError(404, "分享入口不提供网站背景");
   const requestsOriginal = wantsDownload || (params.get("preview") !== "1" && !isPublicBackground);
   const modes = [media.section_visibility,
     ...(media.subsection_id ? [media.subsection_visibility] : []),
@@ -4192,14 +4216,14 @@ async function serveMedia(request, env, id) {
       throw new HttpError(404, "图片不在当前背景轮播范围内");
     }
   }
-  const context = await websiteAccessContext(request, env);
+  const context = share ? null : await websiteAccessContext(request, env);
   const layers = [
     ["section", media.section_id, media.section_visibility],
     ...(media.subsection_id ? [["subsection", media.subsection_id, media.subsection_visibility]] : []),
     ...(media.album_id ? [["album", media.album_id, media.album_visibility]] : []),
     ["media", id, media.media_visibility],
   ];
-  for (const [kind, targetId, visibility] of layers) {
+  for (const [kind, targetId, visibility] of share ? [] : layers) {
     if (!(await canAccessTarget(env, kind, targetId, visibility, context))) {
       throw new HttpError(404, "图片不存在");
     }
@@ -4264,9 +4288,10 @@ async function assetAccessContext(request, env, asset) {
  * R2 文件统一通过 Worker 读取，避免公开存储桶地址绕过会员与私密权限。
  * Range 请求对大视频拖动进度条至关重要；HEAD 则让浏览器在播放前取得大小。
  */
-async function serveAsset(request, env, id) {
+async function serveAsset(request, env, id, share = null) {
   if (!env.BUCKET) throw new HttpError(503, "R2 存储桶尚未绑定");
   if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "不支持的请求方法");
+  if (share) share.require("asset", id);
   const asset = await env.DB.prepare("SELECT * FROM assets WHERE id = ? AND status = 'ready'").bind(id).first();
   if (!asset) throw new HttpError(404, "文件不存在或尚未上传完成");
   const params = new URL(request.url).searchParams;
@@ -4295,7 +4320,8 @@ async function serveAsset(request, env, id) {
     filename = `${asset.display_name || asset.filename}-${variantLabel}${extension}`;
   }
 
-  const access = await assetAccessContext(request, env, asset);
+  const access = share ? { inheritedVisibility: "protected", downloadPolicy: "public", wantsDownload: params.get("download") === "1" || asset.kind === "archive" || asset.kind === "file" }
+    : await assetAccessContext(request, env, asset);
   const head = await env.BUCKET.head(objectKey);
   if (!head) throw new HttpError(404, "R2 中的文件对象不存在");
   if (wantsPoster && head.httpMetadata?.contentType) mimeType = head.httpMetadata.contentType;
@@ -6459,6 +6485,7 @@ async function handleAdmin(request, env, url) {
   }
   if (resource === "dashboard" && request.method === "GET") return adminDashboard(env);
   if (resource === "sections") return adminSections(request, env, id);
+  if (resource === "shares") return adminShares(request, env, id, action, shareHooks());
   if (resource === "security") return adminSecurity(request, env, id, action);
   if (resource === "subsections") return adminSubsections(request, env, id);
   if (resource === "content") return adminContent(request, env, id);
@@ -6581,6 +6608,18 @@ async function handleApi(request, env, url, ctx) {
 
   await ensureSchema(env);
 
+  if (url.pathname.startsWith("/api/shares/")) {
+    if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "不支持的请求方法");
+    const [, , , token, kind, id, extra] = url.pathname.split("/");
+    if (extra !== undefined) throw new HttpError(404, "分享内容不存在");
+    const share = await resolveShare(env, token, shareHooks());
+    if (!kind && request.method === "GET") return json(await shareListing(env, share));
+    if (kind === "content" && id && request.method === "GET") return json(await sharedContent(request, env, share, id, shareHooks()));
+    if (kind === "media" && id) return serveMedia(request, env, id, share);
+    if (kind === "asset" && id) return serveAsset(request, env, id, share);
+    throw new HttpError(404, "分享内容不存在");
+  }
+
   /* 游客入口：先读取公开背景，再由 Turnstile + Worker 签发 24 小时游客会话。 */
   if (url.pathname === "/api/guest/config" && request.method === "GET") {
     const status = turnstileStatus(env);
@@ -6596,9 +6635,11 @@ async function handleApi(request, env, url, ctx) {
     });
   }
   if (url.pathname === "/api/guest/entry-background" && request.method === "GET") {
+    await requireShareNavigationLogin(request, env);
     return json(await publicEntryBackground(env));
   }
   if (url.pathname === "/api/guest/enter" && request.method === "POST") {
+    await requireShareNavigationLogin(request, env);
     return enterGuestWebsite(request, env);
   }
   if (url.pathname === "/api/guest/track" && request.method === "POST") {
@@ -6748,6 +6789,15 @@ export default {
       if (gateResponse) return gateResponse;
       if (request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: SECURITY_HEADERS });
+      }
+      if (/^\/share\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
+        const response = responseWithSecurityHeaders(await env.ASSETS.fetch(new Request(new URL("/share", url), request)));
+        const headers = new Headers(response.headers);
+        headers.set("Cache-Control", "no-store");
+        headers.set("Referrer-Policy", "no-referrer");
+        headers.append("Set-Cookie", shareVisitorCookie());
+        headers.append("Set-Cookie", guestSessionCookie(request, "", 0));
+        return new Response(response.body, { status: response.status, headers });
       }
       if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url, ctx);
       if (url.pathname.startsWith("/media/")) {

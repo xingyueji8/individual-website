@@ -14,7 +14,8 @@
     "test:organize": "node test/content-organize.mjs && node test/organize-ui.mjs",
     "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",
     "test:agent": "node test/site-agent.mjs && node test/site-agent-ui.mjs && node test/site-agent-interactions.mjs",
-    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:background && npm run test:agent",
+    "test:shares": "node test/shares.mjs && node test/shares-ui.mjs",
+    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:background && npm run test:agent && npm run test:shares",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

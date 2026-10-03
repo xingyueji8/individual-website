@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>作品分享 · 星月集</title>
+  <link rel="icon" href="/assets/avatar-glass.png" type="image/png">
+  <link rel="stylesheet" href="/share.css">
+  <script src="/share.js" defer></script>
+</head>
+<body>
+  <header class="share-header">
+    <a class="brand" href="/" data-site-navigation>星月集<span>作品分享</span></a>
+    <nav aria-label="网站导航">
+      <a href="/#essays" data-site-navigation>文章</a>
+      <a href="/#photos" data-site-navigation>图片</a>
+      <a href="/#resources" data-site-navigation>文件与视频</a>
+      <a href="/#about" data-site-navigation>关于我</a>
+      <button type="button" data-login-prompt>注册／登录</button>
+    </nav>
+  </header>
+  <main>
+    <div class="share-intro">
+      <p class="eyebrow">站长分享的作品</p>
+      <h1 id="share-title">正在打开分享…</h1>
+      <p id="share-description"></p>
+      <p id="share-status" role="status" aria-live="polite">正在确认链接与浏览权限</p>
+    </div>
+    <nav id="share-folders" class="share-folders" aria-label="本次分享的小板块" hidden></nav>
+    <section id="share-works" class="share-works" aria-label="分享的作品"></section>
+    <article id="share-reader" class="share-reader" hidden>
+      <div class="reader-toolbar">
+        <button id="share-back" type="button">返回分享列表</button>
+        <button id="share-pdf" type="button">下载文章 PDF</button>
+      </div>
+      <h2 id="reader-title"></h2>
+      <p id="reader-meta" class="reader-meta"></p>
+      <div id="reader-body" class="reader-body"></div>
+      <section id="reader-attachments" aria-label="本文附件"></section>
+    </article>
+  </main>
+  <footer>分享入口仅开放本次分享的作品。浏览更多内容，请注册／登录。</footer>
+  <dialog id="share-login-dialog" aria-labelledby="share-login-title">
+    <h2 id="share-login-title">注册／登录后继续浏览</h2>
+    <p>当前链接只允许浏览所分享的作品。访问其他板块、评论或使用网站功能，请先注册／登录。</p>
+    <div class="dialog-actions">
+      <a id="share-register" class="primary" href="/login?mode=register&amp;next=/">注册账号</a>
+      <a id="share-login" class="primary" href="/login?next=/">登录账号</a>
+      <button id="share-login-close" type="button">继续看分享</button>
+    </div>
+  </dialog>
+</body>
+</html>

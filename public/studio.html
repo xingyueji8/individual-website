@@ -492,7 +492,7 @@
                   <div class="field"><label>小板块文件下载权限</label><select id="subsection-download-policy"><option value="public">游客可下载其中允许公开下载的文件</option><option value="member">仅审核用户可下载</option></select><small>这是小板块总开关；设为“仅审核用户”后，即使单个文件允许游客下载，游客也不能下载。</small></div>
                   <div class="field wide"><label for="subsection-description">小板块说明（选填）</label><input id="subsection-description" maxlength="500" placeholder="可留空"></div>
                 </div>
-                <div class="actions"><button class="btn" type="submit">保存小板块</button><button id="subsection-security" class="btn ghost" type="button">下载权限 / 内容锁</button><button id="delete-subsection" class="btn danger hidden" type="button">删除</button><span id="subsection-notice" class="status"></span></div>
+                <div class="actions"><button class="btn" type="submit">保存小板块</button><button id="subsection-share" class="btn ghost" type="button">分享小板块</button><button id="subsection-security" class="btn ghost" type="button">下载权限 / 内容锁</button><button id="delete-subsection" class="btn danger hidden" type="button">删除</button><span id="subsection-notice" class="status"></span></div>
               </form>
               <div id="subsection-list" class="list studio-source-list" aria-hidden="true"></div>
             </section>
@@ -545,7 +545,7 @@
                 <input id="inline-image-input" class="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,.heic,.heif">
               </div>
             </div>
-            <div class="actions"><button class="btn" type="submit">保存内容</button><button id="content-security" class="btn ghost" type="button">PDF 下载权限 / 内容锁</button><button id="delete-content" class="btn danger hidden" type="button">删除</button><span id="content-notice" class="status"></span></div>
+            <div class="actions"><button class="btn" type="submit">保存内容</button><button id="content-share" class="btn ghost" type="button">分享</button><button id="content-security" class="btn ghost" type="button">PDF 下载权限 / 内容锁</button><button id="delete-content" class="btn danger hidden" type="button">删除</button><span id="content-notice" class="status"></span></div>
           </form>
         </div>
         <section id="article-assets-panel" class="panel article-linked-panel hidden">
@@ -823,6 +823,7 @@
 
   <!-- 后台 JavaScript：登录验证、读取数据、保存内容和上传图片。 -->
   <script src="/studio-organize.js"></script>
+  <script src="/studio-share.js"></script>
   <script src="/studio-background.js"></script>
   <script>
     const app = {
@@ -1377,12 +1378,7 @@
           visibilityField.append(visibilityLabel, visibilitySelect, audiencePicker, saveVisibility);
 
           const actions = document.createElement("div"); actions.className = "list-actions";
-          const copy = button("复制预览地址");
-          copy.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(new URL(item.previewUrl || item.url, location.origin).href);
-            copy.textContent = "已复制";
-          });
-          actions.append(copy);
+          actions.append(studioShareButton("media", item));
 
           // 所有照片都允许重新生成：旧的 1280px 预览可直接升级为 2560px 高清预览。
           if (item.kind === "photo") {
@@ -1473,7 +1469,7 @@
       const download=document.createElement("select");[["member","登录后下载"],["public","游客可下载"]].forEach(([value,text])=>{const o=document.createElement("option");o.value=value;o.textContent=text;download.append(o)});download.value=item.download_policy;
       const save=button("保存权限");save.addEventListener("click",async()=>{const choice=await openVisibilityEditor(`设置“${item.display_name}”的权限`,item.visibility,item.allowed_user_ids||[]);if(!choice)return;await saveAssetMetadata(item,{...choice,downloadPolicy:download.value})});
       const open=button(item.kind==="archive"?"下载测试":"预览");open.addEventListener("click",()=>window.open(item.kind==="archive"?item.downloadUrl:item.url,"_blank","noopener"));
-      controls.append(download,save,open,contentSecurityButton("asset",item));
+      controls.append(download,save,open,studioShareButton("asset",item),contentSecurityButton("asset",item));
       if(item.kind==="video"){
         const variant=button("上传清晰度");variant.addEventListener("click",()=>chooseAssetVariant(item));controls.append(variant);
         const stream=button(item.stream_hls_url?"修改自动流":"接入自动画质");stream.addEventListener("click",()=>configureVideoStream(item));controls.append(stream);
@@ -2348,6 +2344,8 @@
     document.getElementById("login-form").addEventListener("submit",async event=>{event.preventDefault();const notice=document.getElementById("login-notice");notice.textContent="正在登录…";try{await api("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("password").value})});showStudio();await loadAll()}catch(error){notice.textContent=error.message}});
     document.querySelectorAll(".side-nav button").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
     document.getElementById("logout").addEventListener("click",async()=>{await api("/api/admin/logout",{method:"POST"});location.reload()});
+    document.getElementById("content-share").addEventListener("click",()=>openStudioShare("content",app.content.find(item=>item.id===document.getElementById("content-id").value)));
+    document.getElementById("subsection-share").addEventListener("click",()=>openStudioShare("subsection",app.subsections.find(item=>item.id===document.getElementById("subsection-id").value)));
     document.getElementById("new-section").addEventListener("click",()=>{if(!confirmStudioNavigation())return;activeStudioDirtyForms().forEach(form=>studioDirtyForms.delete(form));resetSectionForm()});document.getElementById("refresh-sections").addEventListener("click",loadSections);
     document.getElementById("section-visibility").addEventListener("change",()=>syncAudiencePicker("section-visibility","section-user-picker",selectedAudienceIds("section-user-picker")));
     document.getElementById("section-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("section-id").value;const notice=document.getElementById("section-notice");const payload=sectionPayload();if(!validateVisibilityChoice(payload,notice))return;notice.textContent="正在保存…";try{const result=await api(id?`/api/admin/sections/${id}`:"/api/admin/sections",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});studioSectionCategory=payload.kind;syncContentManagerMeta();await loadSections();const saved=app.sections.find(item=>item.id===(id||result.id));if(saved)editSection(saved);notice.textContent="板块已保存，可继续设置下载权限和内容锁。";await loadContent();await loadAlbumsAndMedia();await loadDashboard()}catch(error){notice.textContent=error.message}});
