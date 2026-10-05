@@ -14,6 +14,9 @@
   touch-action: pan-y;
 }
 #portfolio :is(.ps-entry,.ps-description,.ps-content-description) { font-family: var(--font-kai) !important; }
+/* Override the global button rule on the actual text nodes, whose declared
+   font otherwise wins over the card's inherited heading font. */
+#portfolio #portfolio-panel-host :is(.ps-entry,.ps-description) :is(strong,span,p) { font-family: inherit !important; }
 #portfolio .ps-entry:hover { border-color: var(--blue); background: var(--xyj-glass-surface-strong); }
 #portfolio .ps-entry:focus-visible, #portfolio .ps-breadcrumbs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 #portfolio .ps-entry-arrow { color: var(--muted); font-size: 1.1em; }
