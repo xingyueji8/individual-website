@@ -1708,6 +1708,16 @@
       <section id="ai-helper" class="content-section">
         <div class="section-inner">
           <h1>AI 助手</h1>
+          <div class="agent-desktop-settings">
+            <div class="night-mode-control agent-desktop-control">
+              <span id="agent-desktop-main-label" class="night-mode-label">桌面助手</span>
+              <button id="agent-desktop-restore-switch" class="night-mode-switch" type="button" role="switch" aria-checked="true" aria-labelledby="agent-desktop-main-label" data-desktop-assistant-switch>
+                <span class="night-mode-fill" aria-hidden="true"></span>
+                <span class="night-mode-knob" aria-hidden="true"></span>
+              </button>
+            </div>
+            <p id="agent-desktop-status" role="status">桌面助手已打开。</p>
+          </div>
           <div class="chat-shell">
             <div id="chat-messages" class="chat-messages" aria-live="polite">
               <div class="bubble ai">你好！欢迎来到星月集的网站，我是AI助手，除了日常问题，我还了解网站内内容，欢迎提问！</div>
@@ -1814,6 +1824,28 @@
       <p id="install-app-message" class="install-app-help">请使用浏览器的“安装应用”或“添加到主屏幕”功能。</p>
       <div class="auth-lock-actions">
         <button class="btn ghost" type="button" data-close-dialog="install-app-dialog">知道了</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="desktop-assistant-close-dialog" class="auth-lock-dialog" aria-labelledby="desktop-assistant-close-title">
+    <div class="auth-lock-card">
+      <h2 id="desktop-assistant-close-title">是本次关闭还是永久关闭？</h2>
+      <p>本次关闭：关闭此标签页后，下次访问会重新显示。</p>
+      <p>永久关闭：之后访问也会保持关闭，直到您手动重新打开。</p>
+      <div class="auth-lock-actions">
+        <button class="btn" type="button" data-desktop-assistant-close="session">本次关闭</button>
+        <button class="btn" type="button" data-desktop-assistant-close="permanent">永久关闭</button>
+        <button class="btn ghost" type="button" data-desktop-assistant-cancel>取消</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="desktop-assistant-notice-dialog" class="auth-lock-dialog" aria-labelledby="desktop-assistant-notice-title">
+    <div class="auth-lock-card">
+      <h2 id="desktop-assistant-notice-title">桌面助手已关闭</h2>
+      <p>您可在‘AI助手’板块通过按钮再次打开。</p>
+      <div class="auth-lock-actions">
+        <button class="btn" type="button" data-desktop-assistant-dismiss>知道了</button>
       </div>
     </div>
   </dialog>

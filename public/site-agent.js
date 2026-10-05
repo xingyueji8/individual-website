@@ -11,6 +11,10 @@
   const mainStatus = document.getElementById("chat-status");
   if (!appShell || !sidebar || !sidebarNav || !sidebarNote || !mainMessages || !mainForm || !mainInput || !mainStatus) return;
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const DESKTOP_HIDDEN_KEY = "xyj_desktop_assistant_hidden";
+  const DESKTOP_SESSION_KEY = "xyj_desktop_assistant_hidden_session";
+  const visibilityChoice = document.getElementById("desktop-assistant-close-dialog");
+  const visibilityNotice = document.getElementById("desktop-assistant-notice-dialog");
 
   /* The pet overlays the sidebar's real free space and never enters its flex flow. */
   const stage = document.createElement("div");
@@ -38,7 +42,15 @@
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "小伙伴对话");
   panel.innerHTML = `<div class="agent-dialog-tail" aria-hidden="true"></div>
-    <header class="agent-dialog-head"><strong>AI 小伙伴</strong><span>聊天或查找站内资源</span></header>`;
+    <header class="agent-dialog-head"><strong>AI 小伙伴</strong><span>聊天或查找站内资源</span>
+      <div class="night-mode-control agent-desktop-control agent-desktop-control-mini">
+        <span id="agent-desktop-pet-label" class="night-mode-label">桌面助手</span>
+        <button class="night-mode-switch" type="button" role="switch" aria-checked="true" aria-labelledby="agent-desktop-pet-label" data-desktop-assistant-switch>
+          <span class="night-mode-fill" aria-hidden="true"></span>
+          <span class="night-mode-knob" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>`;
   const petMessages = document.createElement("div");
   petMessages.className = "chat-messages agent-mini-messages";
   petMessages.setAttribute("aria-live", "polite");
@@ -105,6 +117,100 @@
   let activeMovement = null;
   let dialogResize = null;
   let dialogUserPositioned = false;
+  let desktopHidden = readDesktopHidden();
+
+  function readDesktopHidden() {
+    let permanent = false;
+    let session = false;
+    try { permanent = localStorage.getItem(DESKTOP_HIDDEN_KEY) === "1"; } catch {}
+    try { session = sessionStorage.getItem(DESKTOP_SESSION_KEY) === "1"; } catch {}
+    return permanent || session;
+  }
+
+  function updateDesktopControls() {
+    document.querySelectorAll("[data-desktop-assistant-switch]").forEach(button => {
+      button.classList.toggle("is-on", !desktopHidden);
+      button.setAttribute("aria-checked", String(!desktopHidden));
+      button.title = desktopHidden ? "恢复桌面助手" : "关闭桌面助手";
+    });
+    const status = document.getElementById("agent-desktop-status");
+    if (status) status.textContent = desktopHidden
+      ? "桌面助手已关闭，可通过此开关重新打开。" : "桌面助手已打开。";
+  }
+
+  function applyDesktopVisibility(hidden) {
+    desktopHidden = Boolean(hidden);
+    if (desktopHidden) {
+      closeAgent();
+      freezePetMotion();
+      clearTimeout(sidebarRelayoutTimer);
+      sidebarRelayoutTimer = null;
+      petHovered = false;
+      if (petDrag) pet.releasePointerCapture?.(petDrag.pointerId);
+      petDrag = null;
+      pet.classList.remove("is-dragging");
+      dialogResize = null;
+      panel.classList.remove("is-resizing");
+      document.body.classList.remove("agent-dialog-resizing");
+    }
+    stage.hidden = desktopHidden;
+    pet.hidden = desktopHidden;
+    stage.classList.toggle("is-desktop-hidden", desktopHidden);
+    pet.classList.toggle("is-desktop-hidden", desktopHidden);
+    updateDesktopControls();
+    layoutStage();
+    if (!desktopHidden) {
+      pet.dataset.moving = "false";
+      pet.dataset.state = petDetached ? "sit" : "idle";
+      pet.classList.toggle("is-motion-frozen", petDetached);
+      if (!petDetached && !reducedMotion.matches) schedulePet(1500);
+    }
+  }
+
+  function restoreDesktopAssistant() {
+    try { localStorage.removeItem(DESKTOP_HIDDEN_KEY); } catch {}
+    try { sessionStorage.removeItem(DESKTOP_SESSION_KEY); } catch {}
+    applyDesktopVisibility(false);
+  }
+
+  function closeDesktopAssistant(mode) {
+    if (!["session", "permanent"].includes(mode)) return;
+    try {
+      if (mode === "permanent") localStorage.setItem(DESKTOP_HIDDEN_KEY, "1");
+      else localStorage.removeItem(DESKTOP_HIDDEN_KEY);
+    } catch { /* Restricted storage still allows closing during this page view. */ }
+    try {
+      if (mode === "session") sessionStorage.setItem(DESKTOP_SESSION_KEY, "1");
+      else sessionStorage.removeItem(DESKTOP_SESSION_KEY);
+    } catch {}
+    applyDesktopVisibility(true);
+    visibilityChoice?.close();
+    if (visibilityNotice && !visibilityNotice.open) visibilityNotice.showModal();
+  }
+
+  document.querySelectorAll("[data-desktop-assistant-switch]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (desktopHidden) restoreDesktopAssistant();
+      else if (visibilityChoice && !visibilityChoice.open) visibilityChoice.showModal();
+    });
+  });
+  visibilityChoice?.querySelectorAll("[data-desktop-assistant-close]").forEach(button => {
+    button.addEventListener("click", () => closeDesktopAssistant(button.dataset.desktopAssistantClose));
+  });
+  visibilityChoice?.querySelector("[data-desktop-assistant-cancel]")?.addEventListener("click", () => visibilityChoice.close());
+  visibilityChoice?.addEventListener("close", updateDesktopControls);
+  visibilityNotice?.querySelector("[data-desktop-assistant-dismiss]")?.addEventListener("click", () => visibilityNotice.close());
+  visibilityNotice?.addEventListener("close", () => {
+    const target = document.getElementById("ai-helper")?.classList.contains("active")
+      ? document.getElementById("agent-desktop-restore-switch")
+      : sidebar.querySelector('[data-section="ai-helper"]');
+    target?.focus();
+  });
+  addEventListener("storage", event => {
+    if (event.key === DESKTOP_HIDDEN_KEY || event.key === DESKTOP_SESSION_KEY || event.key === null) {
+      applyDesktopVisibility(readDesktopHidden());
+    }
+  });
 
   function approved() {
     try { return hasFullAccess(); } catch { return false; }
@@ -209,7 +315,7 @@
       reason to hide the pet: overflow keeps it on the sidebar surface while
       its top edge remains safely below the navigation.
     */
-    const canShow = !appShell.hidden;
+    const canShow = !appShell.hidden && !desktopHidden;
     stage.classList.toggle("is-unavailable", !canShow);
     pet.classList.toggle("is-screen-hidden", !canShow);
     if (!canShow) {
@@ -281,6 +387,7 @@
 
   function schedulePet(delay, callback = movePet) {
     clearPetTimer();
+    if (desktopHidden) return;
     petTimer = setTimeout(() => {
       petTimer = null;
       callback();
@@ -332,7 +439,7 @@
   }
 
   function finishPetAction(action, token) {
-    if (token !== petActionToken) return;
+    if (token !== petActionToken || desktopHidden) return;
     activeMovement = null;
     pet.dataset.moving = "false";
     if (petDetached) {
@@ -382,7 +489,7 @@
   }
 
   function greetPet() {
-    if (petDetached || petDrag) return;
+    if (desktopHidden || petDetached || petDrag) return;
     petHovered = true;
     freezePetMotion();
     setPetActionDuration("2.1s");
@@ -390,7 +497,7 @@
   }
 
   function finishGreeting() {
-    if (petDrag) return;
+    if (desktopHidden || petDrag) return;
     petHovered = false;
     if (petOpen) return;
     if (petDetached) {
@@ -405,6 +512,7 @@
   }
 
   function movePet() {
+    if (desktopHidden) { clearPetTimer(); return; }
     if (petOpen || petHovered) return;
     if (petDetached) {
       clearPetTimer();
@@ -489,6 +597,7 @@
 
   function beginSidebarRelayout() {
     clearTimeout(sidebarRelayoutTimer);
+    if (desktopHidden) { layoutStage(); return; }
     if (petDetached) {
       layoutStage();
       return;
@@ -503,7 +612,7 @@
     clearTimeout(sidebarRelayoutTimer);
     sidebarRelayoutTimer = null;
     layoutStage();
-    if (petDetached) return;
+    if (desktopHidden || petDetached) return;
     if (!petOpen && !petHovered && !stage.classList.contains("is-unavailable")) {
       pet.classList.remove("is-motion-frozen");
       pet.dataset.moving = "false";
@@ -552,6 +661,7 @@
   }
 
   function beginPetDrag(event) {
+    if (desktopHidden) return;
     if (event.button !== 0 || event.isPrimary === false) return;
     freezePetMotion();
     petHovered = false;
@@ -682,6 +792,7 @@
   }
 
   function setOpen(value) {
+    if (value && desktopHidden) return;
     if (value) freezePetMotion();
     petOpen = value;
     if (value) dialogUserPositioned = false;
@@ -719,6 +830,7 @@
   }
 
   function open() {
+    if (desktopHidden) return;
     if (!approved()) {
       if (petDetached) {
         const token = ++petActionToken;
@@ -937,6 +1049,7 @@
     if (busy || confirmBusy) return;
     if (!approved()) { try { showAuthLock("ai"); } catch {} return; }
     const fromPet = sourceInput === petInput;
+    if (fromPet && desktopHidden) return;
     const input = fromPet ? petInput : mainInput;
     const form = fromPet ? petForm : mainForm;
     const target = fromPet ? petMessages : mainMessages;
@@ -1061,6 +1174,7 @@
     petLayoutObserver.observe(sidebarNav);
     petLayoutObserver.observe(sidebarNote);
   }
+  applyDesktopVisibility(desktopHidden);
   requestAnimationFrame(() => {
     layoutStage();
     schedulePet(900);
