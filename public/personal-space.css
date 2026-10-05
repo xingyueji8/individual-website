@@ -1,5 +1,5 @@
 /* Personal space uses near-square surfaces at every level. */
-#portfolio { --ps-radius: 8px; }
+#portfolio { --ps-radius: 8px; --xyj-motion-rebound: .94s; --xyj-motion-settle: .82s; }
 #portfolio > .section-inner { width: min(1120px, 100%); min-height: 100%; position: relative; }
 #personal-space-title { margin: 0 0 18px; font-size: clamp(32px, 4vw, 52px); outline: none; transform-origin: center; }
 #portfolio .ps-title-root { width: fit-content; max-width: 100%; font-size: clamp(40px, 5vw, 64px); }
@@ -10,24 +10,25 @@
   width: min(580px, 100%); min-height: 124px; padding: 28px 34px;
   border: 1px solid var(--line); border-radius: var(--ps-radius) !important;
   color: var(--ink); background: var(--paper); box-shadow: 0 8px 24px rgba(28,52,60,.07);
-  cursor: pointer; text-align: left; font: inherit; font-size: clamp(22px, 2.5vw, 32px);
-  transition: border-color .18s, background-color .18s; touch-action: pan-y;
+  cursor: pointer; text-align: left; font: inherit; font-size: clamp(19px, 2.1vw, 26px);
+  touch-action: pan-y;
 }
+#portfolio :is(.ps-entry,.ps-description,.ps-content-description) { font-family: var(--font-kai) !important; }
 #portfolio .ps-entry:hover { border-color: var(--blue); background: var(--xyj-glass-surface-strong); }
 #portfolio .ps-entry:focus-visible, #portfolio .ps-breadcrumbs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 #portfolio .ps-entry-arrow { color: var(--muted); font-size: 1.1em; }
 #portfolio .ps-page { display: grid; gap: 20px; }
 #portfolio .ps-section-row { display: grid; grid-template-columns: minmax(180px, 32%) minmax(0, 1fr); gap: 18px; align-items: stretch; }
 #portfolio .ps-section-row-small { grid-template-columns: minmax(150px, 26%) minmax(0, 1fr); }
-#portfolio .ps-section-row .ps-entry { width: 100%; min-height: 108px; padding: 22px 24px; font-size: clamp(19px, 2vw, 25px); }
-#portfolio .ps-section-row .ps-entry-small { min-height: 84px; padding: 18px 22px; font-size: clamp(17px, 1.7vw, 22px); }
+#portfolio .ps-section-row .ps-entry { width: 100%; min-height: 108px; padding: 22px 24px; font-size: clamp(17px, 1.7vw, 22px); }
+#portfolio .ps-section-row .ps-entry-small { min-height: 84px; padding: 18px 22px; font-size: clamp(15px, 1.4vw, 19px); }
 #portfolio .ps-description { display: flex; align-items: center; padding: 20px 26px; border: 1px solid var(--line); border-radius: var(--ps-radius); background: var(--xyj-sidebar-background); backdrop-filter: blur(25px); overflow-wrap: anywhere; }
-#portfolio .ps-description p { margin: 0; font-size: 16px; line-height: 1.8; white-space: pre-wrap; }
+#portfolio .ps-description p { margin: 0; font-size: 15px; line-height: 1.8; white-space: pre-wrap; }
 #portfolio .ps-breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; color: var(--muted); font-size: 14px; }
 #portfolio .ps-breadcrumbs[hidden] { display: none; }
 #portfolio .ps-breadcrumbs button { background: transparent; border: 0; box-shadow: none; padding: 4px 0; color: var(--muted); font: inherit; cursor: pointer; }
 #portfolio .ps-breadcrumbs [aria-current] { color: var(--ink); }
-#portfolio .ps-content-description { margin: 0; line-height: 1.8; color: var(--muted); white-space: pre-wrap; }
+#portfolio .ps-content-description { margin: 0; font-size: 15px; line-height: 1.8; color: var(--muted); white-space: pre-wrap; }
 #portfolio :is(.content-card,.photo-card,.resource-card,.locked-content-notice,.ps-feed-entry) { border-radius: var(--ps-radius) !important; }
 #portfolio .ps-page > .section-inner { width: 100%; }
 #portfolio .ps-page > .section-inner > h1 { display: none; }
@@ -47,25 +48,24 @@
 #portfolio .ps-gallery-rows { display: flex; flex-wrap: wrap; gap: 18px; }
 #portfolio .ps-gallery-rows .photo-card { flex: 1 1 340px; height: 240px; aspect-ratio: auto; }
 #portfolio .ps-gallery-rows .photo-card:last-child { flex-grow: 0; }
-.ps-activating, #portfolio .ps-activating { animation: ps-press .24s ease both !important; }
+/* Click feedback comes from the same delegated glass motion as every button. */
 #portfolio.ps-entering .ps-title-root { animation: ps-title-arrive .9s cubic-bezier(.22,.7,.2,1) both; }
-#portfolio.ps-entering .ps-landing .ps-entry { animation: ps-card-arrive .5s ease both; animation-delay: calc(.28s + var(--ps-order) * .14s); }
+#portfolio.ps-entering .ps-landing .ps-entry:not(.is-control-pressed):not(.control-bounce-release) { animation: ps-card-arrive var(--xyj-motion-rebound) cubic-bezier(.18,.82,.20,1) both; animation-delay: calc(.38s + var(--ps-order) * .22s); }
 @keyframes ps-title-arrive {
   0% { opacity: 0; transform: translate(var(--ps-title-x),var(--ps-title-y)) scale(1.3); }
   25% { opacity: 1; transform: translate(var(--ps-title-x),var(--ps-title-y)) scale(1.3); }
   100% { opacity: 1; transform: none; }
 }
 @keyframes ps-card-arrive { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
-@keyframes ps-press { 0%,100% { transform: none; } 50% { transform: scale(.96); } }
 @media(max-width: 760px) {
   #portfolio .ps-landing { min-height: 440px; gap: 16px; padding-top: 42px; }
   #portfolio .ps-entry { min-height: 106px; padding: 22px 26px; }
   #portfolio .ps-section-row { grid-template-columns: minmax(110px, 35%) minmax(0, 1fr); gap: 10px; }
   #portfolio .ps-section-row-small { grid-template-columns: minmax(100px, 30%) minmax(0, 1fr); }
-  #portfolio .ps-section-row .ps-entry { min-height: 100px; padding: 16px 14px; font-size: 18px; gap: 6px; }
-  #portfolio .ps-section-row .ps-entry-small { min-height: 80px; font-size: 16px; }
+  #portfolio .ps-section-row .ps-entry { min-height: 100px; padding: 16px 14px; font-size: 16px; gap: 6px; }
+  #portfolio .ps-section-row .ps-entry-small { min-height: 80px; font-size: 14px; }
   #portfolio .ps-description { padding: 14px; }
-  #portfolio .ps-description p { font-size: 14px; line-height: 1.65; }
+  #portfolio .ps-description p { font-size: 13px; line-height: 1.65; }
   #portfolio .ps-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   #portfolio .ps-gallery-masonry { column-count: 2; column-gap: 12px; }
   #portfolio .ps-gallery-masonry .photo-card { margin-bottom: 12px; }
@@ -73,7 +73,7 @@
   #portfolio .ps-gallery-rows .photo-card img { height: auto; }
 }
 @media(prefers-reduced-motion: reduce) {
-  #portfolio.ps-entering :is(.ps-title-root,.ps-landing .ps-entry), .ps-activating { animation: none !important; }
+  #portfolio.ps-entering :is(.ps-title-root,.ps-landing .ps-entry) { animation: none !important; }
 }
 
 /* Studio selection tools and a separate, non-destructive article preview. */

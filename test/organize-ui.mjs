@@ -288,9 +288,14 @@ assert.equal(portfolio.run('personalSpaceLayout({id:"photos",gallery_layout:"gri
 portfolio.run('state.data.subsections.find(item=>item.id==="photo-parent").gallery_layout="masonry";renderPortfolio();');
 assert.equal(portfolio.run('personalSpaceLayout({id:"photos",gallery_layout:"grid"},{id:"child",parent_id:"photo-parent",gallery_layout:"inherit"},"gallery_layout","grid")'), "masonry");
 portfolio.run('personalSpaceNavigate({});');
+// The page change follows the shared button rebound midpoint, including when
+// the theme changes that duration; it must not retain the old 120 ms delay.
+portfolio.context.getComputedStyle = () => ({ getPropertyValue: () => "940ms" });
 portfolio.document.querySelector(".ps-landing .ps-entry").click();
 assert.equal(portfolio.document.querySelectorAll(".ps-landing .ps-entry").length, 3, "a press begins before the page changes");
 await new Promise(resolve => setTimeout(resolve, 145));
+assert.equal(portfolio.document.querySelectorAll(".ps-landing .ps-entry").length, 3, "the slower button feedback is still running");
+await new Promise(resolve => setTimeout(resolve, 350));
 assert.equal(portfolio.context.location.hash, "#portfolio/content");
 assert.equal(portfolio.document.querySelectorAll(".ps-section-row").length, 1);
 

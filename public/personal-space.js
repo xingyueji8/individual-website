@@ -27,16 +27,16 @@ function personalSpaceHash(route = personalSpaceRoute) {
 }
 function personalSpaceMotionReduced() { return matchMedia("(prefers-reduced-motion: reduce)").matches; }
 
-// A 240 ms press has a 120 ms navigation midpoint. Never wait for its end,
-// for the title entrance, or for a new bootstrap response before navigating.
-function personalSpaceActivate(button, action, delay = 120) {
+// Reuse the global button feedback and navigate halfway through its actual
+// rebound duration, without waiting for an entrance or bootstrap response.
+function personalSpaceActivate(button, action, delay) {
   if (button?.disabled) return;
   clearTimeout(personalSpaceClickTimer);
-  button?.classList.add("ps-activating");
-  personalSpaceClickTimer = setTimeout(() => {
-    button?.classList.remove("ps-activating");
-    action();
-  }, personalSpaceMotionReduced() ? 0 : delay);
+  const duration = button && typeof getComputedStyle === "function"
+    ? getComputedStyle(button).getPropertyValue("--xyj-motion-rebound").trim() : "";
+  const match = duration.match(/^([\d.]+)(ms|s)$/);
+  const reboundMs = match ? Number(match[1]) * (match[2] === "s" ? 1000 : 1) : 940;
+  personalSpaceClickTimer = setTimeout(action, personalSpaceMotionReduced() ? 0 : delay ?? reboundMs / 2);
 }
 function stopPersonalSpaceContent() {
   personalSpaceRenderId += 1;
