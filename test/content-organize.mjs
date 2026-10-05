@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { Miniflare } from "miniflare";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
+import { createContentSecurity } from "../src/content-security.mjs";
 
 const mf = new Miniflare({ modules: true, cf: false, scriptPath: "src/worker.js", compatibilityDate: "2026-08-06", d1Databases: ["DB"], r2Buckets: ["BUCKET"],
   bindings: { ADMIN_PASSWORD: "content-test-admin", SESSION_SECRET: "content-test-secret-at-least-32-bytes" } });
@@ -79,6 +81,28 @@ try {
   assert.equal(aliceList.media.find(item => item.id === first.id).note, "记得这一天");
   assert.equal(aliceList.media.find(item => item.id === first.id).object_key, undefined);
 
+  // Revalidation saves preview transfer, but a cached ETag never authorizes
+  // bytes after a visibility change, a new lock or a different identity.
+  const preview = await request(`/media/${first.id}?preview=1`, { cookie: alice.cookie });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.headers.get("Cache-Control"), "private, no-cache, must-revalidate");
+  assert.equal(preview.headers.get("Vary"), "Cookie, X-Content-Grants");
+  assert.equal(await preview.text(), "PREVIEW-one.png");
+  const etag = preview.headers.get("ETag");
+  assert.ok(etag);
+  const revalidated = await request(`/media/${first.id}?preview=1`, { cookie: alice.cookie, headers: { "If-None-Match": `"other", W/${etag}` } });
+  assert.equal(revalidated.status, 304);
+  assert.equal(await revalidated.text(), "");
+  await status(404, `/media/${first.id}?preview=1`, { cookie: bob.cookie, headers: { "If-None-Match": etag } });
+  const original = await request(`/media/${first.id}`, { cookie: alice.cookie, headers: { "If-None-Match": etag } });
+  assert.equal(original.status, 200);
+  assert.equal(original.headers.get("Cache-Control"), "private, no-store");
+  assert.equal(await original.text(), "ORIGINAL-ONE");
+  await bucket.put(after.preview_object_key, "UPDATED-PREVIEW");
+  const updatedPreview = await request(`/media/${first.id}?preview=1`, { cookie: alice.cookie, headers: { "If-None-Match": etag } });
+  assert.equal(updatedPreview.status, 200);
+  assert.equal(await updatedPreview.text(), "UPDATED-PREVIEW");
+
   const securityPath = `/api/admin/security/media/${first.id}`;
   await ok(securityPath, { method: "PUT", body: { lock: { enabled: true, code: "001234" }, download: { mode: "none" } } });
   await status(400, securityPath, { method: "PUT", body: { lock: { enabled: true, code: "123" }, download: { mode: "public" } } });
@@ -89,6 +113,7 @@ try {
   assert.equal((await db.prepare("SELECT consumed_at FROM content_locks WHERE target_id=?").bind(first.id).first()).consumed_at, null);
   await status(403, "/api/content-unlock", { ...unauthorized, cookie: alice.cookie, body: { ...unauthorized.body, code: "999999" } });
   await status(423, `/media/${first.id}?preview=1`, { cookie: alice.cookie });
+  await status(423, `/media/${first.id}?preview=1`, { cookie: alice.cookie, headers: { "If-None-Match": etag } });
   await status(423, `/media/${first.id}?background=1`, { cookie: alice.cookie });
   const locked = (await ok("/api/bootstrap", { cookie: alice.cookie })).media.find(item => item.id === first.id);
   assert.equal(locked.locked, true); assert.match(locked.previewUrl, /mosaic=1/); assert.equal(locked.downloadUrl, undefined);
@@ -106,6 +131,9 @@ try {
   const grant = await concurrent.find(response => response.status === 200).json();
   assert.match(grant.token, /^[a-f0-9]{64}$/);
   await status(200, `/media/${first.id}?preview=1`, { cookie: alice.cookie, tokens: grant.token });
+  const lockedPreview = await request(`/media/${first.id}?preview=1`, { cookie: alice.cookie, tokens: grant.token, headers: { "If-None-Match": "*" } });
+  assert.equal(lockedPreview.status, 200);
+  assert.equal(lockedPreview.headers.get("Cache-Control"), "private, no-store");
   await status(403, `/media/${first.id}?download=1`, { cookie: alice.cookie, tokens: grant.token });
   await status(404, `/media/${first.id}?preview=1&grants=${grant.token}`, { cookie: `${alice.cookie}; ${guest}` });
   const safeSettings = await ok("/api/admin/security");
@@ -188,6 +216,38 @@ try {
   assert.equal(await db.prepare("SELECT id FROM media WHERE id=?").bind(heic.id).first(), null); assert.equal(await bucket.get(storedHeic.object_key), null);
   await ok("/api/admin/photo-uploads/33333333-3333-4333-8333-333333333333", { method: "DELETE" });
   assert.equal((await upload("cancelled.png", "CANCEL", { token: "33333333-3333-4333-8333-333333333333" })).status, 409);
+
+  // Large libraries must not enter a single image's permission graph. Compare
+  // scoped decisions with the existing full graph for actual nested fixtures,
+  // using the worker's visibility hooks and whitelist table definitions.
+  const unused = Array.from({ length: 400 }, (_, index) => `unused-photo-${index}`);
+  await db.prepare(`INSERT INTO media(id,object_key,filename,mime_type,size_bytes,kind,section_id,visibility,created_at,updated_at)
+    SELECT value,'unused/'||value,value||'.png','image/png',1,'photo','section-photos','public','2026-10-05','2026-10-05' FROM json_each(?)`)
+    .bind(JSON.stringify(unused)).run();
+  const workerSource = await readFile("src/worker.js", "utf8");
+  const tableStart = workerSource.indexOf("const ACCESS_TABLES =");
+  const accessTables = vm.runInNewContext(workerSource.slice(tableStart, workerSource.indexOf("});", tableStart) + 3) + "ACCESS_TABLES;");
+  const functionSource = name => { const start = workerSource.indexOf(`function ${name}(`); return workerSource.slice(start, workerSource.indexOf("\n}", start) + 2); };
+  const visible = vm.runInNewContext(functionSource("normalizedVisibility") + functionSource("visibleToWebsite") + "visibleToWebsite;");
+  const hooks = { accessTables, visible, hash: async value => createHash("sha256").update(value).digest("hex"),
+    error: (status, message) => Object.assign(new Error(message), { status }) };
+  const targets = [{ kind: "media", id: first.id }, { kind: "media", id: newInline.id }, { kind: "asset", id: asset.id },
+    { kind: "subsection", id: child.id }, { kind: "assetFolder", id: newFolder.id }, { kind: "media", id: "missing-photo" }];
+  for (const context of [{ user: { id: alice.id }, fullAccess: true }, { user: { id: bob.id }, fullAccess: true },
+    { fullAccess: false, guestMode: true }, { fullAccess: true, adminAccess: true }]) {
+    const req = new Request(base + "/media/test");
+    const full = await createContentSecurity(req, { DB: db }, context, hooks);
+    assert.ok(full.records.size > 400);
+    for (const target of targets) {
+      const scoped = await createContentSecurity(req, { DB: db }, context, hooks, { targets: [target] });
+      assert.ok(scoped.records.size < 10, "single-item permission work remains bounded as the library grows");
+      assert.equal(scoped.canView(target.kind, target.id), full.canView(target.kind, target.id));
+      assert.equal(scoped.canDownload(target.kind, target.id), full.canDownload(target.kind, target.id));
+      assert.deepEqual(scoped.blockedLocks(target.kind, target.id), full.blockedLocks(target.kind, target.id));
+      assert.deepEqual(scoped.chain(target.kind, target.id), full.chain(target.kind, target.id));
+    }
+  }
+  console.log("preview 304 transfer, permission revocation and bounded single-item graphs passed");
   console.log("content hierarchy, one-use locks, downloads, photo batch/duplicates/HEIC/cancel regression passed");
 } finally { await mf.dispose(); }
 

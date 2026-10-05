@@ -240,10 +240,13 @@ function renderPersonalSpaceGallery(host, section, current, selected) {
   photos.forEach(photo => {
     const card = document.createElement("div"); card.className = `photo-card${photo.locked ? " is-locked" : ""}`; card.tabIndex = 0; card.setAttribute("role", "button");
     card.setAttribute("aria-label", photo.locked ? "解锁照片" : `查看照片：${photo.caption || photo.filename}`);
-    const image = document.createElement("img"); image.loading = "lazy"; image.src = protectedMediaUrl(photo.previewUrl || photo.url); image.alt = photo.caption || "照片";
+    const image = document.createElement("img"); image.loading = "lazy"; image.decoding = "async"; image.src = protectedMediaUrl(photo.previewUrl || photo.url); image.alt = photo.caption || "照片";
     const name = document.createElement("span"); name.className = "photo-name"; name.textContent = `${photo.caption || photo.filename}${photo.note ? ` · ${photo.note}` : ""}${photo.locked ? " · 已锁定" : ""}`;
     card.append(image, name);
-    const open = () => personalSpaceActivate(card, () => openImage(photo, photos));
+    const open = () => {
+      if (typeof warmImagePreview === "function") warmImagePreview(photo);
+      personalSpaceActivate(card, () => openImage(photo, photos));
+    };
     card.addEventListener("click", open); card.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); gallery.append(card);
   });
   if (!photos.length) gallery.append(empty("这个板块还没有可查看的照片。")); host.append(gallery);

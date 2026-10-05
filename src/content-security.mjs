@@ -6,6 +6,49 @@ export const SECURITY_TABLES = Object.freeze({
 });
 export const securityKey = (kind, id) => `${kind}:${id}`;
 
+function securityParents(kind, item) {
+  const parents = [];
+  if (item.section_id) parents.push(["section", item.section_id]);
+  if (["subsection", "assetFolder"].includes(kind) && item.parent_id) parents.push([kind, item.parent_id]);
+  if (kind === "assetFolder" && !item.parent_id && !item.section_id) parents.push(["section", "section-resources"]);
+  if (!["section", "subsection", "album"].includes(kind) && item.subsection_id) parents.push(["subsection", item.subsection_id]);
+  if (item.album_id) parents.push(["album", item.album_id]);
+  if (item.content_id) parents.push(["content", item.content_id]);
+  if (item.folder_id) parents.push(["assetFolder", item.folder_id]);
+  return parents;
+}
+
+// Byte routes need the requested item and every ancestor, not every upload on
+// the site. Missing parents and cycles still fail closed in chain(). Each level
+// is a single D1 batch; the full graph remains available for bootstrap/listings.
+async function targetRecords(env, columns, seed) {
+  const records = Object.fromEntries(Object.keys(SECURITY_TABLES).map(kind => [kind, []]));
+  const seen = new Set();
+  let pending = seed.targets.map(({ kind, id }) => [kind, id]);
+  while (pending.length) {
+    const groups = new Map();
+    for (const [kind, id] of pending) {
+      if (!SECURITY_TABLES[kind] || !id || seen.has(securityKey(kind, id))) continue;
+      seen.add(securityKey(kind, id));
+      if (!groups.has(kind)) groups.set(kind, []);
+      groups.get(kind).push(id);
+    }
+    const entries = [...groups];
+    const queries = entries.filter(([kind]) => !seed.records?.[kind]);
+    const fetched = queries.length ? await env.DB.batch(queries.map(([kind, ids]) => env.DB.prepare(
+      `SELECT ${columns[kind]} FROM ${SECURITY_TABLES[kind]} WHERE id IN (SELECT value FROM json_each(?))`
+    ).bind(JSON.stringify(ids)))) : [];
+    const byKind = new Map(queries.map(([kind], index) => [kind, fetched[index].results]));
+    pending = [];
+    for (const [kind, ids] of entries) {
+      const items = seed.records?.[kind]?.filter(row => ids.includes(row.id)) || byKind.get(kind) || [];
+      records[kind].push(...items);
+      for (const item of items) pending.push(...securityParents(kind, item));
+    }
+  }
+  return records;
+}
+
 export async function initializeContentSecurity(env) {
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS download_rules (
@@ -39,16 +82,24 @@ export async function createContentSecurity(request, env, context, hooks, seed =
     album: "id,section_id,visibility",
   };
   const userId = context.user?.id || "";
-  const accessEntries = Object.entries(accessTables).filter(([kind]) => SECURITY_TABLES[kind]);
+  const scopedRecords = seed.targets ? await targetRecords(env, columns, seed) : null;
+  const sourceRecords = scopedRecords || seed.records;
+  const targets = scopedRecords && Object.entries(scopedRecords).flatMap(([kind, items]) => items.map(({ id }) => ({ kind, id })));
+  const targetFilter = targets ? " WHERE (target_kind,target_id) IN (SELECT json_extract(value,'$.kind'),json_extract(value,'$.id') FROM json_each(?))" : "";
+  const scopedQuery = sql => targets ? env.DB.prepare(sql).bind(JSON.stringify(targets)) : env.DB.prepare(sql);
+  const accessEntries = Object.entries(accessTables).filter(([kind]) => SECURITY_TABLES[kind] && (!scopedRecords || scopedRecords[kind].length));
   const results = await Promise.all([
-    ...entries.map(([kind, table]) => seed.records?.[kind]
-      ? Promise.resolve({ results: seed.records[kind] })
+    ...entries.map(([kind, table]) => sourceRecords?.[kind]
+      ? Promise.resolve({ results: sourceRecords[kind] })
       : env.DB.prepare(`SELECT ${columns[kind]} FROM ${table}`).all()),
-    env.DB.prepare("SELECT * FROM download_rules").all(),
-    env.DB.prepare("SELECT target_kind,target_id,enabled,version,consumed_at FROM content_locks WHERE enabled = 1").all(),
+    scopedQuery("SELECT * FROM download_rules" + targetFilter).all(),
+    scopedQuery("SELECT target_kind,target_id,enabled,version,consumed_at FROM content_locks" + targetFilter + (targets ? " AND" : " WHERE") + " enabled = 1").all(),
     seed.access ? Promise.resolve([{ results: seed.access }])
+      : !userId ? Promise.resolve([])
       : Promise.all(accessEntries.map(([kind, cfg]) => env.DB.prepare(
-        `SELECT '${kind}' AS kind, ${cfg.targetColumn} AS id FROM ${cfg.table} WHERE user_id = ?`).bind(userId).all())),
+        `SELECT '${kind}' AS kind, ${cfg.targetColumn} AS id FROM ${cfg.table} WHERE user_id = ?` +
+        (scopedRecords ? ` AND ${cfg.targetColumn} IN (SELECT value FROM json_each(?))` : ""))
+        .bind(...(scopedRecords ? [userId, JSON.stringify(scopedRecords[kind].map(row => row.id))] : [userId])).all())),
   ]);
   const records = new Map();
   entries.forEach(([kind], i) => results[i].results.forEach(row => records.set(securityKey(kind, row.id), { ...row, targetKind: kind })));
@@ -75,15 +126,7 @@ export async function createContentSecurity(request, env, context, hooks, seed =
     const item = records.get(key);
     if (!item || trail.has(key)) return null;
     trail.add(key);
-    const parents = [];
-    if (item.section_id) parents.push(["section", item.section_id]);
-    if (kind === "subsection" && item.parent_id) parents.push(["subsection", item.parent_id]);
-    if (kind === "assetFolder" && item.parent_id) parents.push(["assetFolder", item.parent_id]);
-    if (kind === "assetFolder" && !item.parent_id && !item.section_id) parents.push(["section", "section-resources"]);
-    if (!["section", "subsection", "album"].includes(kind) && item.subsection_id) parents.push(["subsection", item.subsection_id]);
-    if (item.album_id) parents.push(["album", item.album_id]);
-    if (item.content_id) parents.push(["content", item.content_id]);
-    if (item.folder_id) parents.push(["assetFolder", item.folder_id]);
+    const parents = securityParents(kind, item);
     const output = [];
     for (const [pk, pid] of parents) {
       const ancestors = chain(pk, pid, new Set(trail));

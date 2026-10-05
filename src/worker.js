@@ -4188,7 +4188,8 @@ async function askAiStream(request, env, sessionUser) {
 
 async function serveMedia(request, env, id, share = null) {
   if (!env.BUCKET) throw new HttpError(503, "R2 存储桶尚未绑定");
-  const security = share ? { requireView: () => share.require("media", id), canDownload: () => true } : await contentSecurity(request, env);
+  const security = share ? { requireView: () => share.require("media", id), canDownload: () => true }
+    : await contentSecurity(request, env, { targets: [{ kind: "media", id }] });
   const requestParams = new URL(request.url).searchParams;
   security.requireView("media", id, { allowLocked: requestParams.get("mosaic") === "1" });
   if (requestParams.get("mosaic") === "1") {
@@ -4232,18 +4233,7 @@ async function serveMedia(request, env, id, share = null) {
       throw new HttpError(404, "图片不在当前背景轮播范围内");
     }
   }
-  const context = share ? null : await websiteAccessContext(request, env);
-  const layers = [
-    ["section", media.section_id, media.section_visibility],
-    ...(media.subsection_id ? [["subsection", media.subsection_id, media.subsection_visibility]] : []),
-    ...(media.album_id ? [["album", media.album_id, media.album_visibility]] : []),
-    ["media", id, media.media_visibility],
-  ];
-  for (const [kind, targetId, visibility] of share ? [] : layers) {
-    if (!(await canAccessTarget(env, kind, targetId, visibility, context))) {
-      throw new HttpError(404, "图片不存在");
-    }
-  }
+  // requireView already checks the complete ancestor graph and selected users.
   // 公开查看不等于公开下载，读取原片仍须满足全部下载限制。
   if (requestsOriginal) security.requireView("media", id, { download: true });
   // 下载操作永远使用 object_key；只有普通展示请求才允许读取 WebP 预览件。
@@ -4257,10 +4247,20 @@ async function serveMedia(request, env, id, share = null) {
   object.writeHttpMetadata(headers);
   headers.set("Content-Type", servesPreview ? "image/webp" : media.mime_type);
   headers.set("ETag", object.httpEtag);
+  const revalidatePreview = servesPreview && !share && !isPublicBackground &&
+    !security.chain("media", id).some(node => security.locks.has(`${node.targetKind}:${node.id}`));
   headers.set(
     "Cache-Control",
-    "private, no-store",
+    revalidatePreview ? "private, no-cache, must-revalidate" : "private, no-store",
   );
+  if (revalidatePreview) {
+    headers.set("Vary", "Cookie, X-Content-Grants");
+    const validator = request.headers.get("If-None-Match") || "";
+    const unchanged = validator.split(",").some(tag => tag.trim() === "*" || tag.trim().replace(/^W\//, "") === object.httpEtag);
+    // Authentication, inherited visibility and locks are checked BEFORE a 304.
+    // Revoked permissions can never revive a previously cached preview.
+    if (unchanged) return new Response(null, { status: 304, headers });
+  }
   const previewName = media.filename.replace(/\.[^.]+$/, "") + "-preview.webp";
   headers.set(
     "Content-Disposition",
@@ -6765,7 +6765,7 @@ async function handleApi(request, env, url, ctx) {
     await requireWebsiteVisitor(request, env);
     const [, , , kind, id] = url.pathname.split("/");
     if (!SECURITY_TABLES[kind] || !validId(id)) throw new HttpError(400, "内容参数无效");
-    const security = await contentSecurity(request, env);
+    const security = await contentSecurity(request, env, { targets: [{ kind, id }] });
     security.requireView(kind, id, { allowLocked: true });
     const access = security.decorate(kind, { id });
     return json({ id, locked: access.locked, locks: access.locks, canDownload: access.canDownload });

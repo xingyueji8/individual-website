@@ -29,6 +29,8 @@
       "本次关闭：关闭此标签页后，下次访问会重新显示。": "本次關閉：關閉此標籤頁後，下次造訪會重新顯示。",
       "永久关闭：之后访问也会保持关闭，直到您手动重新打开。": "永久關閉：之後造訪也會保持關閉，直到您手動重新開啟。",
       "您可在‘AI助手’板块通过按钮再次打开。": "您可在‘AI助手’板塊透過按鈕再次開啟。",
+      "正在加载图片…": "正在載入圖片…",
+      "图片加载失败，请重新打开或稍后重试。": "圖片載入失敗，請重新開啟或稍後重試。",
     })),
     en: new Map(Object.entries({
       "主页": "Home", "个人空间": "Personal Space", "关于我": "About Me", "留言与反馈": "Feedback",
@@ -266,6 +268,8 @@
     "文件预览": "File preview",
     "图片预览": "Image preview",
     "照片预览": "Photo preview",
+    "正在加载图片…": "Loading image…",
+    "图片加载失败，请重新打开或稍后重试。": "The image could not be loaded. Reopen it or try again later.",
     "上一张照片": "Previous photo",
     "下一张照片": "Next photo",
     "照片缩放": "Photo zoom",

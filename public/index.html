@@ -1272,6 +1272,8 @@
     .image-dialog { width: min(1100px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: #111; color: white; }
     .image-view { padding: 18px; text-align: center; }
     .image-stage { position: relative; min-height: 180px; display: grid; place-items: center; }
+    .image-load-status { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+    .image-load-status[hidden] { display: none; }
     .image-view img { max-width: 100%; max-height: calc(100dvh - 130px); object-fit: contain; }
     /*
        放大预览左右切换按钮
@@ -1960,6 +1962,7 @@
       <div class="image-stage">
         <button id="image-previous" class="image-nav previous" type="button" aria-label="上一张照片" title="上一张照片">‹</button>
         <img id="image-preview" alt="图片预览" decoding="async" draggable="false">
+        <span id="image-load-status" class="image-load-status" role="status" aria-live="polite" hidden>正在加载图片…</span>
         <button id="image-next" class="image-nav next" type="button" aria-label="下一张照片" title="下一张照片">›</button>
         <div id="image-boundary-notice" class="image-boundary-notice" role="alert" aria-live="assertive" hidden>
           <span id="image-boundary-message"></span>
@@ -2002,6 +2005,8 @@
       resourcePanelNode: null,
       imageSequence: [],
       currentImageIndex: -1,
+      imageTargetIndex: -1,
+      imageRequestId: 0,
       imageZoom: {
         scale: 1,
         x: 0,
@@ -2010,8 +2015,8 @@
         dragStart: null,
         pinchStart: null,
       },
-      // 记录已经预加载过的预览地址，避免每次来回切换都重复创建请求。
-      preloadedImageUrls: new Set(),
+      // Keep a small, retryable preload set; actual reuse revalidates permissions.
+      preloadedImages: new Map(),
       publicFeedback: [],
       pdfDownloading: false,
       pdfLibraryPromise: null,
@@ -3081,6 +3086,8 @@
       template.innerHTML = html || "<p>暂无正文。</p>";
 
       template.content.querySelectorAll("img").forEach((image) => {
+        image.setAttribute("loading", "lazy");
+        image.setAttribute("decoding", "async");
         const source = image.getAttribute("src") || "";
         const mediaId = mediaIdFromUrl(source);
         if (!mediaId) return;
@@ -3229,21 +3236,38 @@
       notice.classList.add("is-arriving");
     }
 
+    function warmImagePreview(photo, priority = "high") {
+      if (!photo || photo.locked || photo.locks?.length) return;
+      const source = protectedMediaUrl(photo.previewUrl || photo.url || "");
+      if (!source || state.preloadedImages.has(source)) return;
+      const preload = new Image();
+      preload.decoding = "async";
+      preload.fetchPriority = priority;
+      preload.onerror = () => {
+        if (state.preloadedImages.get(source) === preload) state.preloadedImages.delete(source);
+      };
+      state.preloadedImages.set(source, preload);
+      while (state.preloadedImages.size > 3) {
+        const oldest = state.preloadedImages.keys().next().value;
+        state.preloadedImages.get(oldest).removeAttribute("src");
+        state.preloadedImages.delete(oldest);
+      }
+      preload.src = source;
+    }
+
+    function clearImagePreloads() {
+      for (const image of state.preloadedImages.values()) image.removeAttribute("src");
+      state.preloadedImages.clear();
+    }
+
     function preloadAdjacentImages() {
       const photos = state.imageSequence;
-      if (photos.length < 2) return;
+      if (photos.length < 2 || navigator.connection?.saveData || /(^|-)2g$/.test(navigator.connection?.effectiveType || "")) return;
 
       [-1, 1].forEach((offset) => {
         const adjacentIndex = state.currentImageIndex + offset;
         if (adjacentIndex < 0 || adjacentIndex >= photos.length) return;
-        const adjacentPhoto = photos[adjacentIndex];
-        const source = String(adjacentPhoto?.previewUrl || adjacentPhoto?.url || "");
-        if (!source || state.preloadedImageUrls.has(source)) return;
-
-        state.preloadedImageUrls.add(source);
-        const preload = new Image();
-        preload.decoding = "async";
-        preload.src = source;
+        warmImagePreview(photos[adjacentIndex], "low");
       });
     }
 
@@ -3251,35 +3275,83 @@
       const photos = state.imageSequence;
       if (!photos.length) return;
       const nextIndex = clampNumber(index, 0, photos.length - 1);
+      const requestId = ++state.imageRequestId;
+      state.imageTargetIndex = nextIndex;
       const photo = photos[nextIndex];
       const previous = photos[state.currentImageIndex];
-      if (previous && previous.id !== photo.id) await releaseViewGrants(`media:${previous.mediaId || previous.id}`);
       const mediaId = photo.mediaId || mediaIdFromUrl(photo.previewUrl || photo.url) || photo.id;
-      if (mediaId && !String(mediaId).startsWith("reader-")) {
+      const previousMediaId = previous && (previous.mediaId || mediaIdFromUrl(previous.previewUrl || previous.url) || previous.id);
+      if (previousMediaId && previousMediaId !== mediaId) {
+        const owner = `media:${previousMediaId}`;
+        if ([...contentViewGrants.values()].some(grant => grant.owner === owner)) await releaseViewGrants(owner);
+      }
+      if (requestId !== state.imageRequestId) return false;
+      // The image byte route checks current permissions itself. Only known
+      // locks need the extra PIN/access round trip before loading the preview.
+      if (mediaId && !String(mediaId).startsWith("reader-") && (photo.locked || photo.locks?.length)) {
         const target = { ...photo, id:mediaId };
-        if (!(await ensureContentUnlocked("media", target))) return false;
+        if (!(await ensureContentUnlocked("media", target))) {
+          if (requestId === state.imageRequestId) state.imageTargetIndex = state.currentImageIndex;
+          return false;
+        }
+        if (requestId !== state.imageRequestId) {
+          await closeProtectedView(`media:${mediaId}`);
+          return false;
+        }
         Object.assign(photo,target,{id:photo.id,mediaId});
       }
       state.currentImageIndex = nextIndex;
       hideImageBoundaryNotice();
       resetImageZoom();
       // 弹窗展示压缩预览；只有“下载原片”链接会请求 download=1。
-      document.getElementById("image-preview").src = protectedMediaUrl(photo.previewUrl || photo.url);
-      document.getElementById("image-preview").alt = photo.caption || "照片预览";
+      const image = document.getElementById("image-preview");
+      const status = document.getElementById("image-load-status");
+      let recovered = false;
+      const load = () => {
+        status.textContent = "正在加载图片…";
+        status.hidden = false;
+        image.style.visibility = "hidden";
+        image.src = protectedMediaUrl(photo.previewUrl || photo.url);
+      };
+      image.onload = () => {
+        if (requestId !== state.imageRequestId) return;
+        image.style.visibility = "";
+        status.hidden = true;
+        // Prepare neighbours only after the current image has loaded, so large
+        // preloads cannot compete with the image the visitor is waiting for.
+        preloadAdjacentImages();
+      };
+      image.onerror = async () => {
+        if (requestId !== state.imageRequestId) return;
+        status.textContent = "图片加载失败，请重新打开或稍后重试。";
+        // Handle a new/expired lock since bootstrap, without a preflight on
+        // every ordinary image. A second decode/network failure is not retried.
+        if (recovered || !mediaId || String(mediaId).startsWith("reader-")) return;
+        recovered = true;
+        const target = { ...photo, id: mediaId };
+        if (!(await ensureContentUnlocked("media", target))) return;
+        if (requestId !== state.imageRequestId) {
+          await closeProtectedView(`media:${mediaId}`);
+          return;
+        }
+        Object.assign(photo, target, { id: photo.id, mediaId });
+        syncProtectedDownloadControls();
+        load();
+      };
+      image.alt = photo.caption || "照片预览";
+      load();
       // 可以显示站长填写的说明，但绝不使用内部文件名或文件编号兜底。
       document.getElementById("image-caption").textContent = `${photo.caption || photo.filename || ""}${photo.note ? ` · ${photo.note}` : ""}`;
       const hasMultiple = photos.length > 1;
       document.getElementById("image-previous").hidden = !hasMultiple;
       document.getElementById("image-next").hidden = !hasMultiple;
       syncProtectedDownloadControls();
-      // 当前图显示后立即准备前后两张，切换时通常可以直接从浏览器缓存读取。
-      preloadAdjacentImages();
       return true;
     }
 
     function stepImage(offset) {
       if (!document.getElementById("image-dialog").open || state.imageSequence.length < 2) return;
-      const nextIndex = state.currentImageIndex + offset;
+      const nextIndex = state.imageTargetIndex + offset;
       if (nextIndex < 0) {
         showImageBoundaryNotice("已经是第一张了");
         return;
@@ -3292,7 +3364,12 @@
     }
 
     async function openImage(photo, photos = [photo]) {
+      const oldPhoto = state.imageSequence[state.currentImageIndex];
+      const oldMediaId = oldPhoto && (oldPhoto.mediaId || mediaIdFromUrl(oldPhoto.previewUrl || oldPhoto.url) || oldPhoto.id);
+      const nextMediaId = photo.mediaId || mediaIdFromUrl(photo.previewUrl || photo.url) || photo.id;
+      if (oldMediaId && oldMediaId !== nextMediaId) closeProtectedView(`media:${oldMediaId}`);
       state.imageSequence = photos.length ? photos : [photo];
+      state.currentImageIndex = -1;
       const selectedIndex = state.imageSequence.findIndex((item) => item.id === photo.id);
       if (!(await showImageAt(selectedIndex >= 0 ? selectedIndex : 0))) return;
       if (!document.getElementById("image-dialog").open) document.getElementById("image-dialog").showModal();
@@ -4361,6 +4438,13 @@
     document.getElementById("image-preview").addEventListener("load", renderImageZoom);
     document.getElementById("image-preview").addEventListener("dragstart", (event) => event.preventDefault());
     imageDialog.addEventListener("close", () => {
+      state.imageRequestId += 1;
+      state.imageTargetIndex = state.currentImageIndex;
+      clearImagePreloads();
+      const preview = document.getElementById("image-preview");
+      preview.onload = preview.onerror = null;
+      preview.style.visibility = "";
+      document.getElementById("image-load-status").hidden = true;
       hideImageBoundaryNotice();
       resetImageZoom();
     });

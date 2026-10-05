@@ -86,7 +86,8 @@ async function ensureContentUnlocked(kind, item) {
       if (kind === "asset") item.variants = (item.variants || []).map(variant => ({ ...variant, downloadUrl: "" }));
     }
     if (kind === "media" && !item.locked) {
-      item.url = item.previewUrl = `/media/${item.id}?preview=1`;
+      const version = new URL(item.previewUrl || item.url || location.href, location.href).searchParams.get("v");
+      item.url = item.previewUrl = `/media/${item.id}?preview=1${version ? `&v=${encodeURIComponent(version)}` : ""}`;
       item.downloadUrl = item.canDownload ? `/media/${item.id}?download=1` : "";
     }
     return !access.locked;
