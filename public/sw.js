@@ -6,11 +6,16 @@
  */
 const CACHE_PREFIX = "xyj-static-shell-";
 // 修改此名称会让已安装的桌面/PWA 版本立即替换旧的离线首页外壳。
-const STATIC_CACHE = `${CACHE_PREFIX}community-ui-2-2`;
+const STATIC_CACHE = `${CACHE_PREFIX}personal-space-2-3`;
 const APP_SHELL = [
   "/",
   "/theme.css",
   "/vnext.css",
+  "/material.css",
+  "/organize.css",
+  "/portfolio-organize.js",
+  "/personal-space.css",
+  "/personal-space.js",
   "/theme.js",
   "/liquid-glass.js",
   "/experience.js",

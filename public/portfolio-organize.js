@@ -3,7 +3,7 @@
 const contentViewGrants = new Map();
 let activePortfolioCategory = "content";
 let contentUnlockInProgress = false;
-const categoryLabels = { content: "文章", gallery: "图片", resources: "文件与视频" };
+const categoryLabels = { content: "文章", gallery: "图片", resources: "文件/视频" };
 
 function contentGrantTokens() {
   for (const [key, grant] of contentViewGrants) if (grant.expiresAt <= Date.now()) contentViewGrants.delete(key);
@@ -110,96 +110,17 @@ function organizedSections() {
     return false;
   }).map(section => ({ ...section, displayKind: activePortfolioCategory }));
 }
-async function selectOrganizedSection(id) {
-  if (state.activePortfolioSection === id) return;
-  await releaseViewGrants(); await refreshProtectedContent();
-  state.activePortfolioSection = id; state.currentResourceFolder = ""; renderPortfolio();
+function selectOrganizedSection(id) {
+  personalSpaceNavigate({ category: activePortfolioCategory, sectionId: id });
 }
-function renderOrganizedPortfolio() {
-  const tabs = document.getElementById("portfolio-tabs"); tabs.replaceChildren();
-  for (const [category, label] of Object.entries(categoryLabels)) {
-    const button = document.createElement("button"); button.type = "button"; button.className = `tab-button${category === activePortfolioCategory ? " active" : ""}`; button.textContent = label;
-    button.setAttribute("aria-pressed", String(category === activePortfolioCategory));
-    button.addEventListener("click", async () => {
-      if (activePortfolioCategory === category) return;
-      try { await releaseViewGrants(); await refreshProtectedContent(); activePortfolioCategory = category; state.activePortfolioSection = null; state.currentResourceFolder = ""; renderPortfolio(); }
-      catch (error) { alert(error.message); }
-    }); tabs.append(button);
-  }
-  renderOrganizedPanel();
-}
+function renderOrganizedPortfolio() { renderPersonalSpace(); }
+function renderOrganizedPanel() { renderPersonalSpace(); }
 function lockedContentNotice(host, kind, item) {
   const box = document.createElement("div"); box.className = "locked-content-notice";
   const text = document.createElement("p"); text.textContent = "此处有内容，已开启一次性密码锁。";
   const control = document.createElement("button"); control.className = "btn"; control.type = "button"; control.textContent = "输入密码";
   control.addEventListener("click", async () => { if (await ensureContentUnlocked(kind, item)) renderPortfolioPanel(); });
   box.append(text, control); host.append(box);
-}
-function renderOrganizedPanel() {
-  const host = document.getElementById("portfolio-panel-host");
-  state.resourcePanelNode ||= document.querySelector("#resources .section-inner");
-  host.replaceChildren();
-  const sections = organizedSections();
-  const section = sections.find(item => item.id === state.activePortfolioSection) || sections[0];
-  if (!section) { host.append(empty(`暂无可查看的${categoryLabels[activePortfolioCategory]}。`)); return; }
-  state.activePortfolioSection = section.id;
-  const tabs = document.createElement("div"); tabs.className = "portfolio-section-tabs";
-  sections.forEach(item => {
-    const control = document.createElement("button"); control.type = "button"; control.className = `tab-button${item.id === section.id ? " active" : ""}`;
-    control.textContent = `${item.name}${item.locked ? " · 已锁定" : ""}`; control.addEventListener("click", () => selectOrganizedSection(item.id).catch(error => alert(error.message))); tabs.append(control);
-  }); host.append(tabs);
-  if (section.locked) { lockedContentNotice(host, "section", section); return; }
-  const subsections = (state.data?.subsections || []).filter(item => item.section_id === section.id);
-  const roots = subsections.filter(item => !item.parent_id);
-  let active = state.activeSubsections[section.id];
-  const allowAll = Number(section.show_all) !== 0;
-  if (!active || (active === "all" && !allowAll) || (active !== "all" && !subsections.some(item => item.id === active))) active = allowAll || !roots.length ? "all" : roots[0].id;
-  state.activeSubsections[section.id] = active;
-  const current = subsections.find(item => item.id === active);
-  const rootId = current?.parent_id || current?.id;
-  const choose = async id => {
-    if (state.activeSubsections[section.id] === id) return;
-    const keep = subsectionGrantPath(section.id, id);
-    await releaseViewGrants(grant => !keep.has(`${grant.kind}:${grant.id}`)); await refreshProtectedContent();
-    state.activeSubsections[section.id] = id; state.currentResourceFolder = ""; renderPortfolioPanel();
-  };
-  const addTab = (container, label, id, isActive) => {
-    const button = document.createElement("button"); button.type = "button"; button.className = `tab-button${isActive ? " active" : ""}`; button.textContent = label;
-    button.addEventListener("click", () => choose(id).catch(error => alert(error.message))); container.append(button);
-  };
-  if (roots.length || allowAll) {
-    const children = document.createElement("div"); children.className = activePortfolioCategory === "gallery" ? "album-tabs" : "portfolio-subtabs";
-    if (allowAll) addTab(children, "全部", "all", active === "all");
-    roots.forEach(item => addTab(children, `${item.name}${item.locked ? " · 已锁定" : ""}`, item.id, rootId === item.id)); host.append(children);
-  }
-  const grandchildren = subsections.filter(item => item.parent_id === rootId);
-  if (grandchildren.length) {
-    const children = document.createElement("div"); children.className = "portfolio-child-tabs";
-    addTab(children, "本板块", rootId, active === rootId);
-    grandchildren.forEach(item => addTab(children, `${item.name}${item.locked ? " · 已锁定" : ""}`, item.id, active === item.id)); host.append(children);
-  }
-  if (current?.locked) { lockedContentNotice(host, "subsection", current); return; }
-  if (activePortfolioCategory === "resources") {
-    if (state.resourcePanelNode) host.append(state.resourcePanelNode);
-    renderOrganizedResources(active); return;
-  }
-  if (activePortfolioCategory === "content") {
-    const grid = document.createElement("div"); grid.className = "content-grid";
-    const items = (state.data?.content || []).filter(item => item.section_id === section.id && subsectionMatches(item.subsection_id, active));
-    items.forEach(item => grid.append(contentCard(item, section))); if (!items.length) grid.append(empty("这个板块还没有可查看的文章。")); host.append(grid);
-  } else {
-    const photos = (state.data?.media || []).filter(item => item.section_id === section.id && subsectionMatches(item.subsection_id, active));
-    const gallery = document.createElement("div"); gallery.className = "gallery";
-    photos.forEach(photo => {
-      const card = document.createElement("div"); card.className = `photo-card${photo.locked ? " is-locked" : ""}`; card.tabIndex = 0; card.setAttribute("role", "button");
-      card.setAttribute("aria-label", photo.locked ? "解锁照片" : `查看照片：${photo.caption || photo.filename}`);
-      const image = document.createElement("img"); image.loading = "lazy"; image.src = protectedMediaUrl(photo.previewUrl || photo.url); image.alt = photo.caption || "照片";
-      const name = document.createElement("span"); name.className = "photo-name"; name.textContent = `${photo.caption || photo.filename}${photo.note ? ` · ${photo.note}` : ""}${photo.locked ? " · 已锁定" : ""}`;
-      card.append(image, name); card.addEventListener("click", () => openImage(photo, photos));
-      card.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openImage(photo, photos); } }); gallery.append(card);
-    });
-    if (!photos.length) gallery.append(empty("这个板块还没有可查看的照片。")); host.append(gallery);
-  }
 }
 function renderOrganizedResources(requestedSubsection = null) {
   const sectionId = state.activePortfolioSection;

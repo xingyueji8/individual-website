@@ -55,6 +55,7 @@ const studio = domContext(studioHtml);
 studio.run(await readFile("public/studio-organize.js", "utf8"));
 studio.run(await readFile("public/studio-share.js", "utf8"));
 studio.run(await readFile("public/studio-background.js", "utf8"));
+studio.run(await readFile("public/studio-rich-text.js", "utf8"));
 const main = [...studioHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(source => source.includes("const app ="));
 assert.ok(main);
@@ -242,14 +243,16 @@ portfolio.context.contentCard = item => portfolio.context.empty(item.title);
 portfolio.context.api = async () => portfolio.context.state.data;
 portfolio.context.fetch = async () => Response.json({ ok: true });
 portfolio.run(await readFile("public/portfolio-organize.js", "utf8"));
+portfolio.run(await readFile("public/personal-space.js", "utf8"));
 portfolio.run('function renderPortfolio(){renderOrganizedPortfolio()} function renderPortfolioPanel(){renderOrganizedPanel()}');
-portfolio.run('activePortfolioCategory="gallery";renderPortfolio();');
-assert.deepEqual([...portfolio.document.querySelectorAll("#portfolio-tabs button")].map(node => node.textContent), ["文章", "图片", "文件与视频"]);
+portfolio.run('renderPortfolio();');
+assert.deepEqual([...portfolio.document.querySelectorAll(".ps-landing .ps-entry strong")].map(node => node.textContent), ["文章", "图片", "文件/视频"]);
+portfolio.run('personalSpaceRoute={category:"gallery",sectionId:"photos",subsectionId:"photo-child",all:false};renderPortfolio();');
 assert.match(portfolio.document.querySelector(".photo-name").textContent, /A note.*已锁定/);
 assert.match(portfolio.document.querySelector(".photo-card img").getAttribute("src"), /mosaic=1/);
-portfolio.run('state.activeSubsections.photos="photo-parent";renderPortfolioPanel();');
-assert.equal(portfolio.document.querySelectorAll(".photo-card").length, 1);
-assert.match(portfolio.document.querySelector(".portfolio-child-tabs").textContent, /Child/);
+portfolio.run('personalSpaceRoute.subsectionId="photo-parent";renderPortfolioPanel();');
+assert.equal(portfolio.document.querySelectorAll(".photo-card").length, 0);
+assert.match(portfolio.document.querySelector(".ps-page").textContent, /Child/);
 
 // Navigating deeper keeps the redeemed parent lock, while leaving a sibling revokes it.
 portfolio.run(`contentViewGrants.set('section:photos',{kind:'section',id:'photos',owner:'section:photos',token:'${"a".repeat(64)}',expiresAt:Date.now()+10000});
@@ -258,8 +261,70 @@ await portfolio.run(`(async()=>{const keep=subsectionGrantPath('photos','photo-c
 assert.equal(portfolio.run("contentViewGrants.size"), 2);
 await portfolio.run(`(async()=>{const keep=subsectionGrantPath('photos','all');await releaseViewGrants(grant=>!keep.has(grant.kind+':'+grant.id))})()`);
 assert.equal(portfolio.run("contentViewGrants.size"), 1);
-portfolio.run('activePortfolioCategory="resources";state.activePortfolioSection="files";renderPortfolio();');
+portfolio.run('personalSpaceRoute={category:"resources",sectionId:"files",subsectionId:"",all:true};renderPortfolio();');
 assert.match(portfolio.document.getElementById("resource-grid").textContent, /Custom folder/);
 assert.match(portfolio.document.getElementById("resource-grid").textContent, /asset-a/);
 assert.deepEqual(portfolio.alerts, []);
+
+// Multi-page routes round-trip, never expose children as tabs alongside their
+// parent content, and keep browser-history navigation separate from data reads.
+portfolio.context.AbortController = AbortController;
+portfolio.document.getElementById("personal-space-title").focus = () => {};
+portfolio.context.history = { state: null, pushState(value, _, url) { this.state = value; portfolio.context.location.hash = new URL(url, "https://example.test").hash; },
+  replaceState(value, _, url) { this.state = value; portfolio.context.location.hash = new URL(url, "https://example.test").hash; } };
+const indexSource = await readFile("public/index.html", "utf8");
+const historyFunction = indexSource.slice(indexSource.indexOf('    function updateSectionHistory('), indexSource.indexOf('    /* 同一游客'));
+portfolio.run('const APP_HISTORY_LAYER="app";'); portfolio.run(historyFunction);
+portfolio.run('contentViewGrants.clear();personalSpaceNavigate({category:"gallery",sectionId:"photos",subsectionId:"photo-parent",all:true});');
+assert.equal(portfolio.context.location.hash, "#portfolio/gallery/photos/photo-parent/~all");
+assert.equal(portfolio.document.querySelectorAll(".photo-card").length, 1);
+assert.equal(portfolio.run('personalSpaceRouteFromHash(location.hash).subsectionId'), "photo-parent");
+assert.equal(portfolio.run('personalSpaceRouteFromHash(location.hash).all'), true);
+portfolio.context.location.hash = "#portfolio/gallery/photos/photo-parent";
+portfolio.run('personalSpaceRestoreLocation();');
+assert.equal(portfolio.document.querySelectorAll(".photo-card").length, 0);
+assert.ok(portfolio.document.querySelector(".ps-entry-small"));
+assert.equal(portfolio.run('personalSpaceLayout({id:"photos",gallery_layout:"grid"},{id:"child",parent_id:"photo-parent",gallery_layout:"inherit"},"gallery_layout","grid")'), "grid");
+portfolio.run('state.data.subsections.find(item=>item.id==="photo-parent").gallery_layout="masonry";renderPortfolio();');
+assert.equal(portfolio.run('personalSpaceLayout({id:"photos",gallery_layout:"grid"},{id:"child",parent_id:"photo-parent",gallery_layout:"inherit"},"gallery_layout","grid")'), "masonry");
+portfolio.run('personalSpaceNavigate({});');
+portfolio.document.querySelector(".ps-landing .ps-entry").click();
+assert.equal(portfolio.document.querySelectorAll(".ps-landing .ps-entry").length, 3, "a press begins before the page changes");
+await new Promise(resolve => setTimeout(resolve, 145));
+assert.equal(portfolio.context.location.hash, "#portfolio/content");
+assert.equal(portfolio.document.querySelectorAll(".ps-section-row").length, 1);
+
+// Feed uses the actual shared reader renderer, orders publications rather than
+// edits, loads full bodies, and never requests a locked body's bytes.
+const requestedBodies = [];
+portfolio.context.api = async path => {
+  if (path.startsWith("/api/content/")) { requestedBodies.push(path); return { id: path.split("/").at(-1), body_html: '<p>正文<span style="color:#aa2244;font-size:24px">部分格式</span></p>', inlineMedia: [] }; }
+  return portfolio.context.state.data;
+};
+portfolio.context.mediaIdFromUrl = () => null;
+portfolio.context.enhanceArticleLinks = () => {};
+portfolio.run(indexSource.slice(indexSource.indexOf('    function renderReaderBody('), indexSource.indexOf('    const IMAGE_ZOOM_MIN')));
+portfolio.run(`state.data.sections.find(item=>item.id==="articles").article_layout="feed";
+  state.data.content=[
+    {id:"older",section_id:"articles",title:"旧动态",published_at:"2026-09-01T00:00:00Z",updated_at:"2026-10-05T00:00:00Z"},
+    {id:"newer",section_id:"articles",title:"新动态",published_at:"2026-10-04T00:00:00Z"},
+    {id:"secret",section_id:"articles",title:"已锁定动态",published_at:"2026-09-03T00:00:00Z",locked:true}];
+  personalSpaceNavigate({category:"content",sectionId:"articles"});`);
+await new Promise(resolve => setTimeout(resolve, 0));
+assert.deepEqual([...portfolio.document.querySelectorAll(".ps-feed-entry")].map(node => node.dataset.contentId), ["newer", "secret", "older"]);
+assert.deepEqual(requestedBodies.sort(), ["/api/content/newer", "/api/content/older"]);
+assert.match(portfolio.document.querySelector(".ps-feed-date").textContent, /2026年10月4日.*星期日/);
+assert.match(portfolio.document.querySelector(".ps-feed-body").innerHTML, /font-size:24px/);
+assert.ok(portfolio.document.querySelector('[data-content-id="secret"] .locked-content-notice'));
+portfolio.run('personalSpaceNavigate({category:"resources",sectionId:"files",all:true});state.currentResourceFolder="custom-folder";contentViewGrants.set("assetFolder:custom-folder",{kind:"assetFolder",id:"custom-folder",token:"folder-token",expiresAt:Date.now()+10000});personalSpaceNavigate(personalSpaceRoute,{preserveFolder:true});');
+assert.equal(portfolio.run('contentViewGrants.has("assetFolder:custom-folder")'), true, "opening a protected folder keeps its redeemed lock");
+portfolio.run('contentViewGrants.clear();');
+
+// Studio keeps independent overrides and hides controls for unrelated kinds.
+studio.run('editSection({...app.sections[0],article_layout:"feed",gallery_layout:"grid"});');
+assert.equal(studio.run('sectionPayload().articleLayout'), "feed");
+assert.equal(studio.document.querySelector('[data-presentation-prefix="section"][data-presentation-kind="gallery"]').hidden, true);
+studio.run('editSubsection({...app.subsections[0],gallery_layout:"rows"});');
+assert.equal(studio.run('studioPresentationPayload("subsection").galleryLayout'), "rows");
+assert.equal(studio.document.querySelector('[data-presentation-prefix="subsection"][data-presentation-kind="content"]').hidden, true);
 console.log("photo queue controls, permission feedback, lock editor and three-category DOM regression passed");

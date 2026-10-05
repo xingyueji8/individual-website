@@ -10,8 +10,9 @@ import { ENTRY_BACKGROUND_SETTING, normalizeEntryBackgroundConfig, readEntryBack
 import { AGENT_PLANNER_PROMPT, parseAgentPlan, searchAgentResources, ensureAgentActions,
   issueAgentActions, consumeAgentAction } from "./site-agent.mjs";
 import { initializeShares, adminShares, resolveShare, sharedContent, shareListing } from "./shares.mjs";
+import { presentationSettings, sanitizeTextStyle } from "./personal-space.mjs";
 
-const APP_VERSION = "2.2.0.0";
+const APP_VERSION = "2.3.0.0";
 const DEFAULT_CANONICAL_HOSTNAME = "xingyueji.com.cn";
 const DEFAULT_ALLOWED_HOSTNAMES = Object.freeze([DEFAULT_CANONICAL_HOSTNAME, `www.${DEFAULT_CANONICAL_HOSTNAME}`]);
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
@@ -430,19 +431,30 @@ function sanitizeAttributes(tag, rawAttributes) {
     /* 资源嵌入只保存类型和数据库 ID，不允许 Studio 写入任意样式或事件。 */
     div: new Set(["class", "data-resource-type", "data-resource-id"]),
   };
-  if (!allowed[tag]) return "";
+  const textTags = new Set(["p", "strong", "b", "em", "i", "u", "s", "blockquote", "li", "h2", "h3", "h4", "a", "div", "span"]);
+  const attributes = new Set(allowed[tag] || []);
+  if (textTags.has(tag)) attributes.add("style");
+  if (!attributes.size) return "";
 
   const output = [];
   const attributePattern = /([a-zA-Z0-9:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
   let match;
   while ((match = attributePattern.exec(rawAttributes))) {
     const name = match[1].toLowerCase();
-    if (!allowed[tag].has(name)) continue;
+    if (!attributes.has(name)) continue;
     let value = match[2] ?? match[3] ?? match[4] ?? "";
+    if (name === "style") {
+      value = sanitizeTextStyle(value.replace(/&quot;/gi, '"').replace(/&#39;/gi, "'"));
+      if (!value) continue;
+    }
     value = value.replace(/[\u0000-\u001f"<>]/g, "");
     if ((name === "href" || name === "src") && !isSafeUrl(value, tag === "img")) continue;
     if (name === "target" && value !== "_blank") continue;
-    if (tag === "div" && name === "class" && value !== "resource-embed") continue;
+    if (tag === "div" && name === "class") {
+      const classes = value.split(/\s+/);
+      if (!classes.includes("resource-embed") || classes.some(item => !["resource-embed", "is-selected"].includes(item))) continue;
+      value = "resource-embed";
+    }
     if (tag === "div" && name === "data-resource-type" && !["asset", "folder"].includes(value)) continue;
     if (tag === "div" && name === "data-resource-id" && !validId(value)) continue;
     output.push(`${name}="${value}"`);
@@ -1045,6 +1057,10 @@ async function initializeSchema(env) {
   await ensureColumn(env, "portfolio_sections", "category", "TEXT");
   await ensureColumn(env, "portfolio_sections", "download_policy", "TEXT NOT NULL DEFAULT 'public'");
   await ensureColumn(env, "portfolio_subsections", "parent_id", "TEXT");
+  await ensureColumn(env, "portfolio_sections", "article_layout", "TEXT NOT NULL DEFAULT 'article'");
+  await ensureColumn(env, "portfolio_sections", "gallery_layout", "TEXT NOT NULL DEFAULT 'grid'");
+  await ensureColumn(env, "portfolio_subsections", "article_layout", "TEXT NOT NULL DEFAULT 'inherit'");
+  await ensureColumn(env, "portfolio_subsections", "gallery_layout", "TEXT NOT NULL DEFAULT 'inherit'");
   await ensureColumn(env, "media", "content_id", "TEXT");
   await ensureColumn(env, "media", "note", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(env, "media", "sha256", "TEXT");
@@ -1860,11 +1876,11 @@ async function publicBootstrap(request, env) {
       "SELECT id, version, title, body, published_at, sort_order FROM changelogs ORDER BY sort_order DESC, published_at DESC, created_at DESC",
     ).all(),
     env.DB.prepare(`
-      SELECT id, name, kind, category, description, sort_order, show_all, visibility, download_policy
+      SELECT id, name, kind, category, description, sort_order, show_all, visibility, download_policy, article_layout, gallery_layout
       FROM portfolio_sections ORDER BY sort_order ASC, created_at ASC
     `).all(),
     env.DB.prepare(`
-      SELECT id, section_id, parent_id, name, description, sort_order, visibility, download_policy
+      SELECT id, section_id, parent_id, name, description, sort_order, visibility, download_policy, article_layout, gallery_layout
       FROM portfolio_subsections ORDER BY sort_order ASC, created_at ASC
     `).all(),
     env.DB.prepare(`
@@ -4521,6 +4537,11 @@ async function deleteRemovedArticleAssets(env, contentId, bodyHtml, requestedIds
 
 
 /* ---------- 个人空间大板块：新增、改名、排序、删除。 ---------- */
+function readPresentationSettings(input, current, inherit = false) {
+  try { return presentationSettings(input, current, inherit); }
+  catch (error) { throw new HttpError(400, error.message); }
+}
+
 async function adminSections(request, env, id) {
   if (request.method === "GET") {
     const items = rows(await env.DB.prepare(`
@@ -4550,14 +4571,16 @@ async function adminSections(request, env, id) {
     const allowedUserIds = await validatedAllowedUserIds(env, visibility, input.allowedUserIds);
     if (!name) throw new HttpError(400, "板块名称不能为空");
     const timestamp = nowIso();
+    const currentStyle = id ? await env.DB.prepare("SELECT article_layout, gallery_layout FROM portfolio_sections WHERE id=?").bind(id).first() : null;
+    const layout = readPresentationSettings(input, currentStyle || {});
 
     if (request.method === "POST") {
       const newId = crypto.randomUUID();
       await env.DB.prepare(`
         INSERT INTO portfolio_sections
-          (id, name, kind, category, description, sort_order, show_all, visibility, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(newId, name, kind, category, description, sortOrder, showAll, visibility, timestamp, timestamp).run();
+          (id, name, kind, category, description, sort_order, show_all, visibility, article_layout, gallery_layout, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(newId, name, kind, category, description, sortOrder, showAll, visibility, layout.article_layout, layout.gallery_layout, timestamp, timestamp).run();
       await replaceAllowedUsers(env, "section", newId, allowedUserIds, timestamp);
       return { id: newId, allowed_user_ids: allowedUserIds };
     }
@@ -4578,9 +4601,9 @@ async function adminSections(request, env, id) {
     }
     await env.DB.prepare(`
       UPDATE portfolio_sections
-      SET name = ?, kind = ?, category = ?, description = ?, sort_order = ?, show_all = ?, visibility = ?, updated_at = ?
+      SET name = ?, kind = ?, category = ?, description = ?, sort_order = ?, show_all = ?, visibility = ?, article_layout = ?, gallery_layout = ?, updated_at = ?
       WHERE id = ?
-    `).bind(name, kind, category, description, sortOrder, showAll, visibility, timestamp, id).run();
+    `).bind(name, kind, category, description, sortOrder, showAll, visibility, layout.article_layout, layout.gallery_layout, timestamp, id).run();
     await replaceAllowedUsers(env, "section", id, allowedUserIds, timestamp);
     return { id, allowed_user_ids: allowedUserIds };
   }
@@ -4643,6 +4666,7 @@ async function adminSubsections(request, env, id) {
     const sectionId = (await portfolioSectionRecord(env, input.sectionId)).id;
     const current = id ? await env.DB.prepare("SELECT * FROM portfolio_subsections WHERE id=?").bind(id).first() : null;
     const parentId = Object.prototype.hasOwnProperty.call(input, "parentId") ? input.parentId || null : current?.parent_id || null;
+    const layout = readPresentationSettings(input, current || {}, true);
     if (parentId !== null) {
       if (typeof parentId !== "string" || !validId(parentId) || parentId === id) throw new HttpError(400, "上级小板块无效");
       const parent = await env.DB.prepare("SELECT * FROM portfolio_subsections WHERE id=? AND section_id=?").bind(parentId, sectionId).first();
@@ -4666,9 +4690,9 @@ async function adminSubsections(request, env, id) {
       const downloadPolicy = requestedDownloadPolicy || "public";
       await env.DB.prepare(`
         INSERT INTO portfolio_subsections
-          (id, section_id, parent_id, name, description, sort_order, visibility, download_policy, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(newId, sectionId, parentId, name, description, sortOrder, visibility, downloadPolicy, timestamp, timestamp).run();
+          (id, section_id, parent_id, name, description, sort_order, visibility, download_policy, article_layout, gallery_layout, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(newId, sectionId, parentId, name, description, sortOrder, visibility, downloadPolicy, layout.article_layout, layout.gallery_layout, timestamp, timestamp).run();
       await replaceAllowedUsers(env, "subsection", newId, allowedUserIds, timestamp);
       return { id: newId, allowed_user_ids: allowedUserIds };
     }
@@ -4690,9 +4714,9 @@ async function adminSubsections(request, env, id) {
     }
     await env.DB.prepare(`
       UPDATE portfolio_subsections
-      SET section_id = ?, parent_id = ?, name = ?, description = ?, sort_order = ?, visibility = ?, download_policy = ?, updated_at = ?
+      SET section_id = ?, parent_id = ?, name = ?, description = ?, sort_order = ?, visibility = ?, download_policy = ?, article_layout = ?, gallery_layout = ?, updated_at = ?
       WHERE id = ?
-    `).bind(sectionId, parentId, name, description, sortOrder, visibility, downloadPolicy, timestamp, id).run();
+    `).bind(sectionId, parentId, name, description, sortOrder, visibility, downloadPolicy, layout.article_layout, layout.gallery_layout, timestamp, id).run();
     await replaceAllowedUsers(env, "subsection", id, allowedUserIds, timestamp);
     return { id, allowed_user_ids: allowedUserIds };
   }
@@ -6489,6 +6513,10 @@ async function handleAdmin(request, env, url) {
   if (resource === "security") return adminSecurity(request, env, id, action);
   if (resource === "subsections") return adminSubsections(request, env, id);
   if (resource === "content") return adminContent(request, env, id);
+  if (resource === "content-preview" && request.method === "POST") {
+    const input = await readJson(request);
+    return { body_html: sanitizeRichHtml(input.bodyHtml) };
+  }
   if (resource === "changelogs") return adminChangelogs(request, env, id);
   if (resource === "albums") return adminAlbums(request, env, id);
   if (resource === "media") return adminMedia(request, env, id, action);

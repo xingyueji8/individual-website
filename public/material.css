@@ -7,6 +7,7 @@
 :root {
   --xyj-page-cream: #ffffff;
   --xyj-sidebar-light: rgba(232, 232, 232, .88);
+  --xyj-sidebar-background: var(--xyj-sidebar-light);
   --xyj-night-page: #111b21;
   --xyj-blue: #0f6baa;
   --xyj-teal: #246f84;
@@ -111,8 +112,9 @@
   -webkit-backdrop-filter: blur(25px) saturate(1.12) contrast(1.035);
   backdrop-filter: blur(25px) saturate(1.12) contrast(1.035);
 }
+:root[data-theme="dark"] { --xyj-sidebar-background: rgba(27, 48, 54, .78); }
 :root[data-theme="dark"] .sidebar {
-  background-color: rgba(27, 48, 54, .78) !important;
+  background-color: var(--xyj-sidebar-background) !important;
   border-color: rgba(202, 236, 238, .14) !important;
   box-shadow:
     12px 0 34px rgba(0, 0, 0, .26),

@@ -1,6 +1,6 @@
 {
   "name": "xingyueji",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "scripts": {
     "build:assets": "node scripts/prepare-heic.mjs",
@@ -15,8 +15,9 @@
     "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",
     "test:agent": "node test/site-agent.mjs && node test/site-agent-ui.mjs && node test/site-agent-interactions.mjs",
     "test:shares": "node test/shares.mjs && node test/shares-ui.mjs",
-    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:background && npm run test:agent && npm run test:shares",
-    "deploy": "wrangler deploy"
+    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:background && npm run test:agent && npm run test:shares && npm run test:space",
+    "deploy": "wrangler deploy",
+    "test:space": "node test/personal-space.mjs"
   },
   "devDependencies": {
     "linkedom": "0.18.12",

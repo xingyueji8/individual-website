@@ -153,7 +153,7 @@
 
   /* 触屏从卡片上起手滚动时，位移优先解释为滚动，不再误触卡片的 click。 */
   function installTouchScrollIntentGuard() {
-    const selector = ".content-card, .photo-card, .resource-card, .usage-guide, .updates, .list-item, .asset-row.folder, .album-chip, [role='button']";
+    const selector = ".content-card, .photo-card, .resource-card, .ps-entry, .usage-guide, .updates, .list-item, .asset-row.folder, .album-chip, [role='button']";
     let gesture = null;
     let suppress = null;
     document.addEventListener("pointerdown", (event) => {

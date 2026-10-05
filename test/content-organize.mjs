@@ -201,5 +201,5 @@ assert.match(vm.runInContext('protectedMediaUrl("/media/photo?preview=1")', sand
 assert.equal(vm.runInContext('protectedMediaUrl("https://external.test/media/photo")', sandbox), "https://external.test/media/photo");
 vm.runInContext('contentViewGrants.get("media:photo").expiresAt=0', sandbox);
 assert.equal(vm.runInContext('contentGrantTokens()', sandbox), "");
-assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(Object.values(categoryLabels))', sandbox)), ["文章", "图片", "文件与视频"]);
+assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(Object.values(categoryLabels))', sandbox)), ["文章", "图片", "文件/视频"]);
 console.log("portfolio category / hierarchy / grant URL unit regression passed");

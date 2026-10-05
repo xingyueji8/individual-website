@@ -38,7 +38,10 @@
   <script>
     const statusNode=document.getElementById("status");
     function fail(message){statusNode.hidden=false;statusNode.textContent=message}
-    async function json(path){const response=await fetch(path);const data=await response.json().catch(()=>null);if(!response.ok)throw new Error(data?.error||`请求失败（${response.status}）`);return data}
+    const documentParams=new URLSearchParams(location.search);
+    const documentGrants=/^[a-f0-9]{64}(,[a-f0-9]{64})*$/.test(documentParams.get("grants")||"")?documentParams.get("grants"):"";
+    function grantUrl(source){const url=new URL(source,location.href);if(documentGrants&&url.origin===location.origin)url.searchParams.set("grants",documentGrants);return url.href}
+    async function json(path){const response=await fetch(path,{headers:documentGrants?{"X-Content-Grants":documentGrants}:{}});const data=await response.json().catch(()=>null);if(!response.ok)throw new Error(data?.error||`请求失败（${response.status}）`);return data}
     function loadMammoth(){
       if(window.mammoth)return Promise.resolve(window.mammoth);
       return new Promise((resolve,reject)=>{const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/mammoth@1.10.0/mammoth.browser.min.js";script.referrerPolicy="no-referrer";script.onload=()=>window.mammoth?resolve(window.mammoth):reject(new Error("Word 解析组件没有正确加载"));script.onerror=()=>reject(new Error("Word 解析组件加载失败，请检查网络或让站长上传 PDF 预览版本"));document.head.append(script)});
@@ -59,13 +62,16 @@
       const assetId=new URLSearchParams(location.search).get("asset")||"";
       if(!/^[A-Za-z0-9_-]{1,80}$/.test(assetId)){fail("文档地址无效。");return}
       try{
-        const bootstrap=await json("/api/bootstrap");const asset=(bootstrap.assets||[]).find(item=>item.id===assetId);
+        const studio=documentParams.get("studio")==="1";
+        const bootstrap=await json(studio?"/api/admin/assets":"/api/bootstrap");
+        const candidates=studio?bootstrap:[...(bootstrap.assets||[]),...(bootstrap.articleAssets||[]),...(bootstrap.sectionAssets||[]),...(bootstrap.galleryAssets||[])];
+        const asset=candidates.find(item=>item.id===assetId);
         if(!asset)throw new Error("文档不存在，或当前账号没有访问权限");
         document.getElementById("title").textContent=asset.display_name;document.title=`${asset.display_name} · 星月集`;
         document.getElementById("meta").textContent=`WORD · ${(Number(asset.size_bytes)/1024/1024).toFixed(2)} MiB`;
-        const download=document.getElementById("download");if(asset.downloadUrl){download.href=asset.downloadUrl;download.style.display="inline-flex"}
+        const download=document.getElementById("download");if(asset.downloadUrl){download.href=grantUrl(asset.downloadUrl);download.style.display="inline-flex"}
         if(!/\.docx$/i.test(asset.filename||""))throw new Error("旧版 .doc 无法在浏览器中安全解析，请下载原件，或让站长在 Studio 上传 PDF 预览版本。");
-        const [mammoth,response]=await Promise.all([loadMammoth(),fetch(asset.url)]);if(!response.ok){const data=await response.json().catch(()=>null);throw new Error(data?.error||`文档读取失败（${response.status}）`)}
+        const [mammoth,response]=await Promise.all([loadMammoth(),fetch(grantUrl(asset.url))]);if(!response.ok){const data=await response.json().catch(()=>null);throw new Error(data?.error||`文档读取失败（${response.status}）`)}
         const result=await mammoth.convertToHtml({arrayBuffer:await response.arrayBuffer()});
         const documentNode=document.getElementById("document");documentNode.replaceChildren(sanitizedDocument(result.value));statusNode.hidden=true;
         if(result.messages?.length)console.info("Word preview conversion notes",result.messages);

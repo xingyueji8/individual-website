@@ -65,7 +65,7 @@ assert.match(photoScript, /uploadPartWithRetry\("\/api\/admin\/media"/);
 assert.match(photoScript, /entry\.allowDuplicate/);
 assert.match(studioHtml, /uploadTarget\.value=event\.target\.value/);
 for (const field of ["section-description", "subsection-description"]) {
-  const input = studioHtml.match(new RegExp(`<input[^>]*id="${field}"[^>]*>`))?.[0];
+  const input = studioHtml.match(new RegExp(`<(?:input|textarea)[^>]*id="${field}"[^>]*>`))?.[0];
   assert.ok(input, `${field} must remain editable`);
   assert.doesNotMatch(input, /\brequired\b/, `${field} must be optional`);
   assert.match(input, /placeholder="可留空"/);

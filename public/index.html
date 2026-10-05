@@ -1515,6 +1515,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/vnext.css">
   <link rel="stylesheet" href="/material.css">
+  <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/organize.css">
 </head>
 <body>
@@ -1623,7 +1624,7 @@
       <!-- ==================== 个人空间 ==================== -->
       <section id="portfolio" class="content-section">
         <div class="section-inner">
-          <h1>个人空间</h1>
+          <h1 id="personal-space-title" tabindex="-1">个人空间</h1>
           <p id="portfolio-access-note" class="access-note">游客模式仅显示公开内容</p>
           <!-- 这两个容器完全根据 D1 数据生成，不再把“随笔/图片/指南”写死在 HTML。 -->
           <div id="portfolio-tabs" class="portfolio-tabs" role="tablist"></div>
@@ -1954,6 +1955,7 @@
        负责读取 API、切换板块、渲染内容和绑定按钮事件。
        ======================================================== -->
   <script src="/portfolio-organize.js"></script>
+  <script src="/personal-space.js"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
     const state = {
@@ -2061,7 +2063,7 @@
 
     function activateWebsiteHistory(section) {
       const value = { xingyuejiLayer: APP_HISTORY_LAYER, xingyuejiSection: section };
-      const address = cleanHistoryAddress(section);
+      const address = cleanHistoryAddress(section === "portfolio" ? personalSpaceHash() : section);
       if (history.state?.xingyuejiLayer === ENTRY_HISTORY_LAYER) {
         history.pushState(value, "", address);
       } else if (history.state?.xingyuejiLayer === APP_HISTORY_LAYER) {
@@ -2549,8 +2551,9 @@
 
     function requestedSectionFromLocation() {
       const requested = location.hash.slice(1);
+      if (requested === "portfolio" || requested.startsWith("portfolio/")) return "portfolio";
       if (requested === "account") return "settings";
-      if (requested === "resources") { state.activePortfolioSection = "section-resources"; return "portfolio"; }
+      if (requested === "resources") { personalSpaceRoute = { category: "resources", sectionId: "section-resources", subsectionId: "", all: true }; return "portfolio"; }
       if (requested === "contact") return "about";
       return document.getElementById(requested)?.classList.contains("content-section") ? requested : "home";
     }
@@ -2565,11 +2568,11 @@
     function updateSectionHistory(id, mode = "push") {
       if (mode === "none") return;
       const url = new URL(location.href);
-      url.hash = id;
+      url.hash = id === "portfolio" ? personalSpaceHash() : id;
       const value = { xingyuejiLayer: APP_HISTORY_LAYER, xingyuejiSection: id };
       const address = `${url.pathname}${url.search}${url.hash}`;
       if (mode === "replace") history.replaceState(value, "", address);
-      else if (history.state?.xingyuejiSection !== id || location.hash !== `#${id}`) history.pushState(value, "", address);
+      else if (history.state?.xingyuejiSection !== id || location.hash !== url.hash) history.pushState(value, "", address);
     }
 
     /* 同一游客的页面切换合并为短延迟写入，快速连点不会向 D1 产生重复请求。 */
@@ -2585,15 +2588,17 @@
       }, 420);
     }
 
-    function navigateSection(id, { historyMode = "push", animate = true } = {}) {
+    function navigateSection(id, { historyMode = "push", animate = true, preservePortfolio = false } = {}) {
       if (id === "account") id = "settings";
-      if (id === "resources") { activePortfolioCategory = "resources"; state.activePortfolioSection = "section-resources"; renderPortfolio(); id = "portfolio"; }
+      if (id === "resources") { personalSpaceRoute = { category: "resources", sectionId: "section-resources", subsectionId: "", all: true }; preservePortfolio = true; id = "portfolio"; }
       if (id === "contact") id = "about";
       if (id === "ai-helper" && !hasFullAccess()) { showAuthLock("ai"); return; }
       if (id === "account" && !state.auth.authenticated) { showAuthLock("account"); return; }
       const leavingPortfolio = state.activeSection === "portfolio" && id !== "portfolio";
+      if (id === "portfolio" && !preservePortfolio) personalSpaceNavigate({}, { historyMode: "none", focus: false });
       if (showSection(id, { animate })) {
-        if (leavingPortfolio) closeProtectedView("");
+        if (leavingPortfolio) { stopPersonalSpaceContent(); closeProtectedView(""); }
+        if (id === "portfolio") { renderPersonalSpace(); if (animate) playPersonalSpaceEntrance(); }
         if (state.runtimeSecurity.started) state.runtimeSecurity.counters.navigations += 1;
         updateSectionHistory(id, historyMode);
         scheduleGuestSectionTrack(id);
@@ -2647,7 +2652,7 @@
     }
 
     function contentCard(item, section) {
-      const card = document.createElement("article"); card.className = "content-card"; card.tabIndex = 0;
+      const card = document.createElement("article"); card.className = "content-card"; card.tabIndex = 0; card.setAttribute("role", "button");
       const kind = document.createElement("span"); kind.className = "kind"; kind.textContent = section.name;
       const title = document.createElement("h3"); title.textContent = item.title;
       const timeLabels = contentTimeLabels(item);
@@ -2659,8 +2664,9 @@
       const meta = document.createElement("div"); meta.className = "card-meta";
       const reactions = document.createElement("span"); reactions.textContent = `👍 ${item.like_count} · 👎 ${item.dislike_count}`;
       meta.append(reactions); card.append(kind, title, times, excerpt, meta);
-      card.addEventListener("click", () => openContent(item.id));
-      card.addEventListener("keydown", (event) => { if (event.key === "Enter") openContent(item.id); });
+      const open = () => personalSpaceActivate(card, () => openContent(item.id));
+      card.addEventListener("click", open);
+      card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
       return card;
     }
 
@@ -2709,8 +2715,9 @@
         const reader = document.getElementById("reader-dialog"); if (reader.open) reader.close();
         state.activePortfolioSection = folder.section_id || "section-resources";
         activePortfolioCategory = "resources";
-        if (state.activeSection !== "portfolio") navigateSection("portfolio");
-        renderPortfolio();
+        personalSpaceRoute = { category: "resources", sectionId: state.activePortfolioSection, subsectionId: "", all: true };
+        if (state.activeSection !== "portfolio") navigateSection("portfolio", { preservePortfolio: true });
+        personalSpaceNavigate(personalSpaceRoute, { preserveFolder: true });
       };
       card.addEventListener("click", open);
       card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
@@ -2874,7 +2881,7 @@
       } else if (asset.kind === "word") {
         const preview = variants.find((item) => item.label === "preview");
         const frame = document.createElement("iframe"); frame.title = asset.display_name;
-        frame.src = preview?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}`; viewer.append(frame);
+        frame.src = preview?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}${contentGrantTokens() ? `&grants=${encodeURIComponent(contentGrantTokens())}` : ""}`; viewer.append(frame);
         downloads.append(resourceDownloadButton("下载 Word 原件", asset.downloadUrl));
         if (preview) downloads.append(resourceDownloadButton("下载 PDF 预览", preview.downloadUrl));
       } else {
@@ -3037,8 +3044,7 @@
      * 旧文章可能保存的是 /media/:id 原片地址，所以在节点进入页面前统一改写为
      * ?preview=1；这样游客浏览正文时只会请求压缩预览，不会误取原片。
      */
-    function renderReaderBody(html) {
-      const root = document.getElementById("reader-body");
+    function renderReaderBody(html, { root = document.getElementById("reader-body"), content = state.currentContent } = {}) {
       const template = document.createElement("template");
       template.innerHTML = html || "<p>暂无正文。</p>";
 
@@ -3075,11 +3081,11 @@
         const source = image.getAttribute("src") || image.src;
         const mediaId = mediaIdFromUrl(source);
         const caption = String(image.getAttribute("alt") || image.getAttribute("title") || "").trim();
-        const access = (state.currentContent?.inlineMedia || []).find(item => item.id === mediaId);
+        const access = (content?.inlineMedia || []).find(item => item.id === mediaId);
         return {
           ...(access || {}), mediaId,
           // 同一张图片可能在一篇文章出现多次，因此预览序列使用“文章 + 位置”作为唯一编号。
-          id: `reader-${state.currentContent?.id || "content"}-${index}`,
+          id: `reader-${content?.id || "content"}-${index}`,
           previewUrl: source,
           url: source,
           canDownload: Boolean(access?.canDownload),
@@ -3898,6 +3904,7 @@
         state.publicFeedback = feedbackData.feedback || [];
         state.siteLoaded = true;
         applySettings(); renderChangelogs(); renderPortfolio(); renderResources(); renderFeedback(); renderAccount();
+        if (initialSection.target === "portfolio") playPersonalSpaceEntrance();
         if (initialSection.target !== "home") scheduleGuestSectionTrack(initialSection.target);
 
         /*
@@ -4197,7 +4204,7 @@
     }
     document.querySelectorAll(".nav button[data-section]").forEach((button) => button.addEventListener("click", () => {
       animateNavigationIcon(button);
-      navigateSection(button.dataset.section);
+      personalSpaceActivate(button, () => navigateSection(button.dataset.section), 260);
     }));
     document.querySelectorAll("[data-login-required]").forEach((button) => button.addEventListener("click", () => showAuthLock("account")));
     document.getElementById("resource-up").addEventListener("click", async () => {
@@ -4419,6 +4426,10 @@
     window.addEventListener("hashchange", () => {
       if (history.state?.xingyuejiLayer === ENTRY_HISTORY_LAYER) return;
       const target = location.hash.slice(1);
+      if (target === "portfolio" || target.startsWith("portfolio/")) {
+        if (state.activeSection === "portfolio" && personalSpaceHash() === target) return;
+        personalSpaceRestoreLocation(); navigateSection("portfolio", { historyMode: "none", animate: false, preservePortfolio: true }); return;
+      }
       if (document.getElementById(target)?.classList.contains("content-section")) navigateSection(target, { historyMode: "none" });
     });
     window.addEventListener("popstate", (event) => {
@@ -4429,9 +4440,11 @@
         return;
       }
       const target = event.state?.xingyuejiSection || location.hash.slice(1);
-      if (document.getElementById(target)?.classList.contains("content-section")) {
+      const section = target.startsWith("portfolio/") ? "portfolio" : target;
+      if (document.getElementById(section)?.classList.contains("content-section")) {
         showWebsiteShell();
-        navigateSection(target, { historyMode: "none" });
+        if (section === "portfolio") personalSpaceRestoreLocation();
+        navigateSection(section, { historyMode: "none", animate: false, preservePortfolio: true });
       }
     });
 
