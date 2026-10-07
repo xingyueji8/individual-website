@@ -110,6 +110,8 @@
 .content-manager-toolbar small { color:#6e7d83; font-size:.72rem; }
 .content-manager-title-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; }
 .content-panel-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.content-creation-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.content-creation-actions .btn { min-height:36px; white-space:nowrap; }
 .content-panel-controls .btn { min-height:34px; white-space:nowrap; }
 .content-panel-controls [aria-expanded="false"] { border-style:dashed; }
 .content-manager-layout { display:grid; grid-template-columns:minmax(285px,.58fr) minmax(0,1.42fr); gap:16px; align-items:start; }

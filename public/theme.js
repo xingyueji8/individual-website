@@ -11,6 +11,12 @@
   const STORAGE_KEY = "xyj_theme_preference";
   const LEGACY_SCHEDULE_KEY = "xyj_theme_schedule";
   const root = document.documentElement;
+  const device = globalThis.navigator || {};
+  const agent = `${device.userAgent || ""} ${device.platform || ""}`;
+  // Harmony/ArkWeb identify newer devices; Huawei browsers also cover older
+  // Android-compatible UAs. Unavailable local fonts fall back to system-ui.
+  root.dataset.platformFont = /HarmonyOS|OpenHarmony|ArkWeb|HongMeng|HUAWEI|HuaweiBrowser|\bohos\b/i.test(agent)
+    ? "harmony" : /iPhone|iPad|iPod|Macintosh|MacIntel|Mac OS X/i.test(agent) ? "apple" : "default";
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
   function legacyScheduledTheme() {

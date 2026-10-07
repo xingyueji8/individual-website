@@ -13,10 +13,11 @@
     "test:i18n": "node test/i18n.mjs",
     "test:organize": "node test/content-organize.mjs && node test/organize-ui.mjs",
     "test:photos": "node test/photo-viewer-ui.mjs",
+    "test:mobile": "node test/mobile-entry-ui.mjs",
     "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",
     "test:agent": "node test/site-agent.mjs && node test/site-agent-ui.mjs && node test/site-agent-interactions.mjs && node test/site-agent-visibility.mjs",
     "test:shares": "node test/shares.mjs && node test/shares-ui.mjs",
-    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:photos && npm run test:background && npm run test:agent && npm run test:shares && npm run test:space",
+    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:photos && npm run test:mobile && npm run test:background && npm run test:agent && npm run test:shares && npm run test:space",
     "deploy": "wrangler deploy",
     "test:space": "node test/personal-space.mjs"
   },

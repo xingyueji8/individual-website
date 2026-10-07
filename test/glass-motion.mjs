@@ -243,8 +243,10 @@ for (const [path, html] of pages) {
     assert.match(html, /data-section="ai-helper"[\s\S]*?src="\/deepseek-whale\.svg"/);
     assert.match(html, /id="notification-bell"[\s\S]*?src="\/bell-line\.svg"/);
     assert.doesNotMatch(html, /🔔/);
-    assert.match(html, /const compact = host\.clientWidth > 0 && host\.clientWidth < 300/);
-    assert.doesNotMatch(html, /matchMedia\("\(max-width: 420px\)"\)\.matches \|\| host\.clientWidth < 300/);
+    const entryAuth = await readFile(new URL("../public/entry-auth.js", import.meta.url), "utf8");
+    assert.match(html, /src="\/entry-auth\.js"/);
+    assert.match(entryAuth, /const compact = host\.clientWidth > 0 && host\.clientWidth < 300/);
+    assert.doesNotMatch(entryAuth, /matchMedia\("\(max-width: 420px\)"\)\.matches \|\| host\.clientWidth < 300/);
     assert.equal((html.match(/class="nav-icon nav-icon-glyph"/g) || []).length, 4, "the four text navigation icons must share the bold glyph treatment");
   }
   if (path === "public/login.html") {

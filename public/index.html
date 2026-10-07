@@ -23,6 +23,8 @@
   <script src="/pwa.js"></script>
   <!-- 主题脚本必须在样式前同步执行，才能避免夜览模式刷新时出现白屏闪烁。 -->
   <script src="/theme.js"></script>
+  <link rel="preconnect" href="https://challenges.cloudflare.com">
+  <link rel="dns-prefetch" href="//challenges.cloudflare.com">
   <script src="/i18n.js" defer></script>
   <!-- 给登录卡片补充可随背景照片变化的放大折射层；不读取或暴露照片原片。 -->
   <script src="/liquid-glass.js"></script>
@@ -1519,6 +1521,7 @@
   <link rel="stylesheet" href="/material.css">
   <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/organize.css">
+  <link rel="stylesheet" href="/mobile.css">
 </head>
 <body>
   <!-- ========================================================
@@ -1542,19 +1545,23 @@
     <div class="entry-card">
       <h1 id="entry-title">欢迎来到星月集</h1>
 
-      <form id="entry-login-form" class="entry-form">
+      <form id="entry-login-form" class="entry-form" method="post" autocomplete="on">
         <label class="entry-field" for="entry-username">登录用户名
-          <input id="entry-username" required autocomplete="username" placeholder="输入登录用户名">
+          <input id="entry-username" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="输入登录用户名">
         </label>
         <div class="entry-options">
-          <label><input id="entry-remember" type="checkbox">保持登录30天</label>
+          <label><input id="entry-remember" name="remember" type="checkbox">保持登录30天</label>
           <a class="entry-link" href="/login?mode=forgot&amp;next=/">忘记密码？</a>
         </div>
         <label class="entry-field" for="entry-password">密码
-          <input id="entry-password" type="password" required autocomplete="current-password" placeholder="输入密码">
+          <input id="entry-password" name="password" type="password" required autocomplete="current-password" placeholder="输入密码">
         </label>
         <!-- 登录与游客进入复用同一次服务端 Turnstile 校验。 -->
-        <div id="guest-turnstile" class="guest-turnstile-wrap" hidden aria-label="登录与游客人机验证"></div>
+        <div id="entry-verification" hidden>
+          <div id="guest-turnstile" class="guest-turnstile-wrap" hidden aria-label="登录与游客人机验证"></div>
+          <p id="entry-verification-status" class="entry-verification-status" role="status" aria-live="polite">正在加载人机验证…</p>
+          <button id="entry-verification-retry" class="btn small ghost" type="button" hidden>重新加载验证</button>
+        </div>
         <button class="btn entry-primary" type="submit">登录并进入网站</button>
         <div class="entry-actions">
           <button id="entry-guest" class="btn ghost" type="button">以游客身份浏览</button>
@@ -1991,6 +1998,7 @@
        ======================================================== -->
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js"></script>
+  <script src="/entry-auth.js"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
     const state = {
@@ -2023,9 +2031,6 @@
       bootstrapPromise: null,
       entryBackgroundStarted: false,
       guestProtection: { enabled: false, incomplete: false, siteKey: "", action: "guest_entry" },
-      guestProtectionPromise: null,
-      turnstileScriptPromise: null,
-      turnstileWidgetId: null,
       turnstileToken: "",
       guestVerified: false,
       guestTrackTimer: null,
@@ -2057,6 +2062,13 @@
     const appShell = document.querySelector(".app-shell");
     const ENTRY_HISTORY_LAYER = "entry";
     const APP_HISTORY_LAYER = "app";
+    const entryDraft = window.XYJEntryAuth.installFormDraft(document.getElementById("entry-login-form"));
+    const entryChallenge = window.XYJEntryAuth.createChallenge({
+      loadConfig: signal => api("/api/guest/config", { signal }),
+      onConfig: config => { state.guestProtection = config; },
+      onToken: token => { state.turnstileToken = token; },
+      onNotice: text => { document.getElementById("entry-notice").textContent = text; },
+    });
 
     function showEntryScreen() {
       window.SiteAgent?.close({ clear: true });
@@ -2344,77 +2356,12 @@
      * 前端 callback 取得的 Token 不能单独视为通过，游客入口还会把它提交给
      * /api/guest/enter，由 Worker 调用 Siteverify 进行不可绕过的服务端校验。
      */
-    function loadTurnstileScript() {
-      if (globalThis.turnstile) return Promise.resolve(globalThis.turnstile);
-      if (!state.turnstileScriptPromise) {
-        state.turnstileScriptPromise = new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-          script.async = true; script.defer = true;
-          script.onload = () => globalThis.turnstile ? resolve(globalThis.turnstile) : reject(new Error("人机验证组件未正确初始化"));
-          script.onerror = () => reject(new Error("人机验证组件加载失败，请检查网络或拦截扩展"));
-          document.head.append(script);
-        }).catch((error) => {
-          state.turnstileScriptPromise = null;
-          throw error;
-        });
-      }
-      return state.turnstileScriptPromise;
-    }
-
-    async function initializeGuestProtection() {
-      if (state.guestProtectionPromise) return state.guestProtectionPromise;
-      state.guestProtectionPromise = (async () => {
-        const config = await api("/api/guest/config");
-        state.guestProtection = config;
-        /*
-         * Site Key / Secret Key 只配置一项时，后端会暂时退回严格访问限流。
-         * 不再让配置失误锁死游客入口，同时给出具体缺少项，方便站长修复。
-         */
-        if (config.incomplete) {
-          const missing = config.missingSiteKey ? "TURNSTILE_SITE_KEY" : "TURNSTILE_SECRET_KEY";
-          document.getElementById("entry-notice").textContent = `人机验证暂缺 ${missing}，当前由访问频率限制保护，仍可进入游客模式。`;
-          return config;
-        }
-        if (!config.enabled) return config;
-        const host = document.getElementById("guest-turnstile");
-        host.hidden = false;
-        const turnstile = await loadTurnstileScript();
-        /* flexible 组件只需要约 300px 宽度；仅在卡片真实可用宽度不足时
-           才切换为更高的 compact 组件，避免普通手机被无谓增加约一倍高度。 */
-        const compact = host.clientWidth > 0 && host.clientWidth < 300;
-        host.classList.toggle("is-compact", compact);
-        state.turnstileWidgetId = turnstile.render(host, {
-          sitekey: config.siteKey,
-          action: config.action || "guest_entry",
-          theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-          size: compact ? "compact" : "flexible",
-          callback(token) {
-            state.turnstileToken = token;
-            document.getElementById("entry-notice").textContent = "人机验证已通过，可以进入游客模式。";
-          },
-          "expired-callback"() {
-            state.turnstileToken = "";
-            document.getElementById("entry-notice").textContent = "验证已过期，请重新完成验证。";
-          },
-          "error-callback"() {
-            state.turnstileToken = "";
-            document.getElementById("entry-notice").textContent = "人机验证失败，请刷新或更换网络后重试。";
-          },
-        });
-        return config;
-      })().catch((error) => {
-        state.guestProtectionPromise = null;
-        throw error;
-      });
-      return state.guestProtectionPromise;
+    function initializeGuestProtection() {
+      return entryChallenge.initialize();
     }
 
     function resetGuestTurnstile() {
-      state.turnstileToken = "";
-      if (globalThis.turnstile && state.turnstileWidgetId !== null) {
-        globalThis.turnstile.reset(state.turnstileWidgetId);
-      }
+      entryChallenge.reset();
     }
 
     /*
@@ -4247,6 +4194,7 @@
           }),
         });
         notice.textContent = "登录成功，正在进入网站…";
+        entryDraft.clearPassword();
         state.guestVerified = false;
         // 登录前缓存的是游客数据；清除后重新读取，才能显示该账号的会员内容。
         state.bootstrapPromise = null;
@@ -4683,6 +4631,8 @@
     if (sessionStorage.getItem("xyj_runtime_blocked") === "1") {
       handleRuntimeBotDetected("本标签页此前因异常自动化行为被终止，请将其关闭后重新访问。");
     } else {
+      // Prepare verification in parallel with session detection, never after it.
+      initializeGuestProtection().catch(() => {});
       initializeEntryPhotoBackground();
       boot();
     }

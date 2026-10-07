@@ -1,3 +1,25 @@
+/* Native device typography also covers old Kai/Song overrides through their
+ * shared variables. Explicit rich-text font choices remain authored content. */
+:root[data-platform-font="apple"] {
+  --xyj-native-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "PingFang TC", system-ui, sans-serif;
+}
+:root[data-platform-font="harmony"] {
+  --xyj-native-font: "HarmonyOS Sans SC", "HarmonyOS Sans", system-ui, sans-serif;
+}
+:root:is([data-platform-font="apple"], [data-platform-font="harmony"]) {
+  --font-ui: var(--xyj-native-font);
+  --font-display: var(--xyj-native-font);
+  --font-reading: var(--xyj-native-font);
+  --font-hei: var(--xyj-native-font);
+  --font-song: var(--xyj-native-font);
+  --font-kai: var(--xyj-native-font);
+  --xyj-button-font: var(--xyj-native-font);
+  --xyj-chatgpt-reading-font: var(--xyj-native-font);
+}
+:root:is([data-platform-font="apple"], [data-platform-font="harmony"]) :is(#portfolio .ps-feed-date,.editor-preview-body .ps-feed-date) {
+  font-family: var(--xyj-native-font);
+}
+
 /*
  * 星月集白天 / 夜览主题补丁
  * ------------------------------------------------------------------
