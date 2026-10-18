@@ -47,10 +47,12 @@ function fillSubsectionParents(selected = "") {
   const select = document.getElementById("subsection-parent");
   const sectionId = document.getElementById("subsection-section").value;
   const currentId = document.getElementById("subsection-id").value;
-  select.replaceChildren(new Option("直属大板块（建立小板块）", ""));
+  const creatingChild = document.getElementById("subsection-form").dataset.creationLevel === "child";
+  select.replaceChildren(new Option(creatingChild ? "请选择上级小板块" : "直属大板块（建立小板块）", ""));
   app.subsections.filter(item => item.section_id === sectionId && !item.parent_id && item.id !== currentId)
     .forEach(item => select.add(new Option(item.name, item.id)));
-  select.value = selected;
+  select.value = [...select.options].some(option => option.value === selected) ? selected : "";
+  syncSubsectionEditorState();
 }
 
 function contentSecurityButton(kind, item, label = "下载权限 / 内容锁") {

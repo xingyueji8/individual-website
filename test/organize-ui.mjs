@@ -234,10 +234,21 @@ assert.deepEqual(studio.alerts, []);
 studio.context.fetch = async path => { throw new Error(`Unexpected request while creating a board: ${path}`); };
 studio.run('discardCurrentStudioDraft();enterSectionManager("content")');
 assert.equal(articleNode("create-subsection").disabled, false);
-assert.equal(articleNode("create-subsection-child").disabled, true);
+assert.equal(articleNode("create-subsection-child").disabled, false);
+articleNode("create-subsection-child").click();
+assert.equal(articleNode("subsection-form-title").textContent, "新建小小板块");
+assert.equal(articleNode("subsection-parent").required, true);
+assert.equal(articleNode("subsection-parent").value, "");
+assert.match(articleNode("subsection-form-description").textContent, /还没有小板块/);
+assert.ok(articleNode("subsection-form").closest("[data-section-editor-level]").classList.contains("active"));
+articleNode("subsection-form").dispatchEvent(new studio.window.Event("submit", { bubbles: true, cancelable: true }));
+assert.match(articleNode("subsection-notice").textContent, /请选择.*上级小板块/);
 closeSettings.click();
 articleNode("create-subsection").click();
 assert.equal(settingsPanel.hidden, false);
+assert.equal(articleNode("subsection-form-title").textContent, "新建小板块");
+assert.equal(articleNode("subsection-parent").required, false);
+assert.equal(articleNode("subsection-save").textContent, "保存小板块");
 assert.equal(studio.run("app.sectionEditorLevel"), "subsection");
 assert.equal(articleNode("subsection-section").value, "articles");
 assert.equal(articleNode("subsection-parent").value, "");
@@ -251,6 +262,66 @@ assert.equal(articleNode("subsection-name").value, "保留未保存的小板块"
 assert.equal(articleNode("subsection-section").value, "articles");
 assert.equal(studio.run("app.sectionEditorLevel"), "subsection");
 studio.context.confirm = () => true;
+studio.run('discardCurrentStudioDraft();resetSectionForm();setSectionEditorLevel("section")');
+articleNode("create-subsection").click();
+assert.equal(articleNode("subsection-section").value, "articles", "a blank large-board draft does not make creation silently fail");
+
+// Complete the article creation flow through the real submit listeners and a
+// fixture API. Opening a child form must not create a sibling by accident.
+const boardWrites = [];
+const savedBoards = JSON.parse(JSON.stringify(studio.run("app.subsections")));
+studio.context.fetch = async (path, options = {}) => {
+  assert.equal(path, "/api/admin/subsections");
+  if (options.method === "POST") {
+    const body = JSON.parse(options.body);
+    const id = `article-board-${boardWrites.length + 1}`;
+    boardWrites.push(body);
+    savedBoards.push({ id, name: body.name, section_id: body.sectionId, parent_id: body.parentId });
+    return Response.json({ id });
+  }
+  assert.equal(options.method, undefined);
+  return Response.json(savedBoards);
+};
+const submitBoard = async name => {
+  articleNode("subsection-name").value = name;
+  articleNode("subsection-name").dispatchEvent(new studio.window.Event("input", { bubbles: true }));
+  articleNode("subsection-form").dispatchEvent(new studio.window.Event("submit", { bubbles: true, cancelable: true }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+};
+await submitBoard("Article notes");
+assert.equal(boardWrites.length, 1);
+assert.equal(boardWrites[0].sectionId, "articles");
+assert.equal(boardWrites[0].parentId, null);
+assert.equal(articleNode("subsection-id").value, "article-board-1");
+assert.equal(articleNode("subsection-form-title").textContent, "编辑小板块");
+articleNode("create-subsection-child").click();
+assert.equal(articleNode("subsection-parent").value, "article-board-1");
+assert.equal(articleNode("subsection-save").textContent, "保存小小板块");
+await submitBoard("Java");
+assert.equal(boardWrites.length, 2);
+assert.equal(boardWrites[1].sectionId, "articles");
+assert.equal(boardWrites[1].parentId, "article-board-1");
+assert.equal(articleNode("subsection-form-title").textContent, "编辑小小板块");
+assert.equal(articleNode("subsection-parent").required, false, "editing a saved board is not stuck in creation mode");
+
+// With only the large board selected, offer the parent selector rather than a
+// disabled button, and keep child creation required after a category change.
+studio.run('editSection(app.sections.find(item=>item.id==="articles"))');
+articleNode("create-subsection-child").click();
+assert.equal(articleNode("subsection-parent").value, "");
+assert.match(articleNode("subsection-form-description").textContent, /请选择上级小板块/);
+assert.equal(articleNode("subsection-parent").required, true);
+await submitBoard("Needs a parent");
+assert.equal(boardWrites.length, 2, "missing parent cannot submit a sibling instead");
+studio.run('app.sections.push({id:"other-articles",kind:"content",name:"Other articles"});app.subsections.push({id:"other-parent",section_id:"other-articles",name:"Other parent"});refreshSectionOptions()');
+articleNode("subsection-section").value = "other-articles";
+articleNode("subsection-section").dispatchEvent(new studio.window.Event("change", { bubbles: true }));
+assert.equal(articleNode("subsection-parent").value, "");
+assert.equal(articleNode("subsection-parent").required, true);
+articleNode("subsection-parent").value = "other-parent";
+articleNode("subsection-parent").dispatchEvent(new studio.window.Event("change", { bubbles: true }));
+assert.match(articleNode("subsection-form-description").textContent, /Other articles.*Other parent/);
+studio.context.fetch = async path => { throw new Error(`Unexpected request while creating a board: ${path}`); };
 studio.run('discardCurrentStudioDraft();enterSectionManager("gallery");editSubsection(app.subsections.find(item=>item.id==="photo-parent"))');
 assert.equal(articleNode("create-subsection-child").disabled, false);
 articleNode("create-subsection-child").click();
@@ -266,8 +337,13 @@ studio.run('enterSectionManager("resources")');
 articleNode("create-subsection").click();
 assert.equal(articleNode("subsection-section").value, "files");
 studio.run('app.sections=[];enterSectionManager("content")');
-assert.equal(articleNode("create-subsection").disabled, true);
-assert.equal(articleNode("create-subsection-child").disabled, true);
+assert.equal(articleNode("create-subsection").disabled, false);
+assert.equal(articleNode("create-subsection-child").disabled, false);
+articleNode("create-subsection").click();
+articleNode("create-subsection-child").click();
+assert.equal(studio.alerts.length, 2, "missing large boards receive visible feedback");
+assert.ok(studio.alerts.every(message => /请先.*新建大板块/.test(message)));
+studio.alerts.length = 0;
 assert.equal(articleNode("content-structure-new").dataset.createLevel, "section");
 articleNode("content-structure-new").click();
 assert.equal(studio.run("app.sectionEditorLevel"), "section");
