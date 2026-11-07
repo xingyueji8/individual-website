@@ -21,7 +21,7 @@ function dom(html, pathname = "/studio") {
   const intervals = [], alerts = [];
   window.setInterval = callback => { intervals.push(callback); return 0; };
   const context = vm.createContext({ window, document, Element: window.Element, Node: window.Node, Event: window.Event, console,
-    URL, crypto: webcrypto, Response, File, Blob, FormData, TextEncoder, performance,
+    URL, crypto: webcrypto, Response, File, Blob, FormData, TextEncoder, performance, AbortController,
     setTimeout, clearTimeout, setInterval: callback => { intervals.push(callback); return 0; },
     location: { pathname, href: "https://example.test" + pathname, origin: "https://example.test" },
     navigator: { onLine: true }, matchMedia: () => ({ matches: false, addEventListener() {} }),
@@ -33,7 +33,7 @@ function dom(html, pathname = "/studio") {
 }
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); };
 const studioHtml = await readFile("public/studio.html", "utf8"), studio = dom(studioHtml);
-for (const filename of ["studio-organize.js", "studio-background.js", "studio-share.js", "studio-rich-text.js"]) studio.run(await readFile("public/" + filename, "utf8"));
+for (const filename of ["studio-upload.js", "studio-organize.js", "studio-background.js", "studio-share.js", "studio-rich-text.js"]) studio.run(await readFile("public/" + filename, "utf8"));
 const main = [...studioHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).find(source => source.includes("const app ="));
 studio.run(main.replace("checkSession();", ""));
 studio.run(`app.sections=[{id:'articles',kind:'content',name:'文章',visibility:'public',show_all:1},{id:'photos',kind:'gallery',name:'图片',show_all:1}];

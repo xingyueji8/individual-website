@@ -169,44 +169,77 @@ async function moveSelectedPhotos() {
 
 function removePhotoSelection(entry) {
   const index = photoSelection.indexOf(entry); if (index >= 0) photoSelection.splice(index, 1);
-  if (entry.url) URL.revokeObjectURL(entry.url);
+  photoThumbnailObserver?.unobserve(entry.node);
+  releasePhotoThumbnail(entry);
+  entry.preview = entry.mosaic = entry.uploadFile = null;
   entry.node.remove();
 }
 async function addSelectedPhotos(files) {
   if (preparingPhotos || sendingPhotos) { alert("请等当前处理完成后再添加照片。"); return; }
   preparingPhotos = true;
+  const batch = beginStudioUploadBatch();
   const notice = document.getElementById("media-notice");
   const submit = document.querySelector("#media-form button[type=submit]"); submit.disabled = true;
   try {
     for (const file of files) {
+      if (batch.signal.aborted) break;
       if (photoSelection.length >= 100) { notice.textContent = "一次最多选择 100 张，请先上传当前队列。"; break; }
       if (photoSelection.some(entry => entry.file.name === file.name && entry.file.size === file.size && entry.file.lastModified === file.lastModified)) { notice.textContent = `“${file.name}”已在队列中。`; continue; }
       const entry = { file, token: crypto.randomUUID() }; photoSelection.push(entry);
       const node = document.createElement("article"); node.className = "photo-upload-preview"; entry.node = node;
-      const image = document.createElement("img"); image.alt = file.name;
+      const image = document.createElement("img"); image.alt = file.name; image.loading = "lazy"; image.decoding = "async"; entry.image = image;
       const title = document.createElement("strong"); title.textContent = file.name;
-      const status = document.createElement("p"); status.className = "status"; entry.status = status; status.textContent = isHeicPhoto(file) ? "正在转换 HEIC 预览…" : "正在生成预览…";
+      const status = document.createElement("p"); status.className = "status"; entry.status = status;
+      status.textContent = `待上传 · ${formatBytes(file.size)} · 上传时生成高清预览并查重`;
       const remove = button("移除"); entry.remove = remove; remove.addEventListener("click", () => removePhotoSelection(entry));
       node.append(image, title, status, remove); document.getElementById("photo-selection-previews").append(node);
-      try {
-        if (!file.size || file.size > 20 * 1024 * 1024) throw new Error("单张照片需大于 0 且不超过 20MB");
-        if (!isHeicPhoto(file) && !/^image\/(jpeg|png|webp|gif|avif)$/i.test(file.type)) throw new Error("请选择 JPEG、PNG、WebP、GIF、AVIF 或 HEIC/HEIF 图片");
-        entry.preview = await createCompressedPreview(file);
-        entry.mosaic = await createPhotoMosaic(entry.preview);
-        entry.hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))].map(n => n.toString(16).padStart(2, "0")).join("");
-        if (!photoSelection.includes(entry)) continue;
-        entry.url = URL.createObjectURL(entry.preview); image.src = entry.url;
-        const [duplicate] = await api("/api/admin/media/duplicates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: [{ sha256: entry.hash, name: file.name, size: file.size }] }) });
-        const queuedDuplicate = photoSelection.some(other => other !== entry && other.hash === entry.hash);
-        entry.duplicate = duplicate.duplicate || queuedDuplicate;
-        if (entry.duplicate) {
-          status.textContent = `${duplicate.exact || queuedDuplicate ? "检测到重复图片" : "发现同名同大小的旧照片，可能重复"}。默认跳过；如需保留两份，请勾选。`;
-          const label = document.createElement("label"); const keep = document.createElement("input"); keep.type = "checkbox";
-          keep.addEventListener("change", () => { entry.allowDuplicate = keep.checked; }); label.append(keep, "仍然上传此重复图片"); node.append(label);
-        } else status.textContent = `待上传 · ${formatBytes(file.size)}`;
-      } catch (error) { entry.error = error.message; status.textContent = `无法准备：${error.message}，可移除后重新选择。`; }
+      if (!file.size || file.size > 20 * 1024 * 1024) entry.error = "单张照片需大于 0 且不超过 20MB";
+      else if (!isHeicPhoto(file) && !/^image\/(jpeg|png|webp|gif|avif)$/i.test(photoMimeType(file))) entry.error = "请选择 JPEG、PNG、WebP、GIF、AVIF 或 HEIC/HEIF 图片";
+      if (entry.error) status.textContent = entry.error;
+      markStudioDirty(document.getElementById("media-form"));
+      notice.textContent = `已加入 ${photoSelection.length} 张照片；点击上传后逐张处理。`;
+      // File selection never decodes full-size photos, computes hashes, or waits for a request.
+      if (photoSelection.length % 10 === 0) await yieldUploadThread();
     }
-  } finally { preparingPhotos = false; submit.disabled = false; document.getElementById("media-file").value = ""; }
+  } finally {
+    preparingPhotos = false; submit.disabled = false; document.getElementById("media-file").value = ""; batch.finish();
+    if (!batch.signal.aborted) photoSelection.filter(entry => !entry.error).forEach(observePhotoThumbnail);
+  }
+}
+function showPhotoDuplicateChoice(entry, message = "检测到重复图片，默认跳过；如需保留两份，请勾选后再次上传。") {
+  entry.duplicate = true; entry.status.textContent = message;
+  if (entry.duplicateChoice) return;
+  const label = document.createElement("label"); const keep = document.createElement("input"); keep.type = "checkbox";
+  keep.addEventListener("change", () => { entry.allowDuplicate = keep.checked; });
+  label.append(keep, "仍然上传此重复图片"); entry.node.append(label); entry.duplicateChoice = label;
+}
+async function preparePhotoForUpload(entry, job, batch) {
+  while (true) {
+    await job.waitUntilReady(); uploadAborted(batch.signal); job.throwIfStopped();
+    const controller = job.beginPartRequest();
+    try {
+      entry.status.textContent = "正在读取原片并生成高清预览…";
+      job.setState("正在处理当前照片…"); await yieldUploadThread();
+      const snapshot = await snapshotUploadPhoto(entry.file, controller.signal);
+      entry.hash = snapshot.hash; entry.uploadFile = snapshot.file;
+      const prepared = await preparePhotoInWorker(snapshot.file, { signal: controller.signal });
+      uploadAborted(controller.signal);
+      entry.preview = prepared?.preview || await createCompressedPreview(snapshot.file);
+      uploadAborted(controller.signal);
+      entry.mosaic = prepared?.mosaic || await createPhotoMosaic(entry.preview);
+      uploadAborted(controller.signal);
+      const [duplicate] = await api("/api/admin/media/duplicates", { method: "POST", signal: controller.signal,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: [{ sha256: entry.hash, name: entry.file.name, size: entry.file.size }] }) });
+      const queuedDuplicate = photoSelection.some(other => other !== entry && other.hash === entry.hash);
+      entry.duplicate = Boolean(duplicate?.duplicate || queuedDuplicate);
+      return;
+    } catch (error) {
+      entry.preview = entry.mosaic = entry.uploadFile = null;
+      job.throwIfStopped(); uploadAborted(batch.signal);
+      if (job.wasPausedAbort(controller) || job.wasNetworkAbort(controller)) continue;
+      throw error;
+    } finally { job.endPartRequest(controller); }
+  }
 }
 async function submitPhotoUploads(event) {
   event.preventDefault(); if (preparingPhotos || sendingPhotos) return;
@@ -218,19 +251,31 @@ async function submitPhotoUploads(event) {
   const subsectionId = document.getElementById("media-album").value;
   if (!sectionId) { notice.textContent = "请先选择图片大板块。"; return; }
   const caption = document.getElementById("media-caption").value.trim();
-  const submit = event.currentTarget.querySelector("button[type=submit]"); sendingPhotos = true; submit.disabled = true;
-  let completed = 0; let failures = 0;
+  const formElement = event.currentTarget;
+  const submit = formElement.querySelector("button[type=submit]"); sendingPhotos = true; submit.disabled = true;
+  stopPhotoThumbnails();
+  const batch = beginStudioUploadBatch();
+  let completed = 0; let failures = 0; let duplicates = 0;
   try {
     for (const entry of entries) {
+      if (batch.signal.aborted) break;
+      if (!photoSelection.includes(entry)) continue;
       entry.remove.disabled = true;
       const job = createUploadJob(entry.file, "photo"); job.setSessionId(entry.token);
+      let submitted = false;
       try {
+        await preparePhotoForUpload(entry, job, batch);
+        if (entry.duplicate && !entry.allowDuplicate) {
+          duplicates++; showPhotoDuplicateChoice(entry); job.finish("重复图片已跳过"); continue;
+        }
+        job.throwIfStopped(); uploadAborted(batch.signal);
         const form = new FormData();
-        form.append("file", entry.file); form.append("preview", entry.preview); form.append("mosaic", entry.mosaic, "mosaic.webp");
+        form.append("file", entry.uploadFile, entry.file.name); form.append("preview", entry.preview, "preview.webp"); form.append("mosaic", entry.mosaic, "mosaic.webp");
         form.append("sectionId", sectionId); form.append("subsectionId", subsectionId); form.append("kind", "photo");
         form.append("caption", caption || entry.file.name); form.append("visibility", choice.visibility); form.append("allowedUserIds", JSON.stringify(choice.allowedUserIds));
         form.append("uploadToken", entry.token); if (entry.allowDuplicate) form.append("allowDuplicate", "1");
         entry.status.textContent = "正在上传…";
+        submitted = true;
         await uploadPartWithRetry("/api/admin/media", form, job, { label: "照片", onProgress: metric => {
           const percent = metric.total ? metric.loaded / metric.total * 100 : 0;
           job.update(Math.min(99, percent), percent >= 100 ? "正在保存并校验照片…" : `已传输 ${Math.round(percent)}%`); job.setRate(metric.bytesPerSecond);
@@ -238,22 +283,32 @@ async function submitPhotoUploads(event) {
         await job.waitUntilResumed(); job.finish("照片已保存"); completed++; removePhotoSelection(entry);
       } catch (error) {
         if (job.isCancelled() || error.cancelled) {
+          const keepPending = job.shouldPreserveCheckpoint();
+          const oldToken = entry.token;
+          const finishCancellation = () => {
+            if (keepPending) { entry.token = crypto.randomUUID(); entry.error = null; entry.status.textContent = "已停止，可再次点击上传继续。"; }
+            else removePhotoSelection(entry);
+          };
           try {
-            await api(`/api/admin/photo-uploads/${entry.token}`, { method: "DELETE" }); job.cancelled("已取消并清理"); removePhotoSelection(entry);
+            if (submitted) await api(`/api/admin/photo-uploads/${oldToken}`, { method: "DELETE" });
+            job.cancelled("已停止并清理未完成上传"); finishCancellation();
           } catch (cancelError) { entry.error = "等待取消清理"; job.cancelled(`取消尚未送达：${cancelError.message}`, { autoRemove: false }); entry.status.textContent = "取消未送达，请联网后点击重试清理";
-            const retry = button("重试清理"); entry.node.append(retry); retry.addEventListener("click", async () => { retry.disabled = true; try { await api(`/api/admin/photo-uploads/${entry.token}`, { method: "DELETE" }); removePhotoSelection(entry); } catch (failure) { retry.disabled = false; entry.status.textContent = failure.message; } });
+            const retry = button("重试清理"); entry.node.append(retry); retry.addEventListener("click", async () => { retry.disabled = true; try { await api(`/api/admin/photo-uploads/${oldToken}`, { method: "DELETE" }); finishCancellation(); retry.remove(); } catch (failure) { retry.disabled = false; entry.status.textContent = failure.message; } });
           }
         } else {
           failures++; job.fail(error.message); entry.status.textContent = `失败：${error.message}，再次点击上传可重试。`;
-          if (error.status === 409) { entry.duplicate = true; entry.status.textContent = `${error.message}；请移除后重新选择，以确认重复上传。`; }
+          if (error.status === 409) showPhotoDuplicateChoice(entry, `${error.message}；确认保留两份后可再次上传。`);
+          if (error.status === 401 || error.status === 403) break;
         }
-      } finally { entry.remove.disabled = false; }
+      } finally { entry.remove.disabled = false; entry.preview = entry.mosaic = entry.uploadFile = null; }
     }
-    await Promise.all([loadAlbumsAndMedia(), loadSubsections(), loadDashboard()]);
-    refreshMediaSubsectionOptions(sectionId, subsectionId); document.getElementById("media-subsection").value = subsectionId; renderMedia();
-    notice.textContent = `已上传 ${completed} 张${failures ? `，${failures} 张失败，可在预览队列重试` : ""}。`;
+    if (completed) {
+      await Promise.all([loadAlbumsAndMedia(), loadSubsections(), loadDashboard()]);
+      refreshMediaSubsectionOptions(sectionId, subsectionId); document.getElementById("media-subsection").value = subsectionId; renderMedia();
+    }
+    notice.textContent = `${batch.signal.aborted ? "本批上传已停止；" : ""}已上传 ${completed} 张${duplicates ? `，${duplicates} 张重复已跳过` : ""}${failures ? `，${failures} 张失败，可在预览队列重试` : ""}。`;
   } catch (error) { notice.textContent = `上传已处理，但列表刷新失败：${error.message}`; }
-  finally { sendingPhotos = false; submit.disabled = false; if (!photoSelection.length) markStudioClean(event.currentTarget); }
+  finally { sendingPhotos = false; submit.disabled = false; batch.finish(); if (!photoSelection.length) markStudioClean(formElement); }
 }
 
 function initializePhotoManagement() {

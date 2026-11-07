@@ -29,7 +29,7 @@ function domContext(html) {
   const alerts = [];
   const context = vm.createContext({
     window, document, Element: window.Element, Node: window.Node, Event: window.Event,
-    console, URL, crypto: webcrypto, Response, File, Blob, FormData, TextEncoder,
+    console, URL, crypto: webcrypto, Response, File, Blob, FormData, TextEncoder, AbortController,
     setTimeout, clearTimeout, performance, location: { href: "https://example.test/", origin: "https://example.test" },
     navigator: { onLine: true }, matchMedia: () => ({ matches: false, addEventListener() {} }),
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -53,6 +53,7 @@ const subsections = [
 
 const studioHtml = await readFile("public/studio.html", "utf8");
 const studio = domContext(studioHtml);
+studio.run(await readFile("public/studio-upload.js", "utf8"));
 studio.run(await readFile("public/studio-organize.js", "utf8"));
 studio.run(await readFile("public/studio-share.js", "utf8"));
 studio.run(await readFile("public/studio-background.js", "utf8"));

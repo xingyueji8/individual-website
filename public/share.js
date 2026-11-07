@@ -58,7 +58,8 @@
   function assetCard(asset) {
     const { item, info, actions } = card(asset.title);
     if (asset.kind === "video") {
-      const video = document.createElement("video"); video.controls = true; video.preload = "metadata"; video.src = asset.url;
+      const video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata";
+      video.src = globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url;
       if (asset.posterUrl) video.poster = asset.posterUrl; item.prepend(video);
     }
     const meta = document.createElement("p"); meta.textContent = `${asset.kind.toUpperCase()} · ${(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB`;
@@ -69,7 +70,7 @@
   }
   function renderWorks() {
     const data = state.data; if (!data) return;
-    const host = node("share-works"); host.replaceChildren();
+    const host = node("share-works"); host.querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media)); host.replaceChildren();
     const includes = item => !state.folder || item.subsectionId === state.folder;
     for (const article of data.content.filter(includes)) {
       const { item, actions } = card(article.title);
@@ -97,6 +98,7 @@
   }
   function showList() {
     state.loading++; state.article = null; node("share-reader").hidden = true; node("share-works").hidden = false;
+    node("share-reader").querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
     node("reader-body").replaceChildren(); node("reader-attachments").replaceChildren();
   }
   node("share-back").addEventListener("click", showList);

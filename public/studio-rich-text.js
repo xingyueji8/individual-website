@@ -55,7 +55,9 @@ function studioPreviewAsset(asset) {
   const title = document.createElement("h3"); title.textContent = asset.display_name || asset.filename; box.append(title);
   if (asset.kind === "video" || asset.kind === "audio") {
     const media = document.createElement(asset.kind); media.controls = true; media.preload = "metadata";
-    media.src = asset.url; if (asset.kind === "video" && asset.poster_url) media.poster = asset.poster_url; box.append(media);
+    if (asset.kind === "video") media.playsInline = true;
+    media.src = asset.kind === "video" ? globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url : asset.url;
+    if (asset.kind === "video" && asset.poster_url) media.poster = asset.poster_url; box.append(media);
   } else if (asset.kind === "pdf" || asset.kind === "word") {
     const frame = document.createElement("iframe"); frame.title = title.textContent;
     frame.src = asset.kind === "pdf" ? asset.url : asset.variants?.find(item => item.label === "preview")?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}&studio=1`;
@@ -80,9 +82,10 @@ async function previewStudioContent() {
     head.append(title, close);
     const body = document.createElement("article"); body.className = "editor-preview-body reader-body";
     dialog.append(head, body); document.body.append(dialog);
-    dialog.addEventListener("close", () => body.replaceChildren());
+    dialog.addEventListener("close", () => { body.querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media)); body.replaceChildren(); });
   }
-  const body = dialog.querySelector(".editor-preview-body"); body.textContent = "正在准备预览…";
+  const body = dialog.querySelector(".editor-preview-body");
+  body.querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media)); body.textContent = "正在准备预览…";
   if (!dialog.open) dialog.showModal();
   // Sanitize on the server just as saving does, while leaving the draft and
   // its attachment tracking entirely untouched.

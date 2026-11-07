@@ -1,0 +1,22 @@
+/* Moving video must not force glass layers to sample and blur every frame. */
+body.video-preview-active #resource-dialog::backdrop {
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+body.video-preview-active #resource-dialog,
+body.video-preview-active #resource-dialog :is(.resource-view,.resource-viewer,video) {
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  filter:none !important;
+  animation:none !important;
+  transition:none !important;
+}
+body.video-preview-active #resource-dialog .resource-view { background:var(--paper,#fff) !important; }
+body.video-preview-active #resource-dialog .resource-viewer { background:#000 !important; }
+body.video-preview-active #resource-dialog :is(.resource-view,.resource-viewer)::before,
+body.video-preview-active #resource-dialog :is(.resource-view,.resource-viewer)::after { display:none !important; }
+#resource-video-status { margin:10px 0 0; font-size:.82rem; color:var(--muted,#667c84); line-height:1.5; }
+#resource-video-status[hidden] { display:none !important; }
+.photo-upload-preview { content-visibility:auto; contain-intrinsic-size:auto 260px; }
+.photo-upload-preview img { object-fit:contain; }
+#upload-stop-notice { overflow-wrap:anywhere; line-height:1.6; }

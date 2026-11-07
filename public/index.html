@@ -1522,6 +1522,7 @@
   <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/mobile.css">
+  <link rel="stylesheet" href="/media-performance.css?v=20261107">
 </head>
 <body>
   <!-- ========================================================
@@ -1902,6 +1903,7 @@
         <button class="icon-button" type="button" data-close-dialog="resource-dialog" title="关闭">✕</button>
       </div>
       <div id="resource-viewer" class="resource-viewer"></div>
+      <p id="resource-video-status" role="status" hidden></p>
       <div id="resource-quality-options" class="resource-options"></div>
       <div id="resource-download-options" class="resource-options"></div>
     </div>
@@ -1999,6 +2001,7 @@
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js"></script>
   <script src="/entry-auth.js"></script>
+  <script src="/video-playback.js?v=20261107"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
     const state = {
@@ -2757,23 +2760,32 @@
     }
 
     async function setResourceVideoSource(video, source, { hls = false } = {}) {
+      const generation = state.resourceSourceGeneration = (state.resourceSourceGeneration || 0) + 1;
       state.hlsPlayer?.destroy?.(); state.hlsPlayer = null;
       if (!hls || video.canPlayType("application/vnd.apple.mpegurl")) { video.src = source; video.load(); return; }
       const Hls = await loadHlsLibrary();
+      if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video || !video.isConnected) return;
       if (!Hls.isSupported()) throw new Error("当前浏览器不支持 HLS 自动画质");
-      const player = new Hls({ enableWorker: true, startLevel: -1 }); state.hlsPlayer = player;
+      const player = new Hls(globalThis.XYJVideo.hlsConfig()); state.hlsPlayer = player;
+      player.on(Hls.Events.MANIFEST_PARSED, () => globalThis.XYJVideo.capHlsLevels(player));
       player.loadSource(source); player.attachMedia(video);
     }
 
     function videoSourceButton(video, source, label, host, options = {}) {
       const button = document.createElement("button"); button.type = "button"; button.className = "btn small ghost"; button.textContent = label;
       button.addEventListener("click", async () => {
+        state.videoFrameCleanup?.(); state.videoFrameCleanup = null;
         host.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
         const position = Number.isFinite(video.currentTime) ? video.currentTime : 0;
         const wasPlaying = !video.paused;
+        const generation = (state.resourceSourceGeneration || 0) + 1;
         try {
+          video.addEventListener("loadedmetadata", () => {
+            if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video) return;
+            if (Number.isFinite(video.duration) && position < video.duration) video.currentTime = position;
+            if (wasPlaying) video.play().catch(() => null);
+          }, { once: true });
           await setResourceVideoSource(video, source, options);
-          video.addEventListener("loadedmetadata", () => { if (!options.hls && position < video.duration) video.currentTime = position; if (wasPlaying) video.play().catch(() => null); }, { once: true });
         } catch (error) { alert(error.message); }
       });
       return button;
@@ -2820,6 +2832,7 @@
 
     async function openResourceAsset(asset) {
       if (!(await ensureContentUnlocked("asset", asset))) return;
+      stopResourcePlayback();
       asset = { ...asset, url:protectedMediaUrl(asset.url), downloadUrl:protectedMediaUrl(asset.downloadUrl), poster_url:protectedMediaUrl(asset.poster_url), variants:(asset.variants||[]).map(item=>({...item,url:protectedMediaUrl(item.url),downloadUrl:protectedMediaUrl(item.downloadUrl)})) };
       state.activeResourceAsset = asset;
       state.activeResourceVideo = null;
@@ -2828,6 +2841,7 @@
       const quality = document.getElementById("resource-quality-options");
       const downloads = document.getElementById("resource-download-options");
       viewer.replaceChildren(); quality.replaceChildren(); downloads.replaceChildren();
+      document.getElementById("resource-video-status").hidden = true;
       document.getElementById("resource-title").textContent = asset.display_name;
       document.getElementById("resource-meta").textContent = `${asset.kind.toUpperCase()} · ${formatBytes(asset.size_bytes)} · ${resourceFolderPath(asset.folder_id)}`;
 
@@ -2840,17 +2854,52 @@
         video.setAttribute("aria-label", `播放视频：${asset.display_name}`);
         video.title = "键盘：←/→ 快退/快进 5 秒，↑/↓ 调节音量";
         state.activeResourceVideo = video;
+        document.body.classList.add("video-preview-active");
         if (asset.poster_url) video.poster = asset.poster_url;
         const qualityOrder = { "360p": 360, "480p": 480, "720p": 720, "1080p": 1080 };
         const videoVariants = variants.filter((item) => qualityOrder[item.label]).sort((a, b) => qualityOrder[a.label] - qualityOrder[b.label]);
-        const defaultSource = asset.stream_hls_url || videoVariants.at(-1)?.url || asset.url; viewer.append(video);
-        setResourceVideoSource(video, defaultSource, { hls: Boolean(asset.stream_hls_url) }).catch(() => setResourceVideoSource(video, videoVariants.at(-1)?.url || asset.url));
+        const preferred = globalThis.XYJVideo.preferredVariant(videoVariants);
+        const fallbackSource = preferred?.url || asset.url;
+        const defaultSource = asset.stream_hls_url || fallbackSource; viewer.append(video);
+        let usingHls = Boolean(asset.stream_hls_url);
+        setResourceVideoSource(video, defaultSource, { hls: Boolean(asset.stream_hls_url) }).catch(() => {
+          if (state.activeResourceVideo === video && video.isConnected) { usingHls = false; setResourceVideoSource(video, fallbackSource); }
+        });
+        let currentVariant = preferred;
+        const watchFrames = () => {
+          state.videoFrameCleanup = globalThis.XYJVideo.watchFrameDrops(video, async () => {
+            if (state.activeResourceVideo !== video) return;
+            const status = document.getElementById("resource-video-status");
+            status.hidden = false;
+            const hls = state.hlsPlayer;
+            if (usingHls && hls?.currentLevel > 0) {
+              const level = hls.currentLevel - 1; hls.autoLevelCapping = level; hls.nextLevel = level;
+              status.textContent = "已降低自动画质，优先保证流畅播放。"; state.videoFrameCleanup?.(); watchFrames(); return;
+            }
+            const lower = usingHls ? preferred : videoVariants.filter(item => !currentVariant || parseInt(item.label) < parseInt(currentVariant.label)).at(-1);
+            if (!lower) { status.textContent = "当前设备播放此视频较吃力，暂无更低画质版本可切换。"; return; }
+            const position = video.currentTime; const wasPlaying = !video.paused;
+            const generation = (state.resourceSourceGeneration || 0) + 1;
+            video.addEventListener("loadedmetadata", () => {
+              if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video) return;
+              if (Number.isFinite(video.duration) && position < video.duration) video.currentTime = position;
+              if (wasPlaying) video.play().catch(() => null);
+            }, { once: true });
+            currentVariant = lower; usingHls = false;
+            await setResourceVideoSource(video, lower.url);
+            quality.querySelectorAll("button").forEach(control => control.classList.toggle("active", control.dataset.videoSource === lower.url));
+            status.textContent = `已切换为 ${lower.label}，优先保证流畅播放。`;
+            state.videoFrameCleanup?.(); watchFrames();
+          });
+        };
+        watchFrames();
         if (asset.stream_hls_url) {
           const automatic = videoSourceButton(video, asset.stream_hls_url, "自动画质", quality, { hls: true }); automatic.classList.add("active"); quality.append(automatic);
         }
         const originalButton = videoSourceButton(video, asset.url, "原始文件", quality); quality.append(originalButton);
         videoVariants.forEach((variant) => {
           const control = videoSourceButton(video, variant.url, variant.label, quality);
+          control.dataset.videoSource = variant.url;
           if (variant.url === defaultSource) control.classList.add("active"); quality.append(control);
         });
         if (!videoVariants.length && !asset.stream_hls_url) originalButton.classList.add("active");
@@ -4352,13 +4401,20 @@
     });
     const imageDialog = document.getElementById("image-dialog");
     const resourceDialog = document.getElementById("resource-dialog");
+    function stopResourcePlayback() {
+      state.videoFrameCleanup?.(); state.videoFrameCleanup = null;
+      state.resourceSourceGeneration = (state.resourceSourceGeneration || 0) + 1;
+      state.hlsPlayer?.destroy?.(); state.hlsPlayer = null;
+      document.getElementById("resource-viewer").querySelectorAll("video,audio").forEach(node => globalThis.XYJVideo.disposeMedia(node));
+      document.body.classList.remove("video-preview-active");
+      state.activeResourceVideo = null;
+    }
     resourceDialog.addEventListener("keydown", handleResourceVideoKeyboard);
     resourceDialog.addEventListener("close", () => {
       state.activeResourceVideo = null;
       state.hlsPlayer?.destroy?.(); state.hlsPlayer = null;
-      document.getElementById("resource-viewer").querySelectorAll("video,audio,iframe").forEach((node) => {
-        if ("src" in node) node.src = "";
-      });
+      stopResourcePlayback();
+      document.getElementById("resource-viewer").querySelectorAll("iframe").forEach(node => node.removeAttribute("src"));
     });
     document.getElementById("image-previous").addEventListener("click", () => stepImage(-1));
     document.getElementById("image-next").addEventListener("click", () => stepImage(1));

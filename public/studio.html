@@ -351,6 +351,7 @@
   <link rel="stylesheet" href="/studio-navigation.css">
   <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/mobile.css">
+  <link rel="stylesheet" href="/media-performance.css?v=20261107">
 </head>
 <body>
   <!-- ==================== 后台登录界面 ==================== -->
@@ -423,9 +424,11 @@
             </button>
           </div>
           <!-- 顶部预览入口同样使用当前标签页，保持两个返回入口的行为一致。 -->
+          <button id="stop-all-uploads" class="btn small danger" type="button" data-stop-uploads disabled>停止全部上传</button>
           <a class="btn ghost" href="/">预览网站</a>
         </div>
       </header>
+      <p id="upload-stop-notice" class="status" role="status" hidden></p>
 
       <!-- ==================== 后台概览 ==================== -->
       <section id="view-dashboard" class="view active">
@@ -637,7 +640,7 @@
             </div>
             <div class="field"><label>图片说明</label><input id="media-caption" maxlength="500"></div>
           </div>
-          <div class="actions"><button class="btn" type="submit">上传到图片专栏</button><span id="media-notice" class="status"></span></div>
+          <div class="actions"><button class="btn" type="submit">上传到图片专栏</button><button id="photo-stop-uploads" class="btn danger" type="button" data-stop-uploads disabled>停止全部上传</button><span id="media-notice" class="status" role="status"></span></div>
           <div id="photo-selection-previews" class="photo-selection-previews" aria-live="polite"></div>
           <div id="photo-upload-queue" class="upload-queue"></div>
         </form>
@@ -837,10 +840,12 @@
   </dialog>
 
   <!-- 后台 JavaScript：登录验证、读取数据、保存内容和上传图片。 -->
-  <script src="/studio-organize.js?v=20261018-board-create"></script>
+  <script src="/studio-upload.js?v=20261107"></script>
+  <script src="/video-playback.js?v=20261107"></script>
+  <script src="/studio-organize.js?v=20261107"></script>
   <script src="/studio-share.js"></script>
   <script src="/studio-background.js"></script>
-  <script src="/studio-rich-text.js"></script>
+  <script src="/studio-rich-text.js?v=20261107"></script>
   <script>
     const app = {
       sections: [], subsections: [], content: [], changelogs: [], albums: [], media: [], assetFolders: [], assets: [], comments: [], feedback: [], guestAnalytics: null,
@@ -1087,11 +1092,12 @@
       };
     }
 
-    async function createCompressedPreview(file) {
+    async function createCompressedPreview(file,{maxEdge=PREVIEW_MAX_EDGE,quality=PREVIEW_WEBP_QUALITY}={}) {
       const decoded = await decodeLocalImage(file);
+      let canvas;
       try {
-        const scale = Math.min(1, PREVIEW_MAX_EDGE / Math.max(decoded.width, decoded.height));
-        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, maxEdge / Math.max(decoded.width, decoded.height));
+        canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round(decoded.width * scale));
         canvas.height = Math.max(1, Math.round(decoded.height * scale));
         const context = canvas.getContext("2d", { alpha: true });
@@ -1099,12 +1105,13 @@
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = "high";
         context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", PREVIEW_WEBP_QUALITY));
-        if (!blob) throw new Error("当前浏览器不支持 WebP 预览压缩");
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+        if (!blob || blob.type!=="image/webp") throw new Error("当前浏览器不支持 WebP 预览压缩，请更新浏览器后重试");
         const baseName = file.name.replace(/\.[^.]+$/, "") || "photo";
         return new File([blob], `${baseName}-preview.webp`, { type: "image/webp" });
       } finally {
         decoded.close();
+        if(canvas)canvas.width=canvas.height=1;
       }
     }
 
@@ -1759,7 +1766,7 @@
       controls.append(state,rate,pause,cancel);head.append(name,controls);
       const progress=document.createElement("div");progress.className="upload-progress";const bar=document.createElement("span");progress.append(bar);job.append(head,progress);queue.append(job);
 
-      let paused=false;let terminal=false;let cancelled=false;let failureError=null;let lastState="等待上传";let resumeWaiters=[];
+      let paused=false;let terminal=false;let cancelled=false;let finalizing=false;let preserveCheckpoint=false;let failureError=null;let lastState="等待上传";let resumeWaiters=[];
       const activeControllers=new Set();const stopListeners=new Set();
       const pauseAbortedRequests=new WeakSet();
       const networkAbortedRequests=new WeakSet();
@@ -1807,10 +1814,11 @@
         paused=true;pause.textContent="恢复";pause.setAttribute("aria-label",`恢复上传 ${file.name}`);state.textContent="已暂停（恢复后会安全重传当前分片）";setRate(0);
         for(const controller of activeControllers){pauseAbortedRequests.add(controller);controller.abort()}
       });
-      cancel.addEventListener("click",()=>{
-        if(terminal){job.remove();return}if(cancelled)return;cancelled=true;paused=false;pause.disabled=true;cancel.disabled=true;cancel.textContent="正在取消…";state.textContent="正在取消上传…";
+      const cancelUpload=({preserveCheckpoint:preserve=false}={})=>{
+        if(terminal||finalizing||cancelled)return;preserveCheckpoint=preserve;cancelled=true;paused=false;pause.disabled=true;cancel.disabled=true;cancel.textContent="正在停止…";state.textContent="正在停止上传…";
         const error=new UploadCancelledError();for(const controller of activeControllers)controller.abort();settleStopped(error);
-      });
+      };
+      cancel.addEventListener("click",()=>{if(terminal){job.remove();return}cancelUpload()});
       const update=(percent,text)=>{bar.style.width=`${Math.max(0,Math.min(100,percent))}%`;lastState=text;if(!paused)state.textContent=text};
       const apiObject={
         element:job,
@@ -1828,24 +1836,28 @@
         wasNetworkAbort(controller){return networkAbortedRequests.has(controller)},
         throwIfStopped,
         isCancelled(){return cancelled},
+        cancel:cancelUpload,
+        shouldPreserveCheckpoint(){return preserveCheckpoint},
         abortForFailure(error){if(failureError||cancelled)return;failureError=error;for(const controller of activeControllers)controller.abort();settleStopped(error)},
-        lock(text){if(paused)resume();cleanupNetworkListeners();pause.disabled=true;cancel.disabled=true;pause.textContent="处理中";setRate(0);update(100,text)},
-        finish(text){terminal=true;job.dataset.uploadTerminal="true";cleanupNetworkListeners();pause.disabled=true;cancel.disabled=true;pause.textContent="完成";rate.textContent="上传速率 已完成";update(100,text);app.activeUploadJobs.delete(apiObject);job.remove()},
-        fail(text){terminal=true;job.dataset.uploadTerminal="true";if(paused)resume();cleanupNetworkListeners();pause.hidden=true;cancel.disabled=false;cancel.textContent="移除此提示";rate.textContent="上传速率 已停止";job.classList.add("is-failed");lastState=text;state.textContent=text;app.activeUploadJobs.delete(apiObject)},
-        cancelled(text,{autoRemove=true}={}){terminal=true;job.dataset.uploadTerminal="true";cleanupNetworkListeners();pause.hidden=true;rate.textContent="上传速率 已停止";job.classList.add("is-cancelled");lastState=text;state.textContent=text;app.activeUploadJobs.delete(apiObject);if(autoRemove){cancel.hidden=true;setTimeout(()=>job.remove(),600)}else{cancel.disabled=false;cancel.textContent="移除此提示"}},
+        lock(text){finalizing=true;if(paused)resume();cleanupNetworkListeners();pause.disabled=true;cancel.disabled=true;pause.textContent="处理中";setRate(0);update(100,text)},
+        finish(text){terminal=true;job.dataset.uploadTerminal="true";cleanupNetworkListeners();pause.disabled=true;cancel.disabled=true;pause.textContent="完成";rate.textContent="上传速率 已完成";update(100,text);app.activeUploadJobs.delete(apiObject);job.remove();syncStudioUploadStopControls()},
+        fail(text){terminal=true;job.dataset.uploadTerminal="true";if(paused)resume();cleanupNetworkListeners();pause.hidden=true;cancel.disabled=false;cancel.textContent="移除此提示";rate.textContent="上传速率 已停止";job.classList.add("is-failed");lastState=text;state.textContent=text;app.activeUploadJobs.delete(apiObject);syncStudioUploadStopControls()},
+        cancelled(text,{autoRemove=true}={}){terminal=true;job.dataset.uploadTerminal="true";cleanupNetworkListeners();pause.hidden=true;rate.textContent="上传速率 已停止";job.classList.add("is-cancelled");lastState=text;state.textContent=text;app.activeUploadJobs.delete(apiObject);if(autoRemove){cancel.hidden=true;setTimeout(()=>job.remove(),600)}else{cancel.disabled=false;cancel.textContent="移除此提示"}syncStudioUploadStopControls()},
       };
-      app.activeUploadJobs.add(apiObject);return apiObject;
+      app.activeUploadJobs.add(apiObject);syncStudioUploadStopControls();return apiObject;
     }
     function uploadPartRequest(url,blob,controller,onProgress){
       return new Promise((resolve,reject)=>{
         const xhr=new XMLHttpRequest();let settled=false;let stallTimer=0;let forcedError=null;let sampleAt=performance.now();let sampleBytes=0;let smoothedRate=0;
-        const cleanup=()=>{clearTimeout(stallTimer);controller.signal.removeEventListener("abort",onAbortSignal)};
+        const multipart=blob instanceof FormData;
+        const transferTimeout=multipart?90*1000:UPLOAD_STALL_TIMEOUT_MS;
+        const cleanup=()=>{clearTimeout(stallTimer);controller.signal.removeEventListener("abort",onAbortSignal);xhr.onload=xhr.onerror=xhr.onabort=null;xhr.upload.onprogress=xhr.upload.onload=null};
         const finish=(callback,value)=>{if(settled)return;settled=true;cleanup();callback(value)};
         const fail=error=>finish(reject,error);
-        const resetStallTimer=(timeout=UPLOAD_STALL_TIMEOUT_MS,message="上传连接超过 30 秒没有传输数据")=>{clearTimeout(stallTimer);stallTimer=setTimeout(()=>{forcedError=new Error(message);forcedError.code="UPLOAD_STALLED";xhr.abort()},timeout)};
-        const onAbortSignal=()=>xhr.abort();
+        const abortError=()=>{const error=forcedError||new Error("上传请求已中止");if(!forcedError)error.name="AbortError";return error};
+        const resetStallTimer=(timeout=transferTimeout,message="上传连接长时间没有传输数据")=>{clearTimeout(stallTimer);stallTimer=setTimeout(()=>{forcedError=new Error(message);forcedError.code="UPLOAD_STALLED";const error=abortError();xhr.abort();fail(error)},timeout)};
+        const onAbortSignal=()=>{const error=abortError();xhr.abort();fail(error)};
         controller.signal.addEventListener("abort",onAbortSignal,{once:true});
-        const multipart=blob instanceof FormData;
         xhr.open(multipart?"POST":"PUT",url,true);xhr.withCredentials=true;if(!multipart)xhr.setRequestHeader("Content-Type","application/octet-stream");
         xhr.upload.onprogress=event=>{
           resetStallTimer();const now=performance.now();const elapsed=now-sampleAt;
@@ -1859,9 +1871,11 @@
           const error=new Error(data?.error||`分片上传失败（${xhr.status}）`);error.status=xhr.status;
           const retryAfter=Number(xhr.getResponseHeader("Retry-After"));if(Number.isFinite(retryAfter)&&retryAfter>0)error.retryAfter=retryAfter*1000;fail(error);
         };
-        xhr.onerror=()=>fail(new Error("上传连接已中断"));
-        xhr.onabort=()=>{if(forcedError){fail(forcedError);return}const error=new Error("上传请求已中止");error.name="AbortError";fail(error)};
-        resetStallTimer();if(controller.signal.aborted){xhr.abort();return}xhr.send(blob);
+        xhr.onerror=()=>{const error=new Error("上传连接已中断");error.code="UPLOAD_NETWORK";fail(error)};
+        xhr.onabort=()=>fail(abortError());
+        if(controller.signal.aborted){onAbortSignal();return}
+        resetStallTimer();
+        try{xhr.send(blob)}catch(error){fail(["NotReadableError","NotFoundError"].includes(error.name)?uploadFileReadError(error):error)}
       });
     }
     async function uploadPartWithRetry(url,blob,job,{label="当前分片",onProgress=null}={}){
@@ -1875,10 +1889,11 @@
           try{onProgress?.({loaded:0,total:blob.size,bytesPerSecond:0,reset:true})}catch{}
           if(job.wasPausedAbort(controller)||job.wasNetworkAbort(controller))continue;
           job.throwIfStopped();lastError=error;attempt+=1;
-          const retryable=!error.status||error.status===408||error.status===425||error.status===429||error.status>=500;
+          const retryable=error.retryable!==false&&(!error.status||error.status===408||error.status===425||error.status===429||error.status>=500);
           if(!retryable||attempt>=6)break;
           const wait=Math.min(8000,error.retryAfter||((500*(2**(attempt-1)))+Math.floor(Math.random()*350)));
-          job.setRate(0);job.setState(`网络波动，${Math.ceil(wait/1000)} 秒后重试（${attempt}/6）…`);await job.waitForRetry(wait);
+          const reason=error.status?`服务器暂时无法接收（${error.status}）`:error.code==="UPLOAD_STALLED"?error.message:"网络波动";
+          job.setRate(0);job.setState(`${reason}，${Math.ceil(wait/1000)} 秒后重试（${attempt}/6）…`);await job.waitForRetry(wait);
         }finally{job.endPartRequest(controller)}
       }
       throw lastError;
@@ -1953,6 +1968,7 @@
         await deleteUploadCheckpoint(session.sessionId);job.finish("上传完成");return session.assetId;
       }catch(error){
         if(job.isCancelled()||error?.cancelled){
+          if(job.shouldPreserveCheckpoint()&&session?.sessionId){job.cancelled("上传已停止，已确认的分片保留；重新选择同一文件可续传。",{autoRemove:true});throw new UploadCancelledError("上传已停止，断点已保留")}
           let cancelFailure=null;if(session?.sessionId){try{await api(`/api/admin/asset-uploads/${session.sessionId}`,{method:"DELETE"})}catch(cancelError){cancelFailure=cancelError}}
           if(!cancelFailure&&session?.sessionId)await deleteUploadCheckpoint(session.sessionId);
           const message=cancelFailure?`取消请求未送达服务器：${cancelFailure.message}`:"上传已取消";job.cancelled(message,{autoRemove:!cancelFailure});const cancelledError=new UploadCancelledError(message);throw cancelledError;
@@ -1966,8 +1982,11 @@
     async function runAssetUpload(files,{folderMode=false,sectionId="",subsectionId="",albumId="",contentId="",scope="library",visibility="",allowedUserIds=null,note=""}={}){
       if(!files.length)return;const notice=document.getElementById(scope==="section"?"content-section-asset-notice":scope==="gallery"?"media-notice":"asset-notice");notice.textContent=`准备上传 ${files.length} 个文件…`;
       const choice=visibility?{visibility,allowedUserIds:allowedUserIds||[]}:visibilityPayload("asset-upload-visibility","asset-upload-user-picker");
-      let completed=0;for(const file of files){try{let folderId=scope==="library"?app.currentAssetFolder:"";const relativePath=file.webkitRelativePath||file.name;if(folderMode){const parts=relativePath.split("/").slice(0,-1);folderId=await ensureFolderPath(parts,app.currentAssetFolder,choice)}await uploadAssetFile(file,{folderId,relativePath,sectionId,subsectionId,albumId,contentId,scope,note,...choice});completed+=1;notice.textContent=`已完成 ${completed}/${files.length}`;}catch(error){notice.textContent=error?.cancelled?`${file.name} 上传已取消`:`${file.name} 上传失败：${error.message}`;break}}
-      await Promise.all([loadAssets(),loadDashboard()]);
+      const batch=beginStudioUploadBatch();let completed=0;
+      try{
+        for(const file of files){try{uploadAborted(batch.signal);let folderId=scope==="library"?app.currentAssetFolder:"";const relativePath=file.webkitRelativePath||file.name;if(folderMode){const parts=relativePath.split("/").slice(0,-1);folderId=await ensureFolderPath(parts,app.currentAssetFolder,choice)}uploadAborted(batch.signal);await uploadAssetFile(file,{folderId,relativePath,sectionId,subsectionId,albumId,contentId,scope,note,...choice});completed+=1;notice.textContent=`已完成 ${completed}/${files.length}`;}catch(error){notice.textContent=error?.cancelled?`本批上传已停止；已完成 ${completed}/${files.length}`:`${file.name} 上传失败：${error.message}`;break}}
+        if(completed||batch.signal.aborted)await Promise.all([loadAssets(),loadDashboard()]);
+      }finally{batch.finish()}
     }
     function chooseAssetVariant(item,fixedLabel=""){
       let label=fixedLabel;if(!label){label=prompt("输入视频版本：360p / 480p / 720p / 1080p","720p")||"";if(!["360p","480p","720p","1080p"].includes(label)){if(label)alert("清晰度只能是 360p、480p、720p 或 1080p");return}}
@@ -2265,24 +2284,14 @@
       refreshOwnerOptions();
     }
 
-    async function uploadInline(file) {
+    async function uploadInline(file,{signal}={}) {
       const visibility = document.getElementById("content-visibility").value;
       const allowedUserIds = selectedAudienceIds("content-user-picker");
       if (visibilityUsesAudience(visibility) && !allowedUserIds.length) {
         throw new Error("插入图片前，请至少勾选一个能够查看本文的已审核账号");
       }
-      const form = new FormData();
-      form.append("file", file); form.append("kind", "inline");
-      form.append("contentId", document.getElementById("content-id").value);
-      form.append("visibility", visibility);
-      form.append("allowedUserIds", JSON.stringify(allowedUserIds));
-      await appendCompressedPreview(form, file);
-      let item;
-      try { item = await api("/api/admin/media", { method: "POST", body: form }); }
-      catch (error) {
-        if (error.status !== 409 || !confirm(`${error.message}\n仍然上传一份作为本文插图吗？`)) throw error;
-        form.append("allowDuplicate", "1"); item = await api("/api/admin/media", { method: "POST", body: form });
-      }
+      const item = await postStudioPhoto(file,{kind:"inline",contentId:document.getElementById("content-id").value,
+        visibility,allowedUserIds:JSON.stringify(allowedUserIds)},{signal,scope:"article",requiredPreview:false,confirmDuplicate:true});
       app.media.unshift(item); refreshCoverOptions(); renderArticleAssets(); return item;
     }
 
@@ -2296,9 +2305,11 @@
       const selection=getSelection();selection.removeAllRanges();selection.addRange(range);app.editorRange=range.cloneRange();
     }
 
-    async function uploadSectionPhoto(file,{sectionId,subsectionId="",caption="",visibility="public",allowedUserIds=[]}={}){
+    async function uploadSectionPhoto(file,{sectionId,subsectionId="",caption="",visibility="public",allowedUserIds=[],signal,scope}={}){
       if(!sectionId)throw new Error("请先选择所属大板块");
-      const form=new FormData();form.append("file",file);form.append("kind","photo");form.append("sectionId",sectionId);form.append("subsectionId",subsectionId||"");form.append("caption",caption);form.append("visibility",visibility);form.append("allowedUserIds",JSON.stringify(allowedUserIds));await appendCompressedPreview(form,file,{required:true});const item=await api("/api/admin/media",{method:"POST",body:form});app.media.unshift(item);refreshCoverOptions();return item;
+      const item=await postStudioPhoto(file,{kind:"photo",sectionId,subsectionId,caption,visibility,allowedUserIds:JSON.stringify(allowedUserIds)},
+        {signal,scope:scope==="library-photo"?"library":"section"});
+      app.media.unshift(item);refreshCoverOptions();return item;
     }
 
     /*
@@ -2504,7 +2515,11 @@
     document.getElementById("resource-picker-close").addEventListener("click",()=>document.getElementById("resource-picker").close());
     document.getElementById("content-editor").addEventListener("click",event=>{document.querySelectorAll("#content-editor .resource-embed.is-selected").forEach(node=>node.classList.remove("is-selected"));event.target.closest?.(".resource-embed")?.classList.add("is-selected")});
     document.getElementById("remove-editor-resource").addEventListener("click",()=>{const selected=document.querySelector("#content-editor .resource-embed.is-selected");if(!selected){alert("请先点击正文中要删除的文件卡片。");return}const assetId=selected.dataset.resourceType==="asset"?selected.dataset.resourceId:"";if(assetId)app.articleSessionAssetIds.add(assetId);const permanentlyDelete=assetId?decideArticleAssetRemoval(assetId):false;selected.remove();document.getElementById("content-notice").textContent=permanentlyDelete?"资源已移出正文；保存文章后会同时永久删除该附件。":"资源已移出正文；保存文章后仍会保留在当前文章附件栏。"});
-    document.getElementById("inline-image-input").addEventListener("change",async event=>{const files=[...event.target.files];event.target.value="";if(!files.length)return;const notice=document.getElementById("content-notice");let completed=0;const failures=[];for(const file of files){notice.textContent=`正在上传插图 ${completed+1}/${files.length}…`;try{const item=await uploadInline(file);insertInlineImageAtEditorRange(item,file);completed+=1}catch(error){failures.push(`${file.name}：${error.message}`)}}notice.textContent=failures.length?`已插入 ${completed}/${files.length} 张图片；${failures.length} 张失败：${failures.join("；")}`:`已插入 ${completed} 张图片。`});
+    document.getElementById("inline-image-input").addEventListener("change",async event=>{
+      const files=[...event.target.files];event.target.value="";if(!files.length)return;
+      const batch=beginStudioUploadBatch();const notice=document.getElementById("content-notice");let completed=0;const failures=[];
+      try{for(const file of files){if(batch.signal.aborted)break;notice.textContent=`正在上传插图 ${completed+1}/${files.length}…`;try{const item=await uploadInline(file,{signal:batch.signal});insertInlineImageAtEditorRange(item,file);completed+=1}catch(error){if(error.cancelled)break;failures.push(`${file.name}：${error.message}`)}}notice.textContent=`${batch.signal.aborted?"本批上传已停止；":""}已插入 ${completed}/${files.length} 张图片${failures.length?`；${failures.length} 张失败：${failures.join("；")}`:""}。`}finally{batch.finish()}
+    });
 
     document.getElementById("changelog-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("changelog-id").value;const notice=document.getElementById("changelog-notice");const date=document.getElementById("changelog-date").value;try{await api(id?`/api/admin/changelogs/${id}`:"/api/admin/changelogs",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:document.getElementById("changelog-version").value,title:document.getElementById("changelog-title").value,body:document.getElementById("changelog-body").value,publishedAt:date?new Date(date).toISOString():new Date().toISOString(),sortOrder:Number(document.getElementById("changelog-sort").value||0)})});notice.textContent="更新记录已保存，精确时间、顺序和网页版本号已同步。";resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()}catch(error){notice.textContent=error.message}});
     document.getElementById("new-changelog").addEventListener("click",resetChangelog);document.getElementById("delete-changelog").addEventListener("click",async()=>{const id=document.getElementById("changelog-id").value;if(!id||!confirm("确定删除这条更新记录吗？"))return;await api(`/api/admin/changelogs/${id}`,{method:"DELETE"});resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()});
@@ -2530,8 +2545,8 @@
     document.getElementById("article-upload-file").addEventListener("click",()=>{const contentId=document.getElementById("content-id").value;if(!contentId){alert("请先保存文章草稿");return}const choice=visibilityPayload("content-visibility","content-user-picker");if(!validateVisibilityChoice(choice))return;const input=document.getElementById("article-file-input");app.assetUploadContext={scope:"article",contentId,...choice};input.click()});
     document.getElementById("article-file-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";await runAssetUpload(files,context)});
     document.getElementById("content-section-file-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";await runAssetUpload(files,context)});
-    document.getElementById("content-section-photo-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";if(!files.length)return;const notice=document.getElementById("content-section-asset-notice");let completed=0;const failures=[];for(const file of files){try{notice.textContent=`正在上传图片 ${completed+failures.length+1}/${files.length}…`;await uploadSectionPhoto(file,{...context,caption:file.name});completed+=1}catch(error){failures.push(`${file.name}：${error.message}`)}}if(completed)await Promise.all([loadAlbumsAndMedia(),loadDashboard()]);notice.textContent=failures.length?`已上传 ${completed}/${files.length} 张；${failures.length} 张失败：${failures.join("；")}`:`${completed} 张图片已上传到当前文章板块。`});
-    document.getElementById("asset-photo-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";if(!files.length)return;const notice=document.getElementById("asset-notice");let completed=0;const failures=[];for(const file of files){try{notice.textContent=`正在上传图片 ${completed+failures.length+1}/${files.length}…`;await uploadSectionPhoto(file,{...context,caption:file.name});completed+=1}catch(error){failures.push(`${file.name}：${error.message}`)}}if(completed)await Promise.all([loadAlbumsAndMedia(),loadDashboard()]);notice.textContent=failures.length?`已上传 ${completed}/${files.length} 张；${failures.length} 张失败：${failures.join("；")}`:`${completed} 张图片已上传到文件板块。`});
+    document.getElementById("content-section-photo-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";await runSectionPhotoUploads(files,context,"content-section-asset-notice")});
+    document.getElementById("asset-photo-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";await runSectionPhotoUploads(files,context,"asset-notice")});
     document.getElementById("asset-upload-folder").addEventListener("click",()=>{const choice=visibilityPayload("asset-upload-visibility","asset-upload-user-picker");if(!validateVisibilityChoice(choice))return;app.assetUploadContext={scope:"library",sectionId:currentAssetSection(),subsectionId:document.getElementById("asset-subsection").value,note:document.getElementById("asset-upload-note").value,folderMode:true,...choice};document.getElementById("asset-folder-input").click()});
     document.getElementById("asset-file-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{};app.assetUploadContext=null;event.target.value="";event.target.accept="";await runAssetUpload(files,context)});
     document.getElementById("asset-folder-input").addEventListener("change",async event=>{const files=[...event.target.files];const context=app.assetUploadContext||{scope:"library",folderMode:true};app.assetUploadContext=null;event.target.value="";await runAssetUpload(files,context)});
@@ -2561,7 +2576,7 @@
 
     // 用户在线状态每60秒更新一次；未登录后台时不会发起刷新请求。
     window.setInterval(()=>{if(!document.getElementById("studio").classList.contains("hidden"))loadUsers().catch(()=>null)},60_000);
-    initializeEmbeddedContentEditors();initializeStudioSafetyNavigation();initializePhotoManagement();initializeEntryBackgroundSettings();initializeStudioRichText();resetSubsectionForm();resetSectionForm();resetContentForm();resetChangelog();syncContentManagerMeta();checkSession();
+    initializeEmbeddedContentEditors();initializeStudioSafetyNavigation();initializePhotoManagement();initializeStudioUploadControls();initializeEntryBackgroundSettings();initializeStudioRichText();resetSubsectionForm();resetSectionForm();resetContentForm();resetChangelog();syncContentManagerMeta();checkSession();
   </script>
   <script src="/experience.js"></script>
 </body>
