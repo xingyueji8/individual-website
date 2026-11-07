@@ -4188,7 +4188,7 @@ async function askAiStream(request, env, sessionUser) {
 
 async function serveMedia(request, env, id, share = null) {
   if (!env.BUCKET) throw new HttpError(503, "R2 存储桶尚未绑定");
-  const security = share ? { requireView: () => share.require("media", id), canDownload: () => true }
+  const security = share ? { requireView: (kind, target, options) => share.require(kind, target, options), canDownload: () => share.allowDownload }
     : await contentSecurity(request, env, { targets: [{ kind: "media", id }] });
   const requestParams = new URL(request.url).searchParams;
   security.requireView("media", id, { allowLocked: requestParams.get("mosaic") === "1" });
@@ -4341,6 +4341,8 @@ async function serveAsset(request, env, id, share = null) {
   const head = await env.BUCKET.head(objectKey);
   if (!head) throw new HttpError(404, "R2 中的文件对象不存在");
   if (wantsPoster && head.httpMetadata?.contentType) mimeType = head.httpMetadata.contentType;
+  const rendersInline = !access.wantsDownload && assetCanRenderInline(asset, mimeType, { variantLabel, wantsPoster });
+  if (share) share.require("asset", id, { download: !rendersInline });
   const rangeHeader = request.headers.get("Range");
   const range = rangeHeader ? parseByteRange(rangeHeader, head.size) : null;
   if (rangeHeader && !range) {
@@ -4356,7 +4358,6 @@ async function serveAsset(request, env, id, share = null) {
   if (request.method !== "HEAD" && !object) throw new HttpError(404, "R2 中的文件对象不存在");
   const headers = new Headers(SECURITY_HEADERS);
   head.writeHttpMetadata(headers);
-  const rendersInline = !access.wantsDownload && assetCanRenderInline(asset, mimeType, { variantLabel, wantsPoster });
   // 对不能安全内联的附件隐藏用户声明的主动内容类型，阻止直接访问时执行同源脚本。
   headers.set("Content-Type", rendersInline ? normalizedMimeType(mimeType) : "application/octet-stream");
   headers.set("ETag", head.httpEtag);
@@ -4542,7 +4543,18 @@ function readPresentationSettings(input, current, inherit = false) {
   catch (error) { throw new HttpError(400, error.message); }
 }
 
+async function renamePortfolioBoard(request, env, table, id) {
+  if (!validId(id)) throw new HttpError(400, "板块 ID 错误");
+  const input = await readJson(request);
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (!name || name.length > 80) throw new HttpError(400, "板块名称需要 1–80 个字符");
+  const result = await env.DB.prepare(`UPDATE ${table} SET name=?,updated_at=? WHERE id=? RETURNING id,name,updated_at`).bind(name, nowIso(), id).first();
+  if (!result) throw new HttpError(404, "板块不存在");
+  return result;
+}
+
 async function adminSections(request, env, id) {
+  if (request.method === "PATCH") return renamePortfolioBoard(request, env, "portfolio_sections", id);
   if (request.method === "GET") {
     const items = rows(await env.DB.prepare(`
       SELECT s.*,
@@ -4650,6 +4662,7 @@ async function adminSections(request, env, id) {
 }
 
 async function adminSubsections(request, env, id) {
+  if (request.method === "PATCH") return renamePortfolioBoard(request, env, "portfolio_subsections", id);
   if (request.method === "GET") {
     const items = rows(await env.DB.prepare(`
       SELECT ss.*,
@@ -6641,8 +6654,10 @@ async function handleApi(request, env, url, ctx) {
     const [, , , token, kind, id, extra] = url.pathname.split("/");
     if (extra !== undefined) throw new HttpError(404, "分享内容不存在");
     const share = await resolveShare(env, token, shareHooks());
-    if (!kind && request.method === "GET") return json(await shareListing(env, share));
-    if (kind === "content" && id && request.method === "GET") return json(await sharedContent(request, env, share, id, shareHooks()));
+    if (!kind || kind === "content" && id) {
+      const response = json(!kind ? await shareListing(env, share) : await sharedContent(request, env, share, id, shareHooks()));
+      return request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response;
+    }
     if (kind === "media" && id) return serveMedia(request, env, id, share);
     if (kind === "asset" && id) return serveAsset(request, env, id, share);
     throw new HttpError(404, "分享内容不存在");

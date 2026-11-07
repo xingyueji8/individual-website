@@ -59,13 +59,22 @@
     const { item, info, actions } = card(asset.title);
     if (asset.kind === "video") {
       const video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata";
+      if (!state.data?.canDownload) video.setAttribute("controlsList", "nodownload");
       video.src = globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url;
       if (asset.posterUrl) video.poster = asset.posterUrl; item.prepend(video);
     }
     const meta = document.createElement("p"); meta.textContent = `${asset.kind.toUpperCase()} · ${(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB`;
     info.insertBefore(meta, actions);
-    actions.append(scopedLink("下载文件", asset.downloadUrl));
-    if (asset.kind === "pdf") { const preview = scopedLink("浏览 PDF", asset.url); preview.target = "_blank"; preview.rel = "noopener"; actions.append(preview); }
+    if (asset.kind === "audio") {
+      const audio = document.createElement("audio"); audio.controls = true; audio.preload = "metadata"; audio.src = asset.url;
+      if (!state.data?.canDownload) audio.setAttribute("controlsList", "nodownload"); item.prepend(audio);
+    }
+    if (state.data?.canDownload && asset.downloadUrl) actions.append(scopedLink("下载文件", asset.downloadUrl));
+    const previewUrl = asset.previewUrl || (asset.kind === "pdf" ? asset.url : "");
+    if (previewUrl) { const preview = scopedLink("浏览 PDF", previewUrl); preview.target = "_blank"; preview.rel = "noopener"; actions.append(preview); }
+    if (!state.data?.canDownload && !previewUrl && !["video", "audio"].includes(asset.kind)) {
+      const status = document.createElement("p"); status.textContent = "此文件暂不支持在线预览，分享未开放下载。"; info.append(status);
+    }
     return item;
   }
   function renderWorks() {
@@ -92,7 +101,8 @@
       image.src = photo.url; image.alt = photo.title; image.loading = "lazy"; item.prepend(image);
       if (data.kind === "media") item.classList.add("single-image");
       const preview = scopedLink("浏览大图", photo.url); preview.target = "_blank"; preview.rel = "noopener";
-      actions.append(preview, scopedLink("下载原图", photo.downloadUrl)); host.append(item);
+      actions.append(preview);
+      if (data.canDownload && photo.downloadUrl) actions.append(scopedLink("下载原图", photo.downloadUrl)); host.append(item);
     }
     for (const asset of data.assets.filter(item => (!item.contentId || data.kind === "asset") && includes(item))) host.append(assetCard(asset));
     if (!host.children.length) { const empty = document.createElement("p"); empty.textContent = "这个分享范围内暂无已发布作品。"; host.append(empty); }
@@ -119,6 +129,7 @@
       const article = await api(`${prefix}/content/${encodeURIComponent(id)}`);
       if (generation !== state.loading || !state.data) return;
       state.article = article; node("share-reader").hidden = false; node("share-works").hidden = true;
+      node("share-pdf").hidden = !state.data.canDownload || !article.canDownload;
       node("share-back").hidden = state.data.kind === "content";
       node("reader-title").textContent = article.title;
       node("reader-meta").textContent = `发布于 ${new Date(article.published_at).toLocaleString("zh-CN")} · 更新于 ${new Date(article.updated_at).toLocaleString("zh-CN")}`;
@@ -131,7 +142,7 @@
       const attachments = node("reader-attachments"); attachments.replaceChildren();
       const embedded = new Set([...node("reader-body").querySelectorAll(".resource-embed[data-resource-id]")].map(element => element.dataset.resourceId));
       state.data.assets.filter(asset => asset.contentId === article.id && !embedded.has(asset.id)).forEach(asset => attachments.append(assetCard(asset)));
-      node("share-status").textContent = "可浏览和下载本次分享的作品；访问更多内容请注册／登录。";
+      node("share-status").textContent = shareStatus();
     } catch (error) {
       if (error.status === 410) expire(error.message); else node("share-status").textContent = error.message;
     }
@@ -148,7 +159,7 @@
     await pdfLibrary;
   }
   node("share-pdf").addEventListener("click", async () => {
-    if (!state.article || state.pdf) return;
+    if (!state.article?.canDownload || !state.data?.canDownload || state.pdf) return;
     const id = state.article.id, button = node("share-pdf"); state.pdf = true; button.disabled = true; button.textContent = "正在生成 PDF…";
     let root;
     try {
@@ -171,13 +182,16 @@
     } catch (error) { if (error.status === 410) expire(error.message); else node("share-status").textContent = `PDF 下载失败：${error.message}`; }
     finally { root?.remove(); state.pdf = false; button.disabled = false; button.textContent = "下载文章 PDF"; }
   });
+  function shareStatus() {
+    return `${state.data?.canDownload ? "可直接浏览和下载分享的作品" : "本链接仅支持在线浏览，未开放下载"}；访问更多内容请注册／登录。`;
+  }
   async function start() {
     if (!token) { expire("链接格式无效，请向站长索取新的分享链接。"); return; }
     try {
       const data = await api(prefix); state.data = data;
       node("share-title").textContent = data.title; document.title = `${data.title} · 星月集分享`;
       node("share-description").textContent = data.description;
-      node("share-status").textContent = "可直接浏览和下载分享的作品；访问更多内容请注册／登录。";
+      node("share-status").textContent = shareStatus();
       renderFolders(); renderWorks(); if (data.kind === "content") await openArticle(data.targetId);
       const session = await api("/api/auth/session").catch(() => null);
       state.authenticated = Boolean(session?.user?.fullAccess);

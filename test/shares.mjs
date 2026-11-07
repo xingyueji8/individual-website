@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Miniflare } from "miniflare";
 import { createHash } from "node:crypto";
+import { initializeShares } from "../src/shares.mjs";
 
 const mf = new Miniflare({ modules: true, cf: false, scriptPath: "src/worker.js", compatibilityDate: "2026-08-06",
   d1Databases: ["DB"], r2Buckets: ["BUCKET"], assets: { directory: "public", binding: "ASSETS", routerConfig: { invoke_user_worker_ahead_of_assets: true, has_user_worker: true }, assetConfig: { html_handling: "auto-trailing-slash" } },
@@ -27,10 +28,20 @@ async function share(kind, id) { const link = await prepare(kind, id); await act
 const articlePayload = (title, subsectionId = null, visibility = "private", status = "published", bodyHtml = "<p>SHARED-BODY</p>") => ({ sectionId: "section-essays", subsectionId, title, visibility, status, bodyHtml });
 
 try {
+  const db = await mf.getD1Database("DB"), bucket = await mf.getR2Bucket("BUCKET");
+  // Upgrade a pre-existing deployment without changing the old links' mode.
+  await db.prepare(`CREATE TABLE share_links(token_hash TEXT PRIMARY KEY,kind TEXT NOT NULL,target_id TEXT NOT NULL,
+    state TEXT NOT NULL,fingerprint TEXT NOT NULL,created_at INTEGER NOT NULL,activated_at INTEGER,prepare_expires_at INTEGER NOT NULL)`).run();
+  await db.prepare("INSERT INTO share_links VALUES('legacy','media','old-photo','active','',0,0,0)").run();
   await ok("/api/guest/config", { cookie: "" });
   const login = await request("/api/admin/login", { cookie: "", method: "POST", body: { password: "shares-admin" } });
   assert.equal(login.status, 200); admin = cookie(login, "xyj_admin");
-  const db = await mf.getD1Database("DB"), bucket = await mf.getR2Bucket("BUCKET");
+  assert.equal((await db.prepare("SELECT allow_download FROM share_links WHERE token_hash='legacy'").first()).allow_download, 1);
+  await db.prepare("DROP TRIGGER share_download_rules_update_v2").run();
+  await db.prepare("CREATE TRIGGER share_download_rules_update AFTER UPDATE ON download_rules BEGIN UPDATE share_links SET state='revoked'; END").run();
+  await db.prepare("CREATE TRIGGER share_media_update AFTER UPDATE ON media BEGIN UPDATE share_links SET state='revoked'; END").run();
+  await initializeShares({ DB: db });
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name IN ('share_download_rules_update','share_media_update')").first()).n, 0);
   const timestamp = new Date().toISOString();
   async function photo(id, { subsectionId = null, contentId = null, kind = "photo", sectionId = "section-photos" } = {}) {
     await db.prepare(`INSERT INTO media(id,filename,object_key,preview_object_key,mime_type,size_bytes,kind,visibility,section_id,subsection_id,content_id,created_at,updated_at)
@@ -210,5 +221,77 @@ try {
   const childFiles = await share("subsection", fileChild.id), childPrefix = `/api/shares/${childFiles.token}`;
   assert.deepEqual((await ok(childPrefix, { cookie: "" })).assets.map(item => item.id), ["file-board-child"]);
   await status(404, `${childPrefix}/asset/file-board-sub`, { cookie: "" });
-  console.log("scoped sharing, activation, withdrawal, hierarchy, article resources, Range and visitor isolation passed");
+
+  // Rename only the selected saved board, preserving all metadata and contents.
+  const fileBeforeRename = await db.prepare("SELECT * FROM assets WHERE id='file-board-child'").first();
+  for (const [resource, table, id] of [["sections", "portfolio_sections", filesBoard.id], ["subsections", "portfolio_subsections", fileSub.id], ["subsections", "portfolio_subsections", fileChild.id]]) {
+    const before = await db.prepare(`SELECT * FROM ${table} WHERE id=?`).bind(id).first();
+    await status(401, `/api/admin/${resource}/${id}`, { cookie: "", method: "PATCH", body: { name: "Unauthenticated" } });
+    for (const name of [" ", "a".repeat(81), 123]) await status(400, `/api/admin/${resource}/${id}`, { method: "PATCH", body: { name } });
+    const renamed = await ok(`/api/admin/${resource}/${id}`, { method: "PATCH", body: { name: "  新名称 " + id + "  ", visibility: "private", downloadPolicy: "none" } });
+    assert.equal(renamed.name, "新名称 " + id);
+    const after = await db.prepare(`SELECT * FROM ${table} WHERE id=?`).bind(id).first();
+    for (const key of Object.keys(before).filter(key => !["name", "updated_at"].includes(key))) assert.deepEqual(after[key], before[key], key);
+  }
+  assert.deepEqual(await db.prepare("SELECT * FROM assets WHERE id='file-board-child'").first(), fileBeforeRename);
+  assert.equal((await ok(childPrefix, { cookie: "" })).title, "新名称 " + fileChild.id, "active links survive renaming");
+  await status(404, "/api/admin/sections/missing-board", { method: "PATCH", body: { name: "missing" } });
+  await status(404, "/api/admin/subsections/missing-board", { method: "PATCH", body: { name: "missing" } });
+  await status(400, "/api/admin/sections", { method: "PATCH", body: { name: "missing id" } });
+
+  // A preview-only share preserves independent download restrictions, even
+  // when those restrictions are edited after the link was activated.
+  const readonly = async (kind, id) => {
+    const link = await ok("/api/admin/shares", { method: "POST", body: { kind, id, allowDownload: false } });
+    assert.equal(link.allowDownload, false); const result = await activate(link); assert.equal(result.allowDownload, false);
+    assert.equal((await activate(link)).allowDownload, false); return `/api/shares/${link.token}`;
+  };
+  await status(400, "/api/admin/shares", { method: "POST", body: { kind: "media", id: "article-image", allowDownload: "false" } });
+  const roArticle = await ok("/api/admin/content", { method: "POST", body: articlePayload("只读文章") });
+  await ok(`/api/admin/security/content/${roArticle.id}`, { method: "PUT", body: { download: { mode: "none" } } });
+  await photo("readonly-image", { contentId: roArticle.id, kind: "inline", sectionId: "section-essays" });
+  const roArticlePrefix = await readonly("content", roArticle.id);
+  const roListing = await ok(roArticlePrefix, { cookie: "" }); assert.equal(roListing.canDownload, false); assert.equal(roListing.media[0].downloadUrl, null);
+  assert.equal((await ok(`${roArticlePrefix}/content/${roArticle.id}`, { cookie: "" })).canDownload, false);
+  assert.equal((await db.prepare("SELECT mode FROM download_rules WHERE target_id=?").bind(roArticle.id).first()).mode, "none");
+  for (const method of ["GET", "HEAD"]) {
+    await status(403, `${roArticlePrefix}/content/${roArticle.id}?download=1`, { cookie: "", method });
+    for (const suffix of ["", "?download=1", "?preview=1&download=1"]) await status(403, `${roArticlePrefix}/media/readonly-image${suffix}`, { cookie: "", method });
+  }
+  assert.equal(await (await request(`${roArticlePrefix}/media/readonly-image?preview=1`, { cookie: "" })).text(), "PREVIEW-readonly-image");
+  for (const mode of ["public", "member", "none"]) {
+    await ok(`/api/admin/security/content/${roArticle.id}`, { method: "PUT", body: { download: { mode } } });
+    await ok(roArticlePrefix, { cookie: "" });
+    await status(403, `${roArticlePrefix}/content/${roArticle.id}?download=1`, { cookie: "" });
+  }
+  await ok(`/api/admin/security/content/${roArticle.id}`, { method: "PUT", body: { lock: { enabled: true, code: "654321" } } });
+  await status(410, roArticlePrefix, { cookie: "" });
+
+  const roBoard = await ok("/api/admin/sections", { method: "POST", body: { name: "只读文件", kind: "resources", visibility: "private" } });
+  await db.prepare("UPDATE portfolio_sections SET download_policy='member' WHERE id=?").bind(roBoard.id).run();
+  for (const [id, kind, mime] of [["ro-video", "video", "video/mp4"], ["ro-audio", "audio", "audio/mpeg"], ["ro-pdf", "pdf", "application/pdf"], ["ro-word", "word", "application/msword"], ["ro-zip", "archive", "application/zip"], ["ro-unsafe", "file", "text/html"]]) {
+    await asset(id, null, kind, mime); await db.prepare("UPDATE assets SET section_id=? WHERE id=?").bind(roBoard.id, id).run();
+  }
+  await db.prepare(`INSERT INTO asset_variants(id,asset_id,label,object_key,mime_type,size_bytes,status,created_at,updated_at)
+    VALUES('ro-word-preview','ro-word','preview','ro-word-pdf','application/pdf',10,'ready',?,?)`).bind(timestamp, timestamp).run();
+  await bucket.put("ro-word-pdf", "0123456789", { httpMetadata: { contentType: "application/pdf" } });
+  const roBoardPrefix = await readonly("section", roBoard.id);
+  const roFiles = await ok(roBoardPrefix, { cookie: "" }); assert.equal(roFiles.canDownload, false);
+  assert.ok(roFiles.assets.every(asset => asset.downloadUrl === null)); assert.ok(roFiles.assets.find(asset => asset.id === "ro-word").previewUrl.endsWith("?variant=preview"));
+  assert.equal((await db.prepare("SELECT download_policy FROM portfolio_sections WHERE id=?").bind(roBoard.id).first()).download_policy, "member");
+  assert.equal((await db.prepare("SELECT download_policy FROM assets WHERE id='ro-video'").first()).download_policy, "member");
+  for (const id of ["ro-video", "ro-audio", "ro-pdf", "ro-word?variant=preview"]) {
+    const stream = await request(`${roBoardPrefix}/asset/${id}`, { cookie: "", headers: { Range: "bytes=2-5" } });
+    assert.equal(stream.status, 206); assert.equal(await stream.text(), "2345"); assert.match(stream.headers.get("Content-Disposition"), /^inline/);
+    await status(200, `${roBoardPrefix}/asset/${id}`, { cookie: "", method: "HEAD" });
+  }
+  for (const id of ["ro-video", "ro-audio", "ro-pdf", "ro-word", "ro-zip", "ro-unsafe"]) for (const method of ["GET", "HEAD"]) {
+    await status(403, `${roBoardPrefix}/asset/${id}?download=1`, { cookie: "", method });
+    if (["ro-word", "ro-zip", "ro-unsafe"].includes(id)) await status(403, `${roBoardPrefix}/asset/${id}`, { cookie: "", method });
+  }
+  await db.prepare("UPDATE portfolio_sections SET download_policy='public' WHERE id=?").bind(roBoard.id).run(); await ok(roBoardPrefix, { cookie: "" });
+  await db.prepare("UPDATE portfolio_sections SET download_policy='member' WHERE id=?").bind(roBoard.id).run(); await ok(roBoardPrefix, { cookie: "" });
+  await ok(`/api/admin/security/asset/ro-video`, { method: "PUT", body: { download: { mode: "none" } } }); await ok(roBoardPrefix, { cookie: "" });
+  await db.prepare("UPDATE portfolio_sections SET visibility='private' WHERE id=?").bind(roBoard.id).run(); await status(410, roBoardPrefix, { cookie: "" });
+  console.log("scoped sharing, download modes, schema migration, board renaming, withdrawal, Range and visitor isolation passed");
 } finally { await mf.dispose(); }

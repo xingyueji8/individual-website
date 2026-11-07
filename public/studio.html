@@ -218,6 +218,10 @@
     .resource-picker { width:min(720px,calc(100% - 28px)); max-height:min(720px,86dvh); border:1px solid rgba(255,255,255,.72); border-radius:22px; padding:0; color:var(--ink); background:rgba(248,252,252,.94); box-shadow:0 28px 80px rgba(17,45,55,.25); }
     .resource-picker::backdrop { background:rgba(12,29,35,.38); backdrop-filter:blur(5px); }
     .resource-picker-inner { padding:22px; }
+    .studio-share-dialog { padding:22px; }
+    .studio-rename-dialog form { padding:22px; }
+    .studio-share-dialog .check-row { display:flex; align-items:center; gap:10px; margin:18px 0; line-height:1.6; cursor:pointer; }
+    .studio-share-dialog .check-row input { width:20px; height:20px; flex:0 0 20px; margin:0; padding:0; }
     .resource-picker-list { display:grid; gap:8px; max-height:55dvh; overflow:auto; margin:14px 0; }
     .resource-picker-item { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:11px; background:var(--paper); }
     .editor .resource-embed { margin:14px 0; padding:14px; border:1px dashed var(--cyan); border-radius:12px; background:#eefafa; color:#286a74; font-weight:800; }
@@ -457,10 +461,11 @@
           <div>
             <div class="content-manager-title-row">
               <strong id="content-manager-title">文章板块与内容</strong>
-              <div class="content-creation-actions" aria-label="新建板块">
+              <div class="content-creation-actions" aria-label="管理板块">
                 <button class="btn small" type="button" data-studio-create="section">新建大板块</button>
                 <button id="create-subsection" class="btn small" type="button" data-studio-create="subsection">新建小板块</button>
                 <button id="create-subsection-child" class="btn small" type="button" data-studio-create="child">新建小小板块</button>
+                <button id="rename-current-board" class="btn small" type="button">重命名当前板块</button>
               </div>
               <div id="content-panel-controls" class="content-panel-controls" role="group" aria-label="显示编辑面板">
                 <button id="content-settings-open" class="btn small ghost" type="button" data-content-panel-open="settings" aria-controls="content-settings-panel" aria-expanded="true">大板块设置</button>
@@ -663,6 +668,7 @@
           </div>
           <div class="actions">
             <button id="asset-share-board" class="btn small" type="button" aria-label="分享当前文件板块">分享当前板块</button>
+            <button id="asset-rename-board" class="btn small" type="button">重命名当前板块</button>
             <button id="asset-new-folder" class="btn small" type="button">新建子文件夹</button>
             <button id="asset-upload-file" class="btn small" type="button">上传文件/视频</button>
             <button id="asset-upload-photo" class="btn small ghost" type="button" hidden>上传图片</button>
@@ -844,7 +850,7 @@
   <script src="/studio-upload.js?v=20261107"></script>
   <script src="/video-playback.js?v=20261107"></script>
   <script src="/studio-organize.js?v=20261107"></script>
-  <script src="/studio-share.js?v=20261107-file-board"></script>
+  <script src="/studio-share.js?v=20261107-share-mode-rename"></script>
   <script src="/studio-background.js"></script>
   <script src="/studio-rich-text.js?v=20261107"></script>
   <script>
@@ -2451,6 +2457,8 @@
     document.getElementById("content-share").addEventListener("click",()=>openStudioShare("content",app.content.find(item=>item.id===document.getElementById("content-id").value)));
     document.getElementById("subsection-share").addEventListener("click",()=>openStudioShare("subsection",app.subsections.find(item=>item.id===document.getElementById("subsection-id").value)));
     document.getElementById("asset-share-board").addEventListener("click",openStudioAssetBoardShare);
+    document.getElementById("rename-current-board").addEventListener("click",()=>openStudioBoardRename());
+    document.getElementById("asset-rename-board").addEventListener("click",()=>openStudioBoardRename(true));
     document.getElementById("refresh-sections").addEventListener("click",loadSections);
     document.getElementById("section-visibility").addEventListener("change",()=>syncAudiencePicker("section-visibility","section-user-picker",selectedAudienceIds("section-user-picker")));
     document.getElementById("section-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("section-id").value;const notice=document.getElementById("section-notice");const payload=sectionPayload();if(!validateVisibilityChoice(payload,notice))return;notice.textContent="正在保存…";try{const result=await api(id?`/api/admin/sections/${id}`:"/api/admin/sections",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});studioSectionCategory=payload.kind;syncContentManagerMeta();await loadSections();const saved=app.sections.find(item=>item.id===(id||result.id));if(saved)editSection(saved);notice.textContent="板块已保存，可继续设置下载权限和内容锁。";await loadContent();await loadAlbumsAndMedia();await loadDashboard()}catch(error){notice.textContent=error.message}});

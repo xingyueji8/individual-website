@@ -21,20 +21,31 @@ export async function initializeShares(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS share_links (
       token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL,
       state TEXT NOT NULL, fingerprint TEXT NOT NULL, created_at INTEGER NOT NULL,
-      activated_at INTEGER, prepare_expires_at INTEGER NOT NULL)`),
+      activated_at INTEGER, prepare_expires_at INTEGER NOT NULL,
+      allow_download INTEGER NOT NULL DEFAULT 1)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS share_targets (
       token_hash TEXT NOT NULL, kind TEXT NOT NULL, target_id TEXT NOT NULL, role TEXT NOT NULL,
       PRIMARY KEY(token_hash,kind,target_id))`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_share_target ON share_targets(kind,target_id)"),
   ]);
+  const tableColumns = resultRows(await env.DB.prepare("PRAGMA table_info(share_links)").all());
+  if (!tableColumns.some(column => column.name === "allow_download")) {
+    try { await env.DB.prepare("ALTER TABLE share_links ADD COLUMN allow_download INTEGER NOT NULL DEFAULT 1").run(); }
+    catch (error) {
+      if (!resultRows(await env.DB.prepare("PRAGMA table_info(share_links)").all()).some(column => column.name === "allow_download")) throw error;
+    }
+  }
+  const migrateTriggers = !await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='share_download_rules_update_v2'").first();
   const statements = [];
   for (const [kind, table] of Object.entries(SECURITY_TABLES)) {
     const watched = columns[kind].split(",").filter(name => !["id", "name", "description", "title", "filename", "caption", "display_name", "body_html", "cover_media_id", "updated_at"].includes(name));
-    const changed = watched.map(name => `OLD.${name} IS NOT NEW.${name}`).join(" OR ");
-    statements.push(env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS share_${kind}_update AFTER UPDATE ON ${table}
-      WHEN (${changed}) OR OLD.updated_at IS NOT NEW.updated_at BEGIN
+    const changed = watched.filter(name => name !== "download_policy").map(name => `OLD.${name} IS NOT NEW.${name}`).join(" OR ") || "0";
+    const downloadChanged = watched.includes("download_policy") ? "OLD.download_policy IS NOT NEW.download_policy" : "0";
+    if (migrateTriggers) statements.push(env.DB.prepare(`DROP TRIGGER IF EXISTS share_${kind}_update`));
+    statements.push(env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS share_${kind}_update_v2 AFTER UPDATE ON ${table}
+      WHEN (${changed}) OR (${downloadChanged}) OR OLD.updated_at IS NOT NEW.updated_at BEGIN
       UPDATE share_links SET state='revoked' WHERE state IN ('active','pending')
-        AND (state='pending' OR (${changed})) AND token_hash IN
+        AND (state='pending' OR (${changed}) OR (allow_download=1 AND (${downloadChanged}))) AND token_hash IN
         (SELECT token_hash FROM share_targets WHERE kind='${kind}' AND target_id=OLD.id); END`));
     statements.push(env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS share_${kind}_delete AFTER DELETE ON ${table} BEGIN
       UPDATE share_links SET state='revoked' WHERE state IN ('active','pending') AND token_hash IN
@@ -46,9 +57,13 @@ export async function initializeShares(env) {
       const condition = action !== "UPDATE" ? "" : table === "download_rules"
         ? "WHEN OLD.mode IS NOT NEW.mode OR OLD.user_ids IS NOT NEW.user_ids"
         : "WHEN OLD.enabled IS NOT NEW.enabled OR OLD.version IS NOT NEW.version";
-      statements.push(env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS share_${table}_${action.toLowerCase()}
+      const downloadRule = table === "download_rules";
+      const trigger = `share_${table}_${action.toLowerCase()}`;
+      if (downloadRule && migrateTriggers) statements.push(env.DB.prepare(`DROP TRIGGER IF EXISTS ${trigger}`));
+      statements.push(env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS ${trigger}${downloadRule ? "_v2" : ""}
         AFTER ${action} ON ${table} ${condition} BEGIN
-        UPDATE share_links SET state='revoked' WHERE state IN ('active','pending') AND token_hash IN
+        UPDATE share_links SET state='revoked' WHERE state IN ('active','pending')
+          ${downloadRule ? "AND (state='pending' OR allow_download=1)" : ""} AND token_hash IN
           (SELECT token_hash FROM share_targets WHERE kind=${row}.target_kind AND target_id=${row}.target_id); END`));
     }
   }
@@ -152,25 +167,30 @@ export async function adminShares(request, env, token, action, hooks) {
   if (request.method !== "POST") throw hooks.error(405, "不支持的请求方法");
   if (!token) {
     const input = await hooks.readJson(request);
+    if (input.allowDownload !== undefined && typeof input.allowDownload !== "boolean") throw hooks.error(400, "下载选项必须为开或关");
+    // Existing clients explicitly promised downloads. The new UI always sends
+    // its chosen boolean, initially false. Existing links retain their mode.
+    const allowDownload = input.allowDownload !== false;
     const plan = await planShare(env, input.kind, input.id, hooks);
     const value = hooks.token();
     const hash = await hooks.hash(value);
     await env.DB.batch([
       env.DB.prepare("DELETE FROM share_targets WHERE token_hash IN (SELECT token_hash FROM share_links WHERE state!='active' AND prepare_expires_at<?)").bind(Date.now() - 86400000),
       env.DB.prepare("DELETE FROM share_links WHERE state!='active' AND prepare_expires_at<?").bind(Date.now() - 86400000),
-      env.DB.prepare(`INSERT INTO share_links(token_hash,kind,target_id,state,fingerprint,created_at,prepare_expires_at)
-        VALUES(?,?,?,'pending',?,?,?)`).bind(hash, input.kind, input.id, plan.fingerprint, Date.now(), Date.now() + 10 * 60 * 1000),
+      env.DB.prepare(`INSERT INTO share_links(token_hash,kind,target_id,state,fingerprint,created_at,prepare_expires_at,allow_download)
+        VALUES(?,?,?,'pending',?,?,?,?)`).bind(hash, input.kind, input.id, plan.fingerprint, Date.now(), Date.now() + 10 * 60 * 1000, allowDownload ? 1 : 0),
       env.DB.prepare(`INSERT INTO share_targets(token_hash,kind,target_id,role)
         SELECT ?,json_extract(value,'$.kind'),json_extract(value,'$.id'),json_extract(value,'$.role') FROM json_each(?)`)
         .bind(hash, JSON.stringify(plan.list)),
     ]);
-    return { token: value, url: `${new URL(request.url).origin}/share/${value}`, title: plan.title, summary: plan.summary };
+    return { token: value, url: `${new URL(request.url).origin}/share/${value}`, title: plan.title, summary: plan.summary, allowDownload };
   }
   if (!tokenPattern.test(token) || action !== "activate") throw hooks.error(400, "分享参数无效");
   const hash = await hooks.hash(token);
   const share = await env.DB.prepare("SELECT * FROM share_links WHERE token_hash=?").bind(hash).first();
   if (!share || !["pending", "active"].includes(share.state)) throw hooks.error(410, "分享已失效，请重新复制链接");
-  if (share.state === "active") return { ok: true, targets: resultRows(await env.DB.prepare("SELECT kind,target_id AS id,role FROM share_targets WHERE token_hash=? AND role!='guard'").bind(hash).all()) };
+  const allowDownload = share.allow_download !== 0;
+  if (share.state === "active") return { ok: true, allowDownload, targets: resultRows(await env.DB.prepare("SELECT kind,target_id AS id,role FROM share_targets WHERE token_hash=? AND role!='guard'").bind(hash).all()) };
   if (share.prepare_expires_at < Date.now()) throw hooks.error(410, "复制窗口已过期，请重新打开分享窗口");
   const plan = await planShare(env, share.kind, share.target_id, hooks);
   if (plan.fingerprint !== share.fingerprint) throw hooks.error(409, "内容或权限已经改变，请重新打开分享窗口");
@@ -180,7 +200,7 @@ export async function adminShares(request, env, token, action, hooks) {
   for (const kind of ["section", "subsection", "content", "media", "asset"]) {
     const updates = ["visibility='public'"];
     if (kind === "asset") updates.push("access_mode='public'");
-    if (["section", "subsection", "asset"].includes(kind)) updates.push("download_policy='public'");
+    if (allowDownload && ["section", "subsection", "asset"].includes(kind)) updates.push("download_policy='public'");
     statements.push(env.DB.prepare(`UPDATE ${SECURITY_TABLES[kind]} SET ${updates.join(",")} WHERE id IN (${ids}) AND ${active}`).bind(hash, kind, hash));
     const config = hooks.accessTables[kind];
     statements.push(env.DB.prepare(`DELETE FROM ${config.table} WHERE ${config.targetColumn} IN (${ids}) AND ${active}`).bind(hash, kind, hash));
@@ -191,23 +211,23 @@ export async function adminShares(request, env, token, action, hooks) {
     (SELECT kind,target_id FROM share_targets WHERE token_hash=? AND role!='guard') AND ${active}`).bind(hash, hash));
   // Boards/files already have a download-policy field in Studio. Remove their
   // explicit overrides so changing that field later really withdraws download.
-  statements.push(env.DB.prepare(`DELETE FROM download_rules WHERE target_kind IN ('section','subsection','asset') AND (target_kind,target_id) IN
+  if (allowDownload) statements.push(env.DB.prepare(`DELETE FROM download_rules WHERE target_kind IN ('section','subsection','asset') AND (target_kind,target_id) IN
     (SELECT kind,target_id FROM share_targets WHERE token_hash=? AND role!='guard') AND ${active}`).bind(hash, hash));
-  statements.push(env.DB.prepare(`INSERT INTO download_rules(target_kind,target_id,mode,user_ids,updated_at)
+  if (allowDownload) statements.push(env.DB.prepare(`INSERT INTO download_rules(target_kind,target_id,mode,user_ids,updated_at)
     SELECT kind,target_id,'public','[]',? FROM share_targets WHERE token_hash=? AND kind IN ('content','media') AND role!='guard' AND ${active}
     ON CONFLICT(target_kind,target_id) DO UPDATE SET mode='public',user_ids='[]',updated_at=excluded.updated_at`).bind(new Date().toISOString(), hash, hash));
   statements.push(env.DB.prepare("UPDATE share_links SET state='active',activated_at=? WHERE token_hash=? AND state='activating'").bind(Date.now(), hash));
   // The intermediate state and all permission changes are one D1 transaction.
   await env.DB.batch(statements);
   if ((await env.DB.prepare("SELECT state FROM share_links WHERE token_hash=?").bind(hash).first())?.state !== "active") throw hooks.error(410, "内容已改变，分享未生效，请重新复制");
-  return { ok: true, targets: plan.list.filter(item => item.role !== "guard") };
+  return { ok: true, allowDownload, targets: plan.list.filter(item => item.role !== "guard") };
 }
 
 export async function resolveShare(env, token, hooks) {
   const invalid = () => hooks.error(410, "分享链接已失效，或站长已收回浏览／下载权限");
   if (!tokenPattern.test(token || "")) throw invalid();
   const hash = await hooks.hash(token);
-  const share = await env.DB.prepare("SELECT kind,target_id,state FROM share_links WHERE token_hash=?").bind(hash).first();
+  const share = await env.DB.prepare("SELECT kind,target_id,state,allow_download FROM share_links WHERE token_hash=?").bind(hash).first();
   if (!share || share.state !== "active") throw invalid();
   const targets = resultRows(await env.DB.prepare("SELECT kind,target_id AS id,role FROM share_targets WHERE token_hash=? AND role!='guard'").bind(hash).all());
   // Defence in depth: every read rechecks current policy, even if a future admin
@@ -221,22 +241,26 @@ export async function resolveShare(env, token, hooks) {
   ]);
   const policies = new Map(resultRows(downloads).map(item => [key(item.target_kind, item.target_id), item.mode]));
   const locked = new Set(resultRows(locks).map(item => key(item.target_kind, item.target_id)));
+  const allowDownload = share.allow_download !== 0;
   if (!targets.length || targets.some(target => {
     const k = key(target.kind, target.id), item = records.get(k);
     const download = policies.get(k) || (["section", "subsection", "asset"].includes(target.kind) ? item?.download_policy : "member");
-    return !item || (item.access_mode || item.visibility) !== "public" || download !== "public" || locked.has(k)
+    return !item || (item.access_mode || item.visibility) !== "public" || (allowDownload && download !== "public") || locked.has(k)
       || target.kind === "content" && item.status !== "published" || target.kind === "asset" && item.status !== "ready";
   })) {
     await env.DB.prepare("UPDATE share_links SET state='revoked' WHERE token_hash=?").bind(hash).run();
     throw invalid();
   }
   const membership = new Set(targets.map(target => key(target.kind, target.id)));
-  return { ...share, token, hash, targets, records, has: (kind, id) => membership.has(key(kind, id)),
-    require(kind, id) { if (!membership.has(key(kind, id))) throw hooks.error(404, "此内容不在当前分享范围内"); } };
+  return { ...share, token, hash, targets, records, allowDownload, has: (kind, id) => membership.has(key(kind, id)),
+    require(kind, id, { download = false } = {}) {
+      if (!membership.has(key(kind, id))) throw hooks.error(404, "此内容不在当前分享范围内");
+      if (download && !allowDownload) throw hooks.error(403, "此分享仅支持在线浏览，未开放下载权限");
+    } };
 }
 
 export async function sharedContent(request, env, share, id, hooks) {
-  share.require("content", id);
+  share.require("content", id, { download: new URL(request.url).searchParams.get("download") === "1" });
   const item = await env.DB.prepare("SELECT id,title,excerpt,body_html,published_at,updated_at FROM content WHERE id=? AND status='published'").bind(id).first();
   if (!item) throw hooks.error(410, "文章已撤回");
   const prefix = `/api/shares/${share.token}`;
@@ -257,7 +281,7 @@ export async function sharedContent(request, env, share, id, hooks) {
       }
     },
   }).transform(new Response(hooks.sanitize(item.body_html)));
-  return { ...item, body_html: await rewritten.text(), canDownload: true };
+  return { ...item, body_html: await rewritten.text(), canDownload: share.allowDownload };
 }
 
 export async function shareListing(env, share) {
@@ -272,17 +296,19 @@ export async function shareListing(env, share) {
   const media = share.targets.filter(target => target.kind === "media").map(target => {
     const item = share.records.get(key("media", target.id));
     return { id: item.id, title: item.caption || item.filename, role: target.role, subsectionId: boardId(item.subsection_id),
-      url: `${prefix}/media/${item.id}?preview=1`, downloadUrl: `${prefix}/media/${item.id}?download=1` };
+      url: `${prefix}/media/${item.id}?preview=1`, downloadUrl: share.allowDownload ? `${prefix}/media/${item.id}?download=1` : null };
   });
-  const assetRows = resultRows(await env.DB.prepare(`SELECT a.id,a.display_name,a.mime_type,a.kind,a.size_bytes,a.content_id,a.subsection_id,a.poster_object_key
+  const assetRows = resultRows(await env.DB.prepare(`SELECT a.id,a.display_name,a.mime_type,a.kind,a.size_bytes,a.content_id,a.subsection_id,a.poster_object_key,
+    EXISTS(SELECT 1 FROM asset_variants v WHERE v.asset_id=a.id AND v.label='preview' AND v.status='ready' AND v.mime_type='application/pdf') AS has_preview
     FROM assets a JOIN share_targets t ON t.kind='asset' AND t.target_id=a.id
     WHERE t.token_hash=? AND t.role!='guard' AND a.status='ready'`).bind(share.hash).all());
   const assets = assetRows.map(item => ({ id: item.id, title: item.display_name, mimeType: item.mime_type, kind: item.kind,
     sizeBytes: item.size_bytes, contentId: share.has("content", item.content_id) ? item.content_id : null, subsectionId: boardId(item.subsection_id),
-    url: `${prefix}/asset/${item.id}`, downloadUrl: `${prefix}/asset/${item.id}?download=1`,
+    url: `${prefix}/asset/${item.id}`, downloadUrl: share.allowDownload ? `${prefix}/asset/${item.id}?download=1` : null,
+    previewUrl: item.has_preview ? `${prefix}/asset/${item.id}?variant=preview` : item.kind === "pdf" ? `${prefix}/asset/${item.id}` : "",
     posterUrl: item.poster_object_key ? `${prefix}/asset/${item.id}?poster=1` : "" }));
   const root = share.records.get(key(share.kind, share.target_id));
-  return { kind: share.kind, targetId: share.target_id, title: root.title || root.caption || root.filename || root.display_name || root.name,
+  return { kind: share.kind, targetId: share.target_id, canDownload: share.allowDownload, title: root.title || root.caption || root.filename || root.display_name || root.name,
     description: root.description || "", content, media, assets,
     subsections: selected("subsection").map(target => {
       const item = share.records.get(key("subsection", target.id));
