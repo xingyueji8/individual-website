@@ -59,7 +59,7 @@ try {
   await db.prepare("UPDATE portfolio_sections SET visibility='private',download_policy='member' WHERE id='section-essays'").run();
   await status(401, "/api/admin/shares", { cookie: "", method: "POST", body: { kind: "content", id: article.id } });
   await status(409, "/api/admin/shares", { method: "POST", body: { kind: "content", id: draft.id } });
-  await status(400, "/api/admin/shares", { method: "POST", body: { kind: "section", id: "section-essays" } });
+  await status(400, "/api/admin/shares", { method: "POST", body: { kind: "assetFolder", id: "unsupported-folder" } });
   const pending = await prepare("content", article.id);
   assert.match(pending.url, /^https:\/\/localhost\/share\/[a-f0-9]{64}$/);
   assert.equal((await db.prepare("SELECT visibility FROM content WHERE id=?").bind(article.id).first()).visibility, "private");
@@ -162,5 +162,53 @@ try {
   assert.match(unsafeBytes.headers.get("Content-Disposition"), /^attachment/);
   assert.match(unsafeBytes.headers.get("Content-Security-Policy"), /sandbox/);
   await status(400, "/api/admin/shares", { method: "POST", body: { kind: "content", id: [article.id] } });
+
+  // File-management boards can be shared at every board level. Root sharing
+  // includes uncategorized files, but never another board or unfinished uploads.
+  const filesBoard = await ok("/api/admin/sections", { method: "POST", body: { name: "Shared file board", kind: "resources", visibility: "private" } });
+  const otherFilesBoard = await ok("/api/admin/sections", { method: "POST", body: { name: "Unshared file board", kind: "resources", visibility: "private" } });
+  const fileSub = await ok("/api/admin/subsections", { method: "POST", body: { sectionId: filesBoard.id, name: "Documents", visibility: "private", downloadPolicy: "member" } });
+  const fileChild = await ok("/api/admin/subsections", { method: "POST", body: { sectionId: filesBoard.id, parentId: fileSub.id, name: "Reports", visibility: "private" } });
+  await db.prepare("UPDATE portfolio_sections SET download_policy='member' WHERE id=?").bind(filesBoard.id).run();
+  for (const [id, sectionId, subsectionId, state] of [
+    ["file-board-root", filesBoard.id, null, "ready"],
+    ["file-board-sub", filesBoard.id, fileSub.id, "ready"],
+    ["file-board-child", filesBoard.id, fileChild.id, "ready"],
+    ["file-board-pending", filesBoard.id, fileSub.id, "uploading"],
+    ["file-board-outside", otherFilesBoard.id, null, "ready"],
+  ]) {
+    await asset(id);
+    await db.prepare("UPDATE assets SET section_id=?,subsection_id=?,scope='library',status=? WHERE id=?").bind(sectionId, subsectionId, state, id).run();
+  }
+  const wholeFiles = await prepare("section", filesBoard.id);
+  assert.equal(wholeFiles.summary.asset, 3);
+  assert.equal((await db.prepare("SELECT visibility FROM portfolio_sections WHERE id=?").bind(filesBoard.id).first()).visibility, "private", "opening the dialog does not publish the board");
+  await status(410, `/api/shares/${wholeFiles.token}`, { cookie: "" });
+  await activate(wholeFiles);
+  const filesPrefix = `/api/shares/${wholeFiles.token}`;
+  const filesListing = await ok(filesPrefix, { cookie: "" });
+  assert.equal(filesListing.kind, "section");
+  assert.equal(filesListing.title, "Shared file board");
+  assert.deepEqual(new Set(filesListing.assets.map(item => item.id)), new Set(["file-board-root", "file-board-sub", "file-board-child"]));
+  assert.equal(filesListing.subsections.length, 2);
+  assert.equal((await db.prepare("SELECT visibility,download_policy FROM portfolio_sections WHERE id=?").bind(filesBoard.id).first()).download_policy, "public");
+  for (const id of ["file-board-pending", "file-board-outside", "article-video"]) await status(404, `${filesPrefix}/asset/${id}`, { cookie: "" });
+  assert.equal((await db.prepare("SELECT visibility FROM portfolio_sections WHERE id=?").bind(otherFilesBoard.id).first()).visibility, "private");
+  assert.equal((await db.prepare("SELECT access_mode FROM assets WHERE id='file-board-outside'").first()).access_mode, "private");
+  const streamedFile = await request(`${filesPrefix}/asset/file-board-child`, { cookie: "", headers: { Range: "bytes=2-5" } });
+  assert.equal(streamedFile.status, 206); assert.equal(await streamedFile.text(), "2345");
+  await asset("file-board-future");
+  await db.prepare("UPDATE assets SET section_id=?,scope='library' WHERE id='file-board-future'").bind(filesBoard.id).run();
+  await status(404, `${filesPrefix}/asset/file-board-future`, { cookie: "" });
+  await ok(`/api/admin/security/section/${filesBoard.id}`, { method: "PUT", body: { download: { mode: "member" } } });
+  await status(410, filesPrefix, { cookie: "" });
+  await ok(`/api/admin/security/section/${filesBoard.id}`, { method: "PUT", body: { download: { mode: "public" } } });
+  await status(410, filesPrefix, { cookie: "" });
+  const smallFiles = await share("subsection", fileSub.id), smallPrefix = `/api/shares/${smallFiles.token}`;
+  assert.deepEqual(new Set((await ok(smallPrefix, { cookie: "" })).assets.map(item => item.id)), new Set(["file-board-sub", "file-board-child"]));
+  await status(404, `${smallPrefix}/asset/file-board-root`, { cookie: "" });
+  const childFiles = await share("subsection", fileChild.id), childPrefix = `/api/shares/${childFiles.token}`;
+  assert.deepEqual((await ok(childPrefix, { cookie: "" })).assets.map(item => item.id), ["file-board-child"]);
+  await status(404, `${childPrefix}/asset/file-board-sub`, { cookie: "" });
   console.log("scoped sharing, activation, withdrawal, hierarchy, article resources, Range and visitor isolation passed");
 } finally { await mf.dispose(); }

@@ -80,6 +80,47 @@ assert.equal(calls.length, before); assert.match(studio.alerts.at(-1), /先保�
 studio.run("studioDirtyForms.clear();renderMedia()");
 assert.ok(studio.document.querySelector('[data-share-kind="media"][data-share-id="photo"]'));
 
+// The file toolbar shares the currently selected board, even if the editor
+// panel is closed. A stale selection must never widen into a whole-board share.
+activationFails = false; clipboardFails = false;
+studio.run(`app.sections.push({id:'files-a',name:'文件 A',kind:'resources',visibility:'private'},
+  {id:'files-b',name:'文件 B',kind:'resources',visibility:'private'});
+  app.subsections.push({id:'files-small',section_id:'files-a',name:'文档',visibility:'private'},
+  {id:'files-child',section_id:'files-a',parent_id:'files-small',name:'报告',visibility:'private'});
+  enterSectionManager('resources');`);
+const fileShareControl = studio.document.getElementById("asset-share-board");
+assert.equal(fileShareControl.type, "button");
+assert.equal(fileShareControl.textContent, "分享当前大板块");
+fileShareControl.click(); await settle();
+assert.deepEqual(calls.at(-1).body, { kind: "section", id: "files-a" });
+assert.equal(studio.run("app.sections.find(item=>item.id==='files-a').visibility"), "private");
+let fileDialog = studio.document.querySelector(".studio-share-dialog");
+assert.ok(fileDialog.textContent.includes("分享这个大板块"));
+targets.splice(0, targets.length, { kind: "section", id: "files-a" });
+[...fileDialog.querySelectorAll("button")].find(button => button.textContent === "复制分享链接").click(); await settle();
+assert.equal(studio.run("app.sections.find(item=>item.id==='files-a').visibility"), "public");
+assert.equal(studio.run("app.sections.find(item=>item.id==='files-b').visibility"), "private");
+fileDialog.close();
+for (const [id, label] of [["files-small", "小板块"], ["files-child", "小小板块"]]) {
+  const select = studio.document.getElementById("asset-subsection"); select.value = id;
+  select.dispatchEvent(new studio.window.Event("change", { bubbles: true }));
+  assert.equal(fileShareControl.textContent, `分享当前${label}`);
+  fileShareControl.click(); await settle();
+  assert.deepEqual(calls.at(-1).body, { kind: "subsection", id });
+  fileDialog = studio.document.querySelector(".studio-share-dialog");
+  assert.ok(fileDialog.textContent.includes(`分享这个${label}`)); fileDialog.close();
+}
+studio.document.getElementById("asset-section").value = "files-b";
+studio.document.getElementById("asset-section").dispatchEvent(new studio.window.Event("change", { bubbles: true }));
+fileShareControl.click(); await settle();
+assert.deepEqual(calls.at(-1).body, { kind: "section", id: "files-b" });
+studio.document.querySelector(".studio-share-dialog").close();
+const staleOption = studio.document.createElement("option"); staleOption.value = "deleted-board";
+studio.document.getElementById("asset-subsection").append(staleOption);
+studio.document.getElementById("asset-subsection").value = "deleted-board";
+const beforeInvalidBoard = calls.length; fileShareControl.click(); await settle();
+assert.equal(calls.length, beforeInvalidBoard); assert.match(studio.alerts.at(-1), /重新选择/);
+
 // Share visitors can navigate within the shared list, but every outside click
 // opens registration/login without requesting the normal site bootstrap.
 const token = "b".repeat(64), prefix = `/api/shares/${token}`;
@@ -120,4 +161,25 @@ revoked = true; await viewer.intervals[0](); await settle();
 assert.equal(viewer.document.getElementById("reader-body").textContent, "");
 assert.equal(viewer.document.getElementById("share-reader").hidden, true);
 assert.equal(viewer.document.getElementById("share-title").textContent, "分享链接已失效");
+
+const rootViewer = dom(await readFile("public/share.html", "utf8"), `/share/${token}`);
+rootViewer.context.fetch = async path => {
+  if (path === "/api/auth/session") return Response.json({ authenticated: false, user: null });
+  assert.equal(path, prefix);
+  return Response.json({ kind: "section", targetId: "files-root", title: "文件大板块", description: "", content: [], media: [],
+    subsections: [{ id: "docs", name: "文档" }, { id: "reports", name: "报告", parentId: "docs" }, { id: "other", name: "其他" }],
+    assets: [
+      { id: "root-file", title: "根目录文件", kind: "file", sizeBytes: 10, subsectionId: null, url: prefix + "/asset/root-file", downloadUrl: prefix + "/asset/root-file?download=1" },
+      { id: "report-file", title: "子板块报告", kind: "file", sizeBytes: 10, subsectionId: "reports", url: prefix + "/asset/report-file", downloadUrl: prefix + "/asset/report-file?download=1" },
+      { id: "other-file", title: "其他资料", kind: "file", sizeBytes: 10, subsectionId: "other", url: prefix + "/asset/other-file", downloadUrl: prefix + "/asset/other-file?download=1" },
+    ] });
+};
+rootViewer.run(await readFile("public/share.js", "utf8")); await settle();
+assert.equal(rootViewer.document.getElementById("share-folders").hidden, false);
+assert.equal(rootViewer.document.querySelectorAll("#share-works .work-card").length, 3);
+const docsFilter = [...rootViewer.document.querySelectorAll("#share-folders button")].find(control => control.textContent === "文档");
+docsFilter.click();
+assert.equal(rootViewer.document.querySelectorAll("#share-works .work-card").length, 1);
+assert.ok(rootViewer.document.getElementById("share-works").textContent.includes("子板块报告"));
+assert.ok(!rootViewer.document.getElementById("share-works").textContent.includes("其他资料"));
 console.log("share selection, clipboard failures, permission reflection, visitor login gate and active-page revocation passed");

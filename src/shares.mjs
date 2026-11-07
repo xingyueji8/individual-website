@@ -77,7 +77,7 @@ function parents(item) {
 }
 
 async function planShare(env, kind, id, hooks) {
-  if (!["content", "media", "asset", "subsection"].includes(kind) || typeof id !== "string" || !idPattern.test(id)) throw hooks.error(400, "请选择文章、图片、文件或小板块");
+  if (!["content", "media", "asset", "subsection", "section"].includes(kind) || typeof id !== "string" || !idPattern.test(id)) throw hooks.error(400, "请选择文章、图片、文件或板块");
   const records = await graph(env);
   const root = records.get(key(kind, id));
   if (!root) throw hooks.error(404, "要分享的内容不存在");
@@ -92,16 +92,20 @@ async function planShare(env, kind, id, hooks) {
     if ((rank[targets.get(k)?.role] || 0) < rank[role]) targets.set(k, { kind: item.kindName, id: item.id, role });
   }
   add(root, "item");
-  if (kind === "subsection") {
-    const ids = new Set([id]);
+  if (kind === "section" || kind === "subsection") {
+    const sectionId = kind === "section" ? root.id : root.section_id;
+    const ids = new Set(kind === "section" ? [] : [id]);
+    if (kind === "section") {
+      for (const item of records.values()) if (item.kindName === "subsection" && item.section_id === sectionId) { ids.add(item.id); add(item, "item"); }
+    }
     let more = true;
     while (more) {
       more = false;
-      for (const item of records.values()) if (item.kindName === "subsection" && item.section_id === root.section_id && ids.has(item.parent_id) && !ids.has(item.id)) {
+      for (const item of records.values()) if (item.kindName === "subsection" && item.section_id === sectionId && ids.has(item.parent_id) && !ids.has(item.id)) {
         ids.add(item.id); add(item, "item"); more = true;
       }
     }
-    for (const item of records.values()) if (item.section_id === root.section_id && ids.has(item.subsection_id)) {
+    for (const item of records.values()) if (item.section_id === sectionId && (kind === "section" || ids.has(item.subsection_id))) {
       if (item.kindName === "content" && item.status === "published"
         || item.kindName === "media" && item.kind === "photo" && !item.content_id
         || item.kindName === "asset" && item.status === "ready" && !item.content_id) add(item, "item");
@@ -173,10 +177,10 @@ export async function adminShares(request, env, token, action, hooks) {
   const active = "EXISTS (SELECT 1 FROM share_links WHERE token_hash=? AND state='activating')";
   const ids = "SELECT target_id FROM share_targets WHERE token_hash=? AND kind=? AND role!='guard'";
   const statements = [env.DB.prepare("UPDATE share_links SET state='activating' WHERE token_hash=? AND state='pending' AND prepare_expires_at>?").bind(hash, Date.now())];
-  for (const kind of ["subsection", "content", "media", "asset"]) {
+  for (const kind of ["section", "subsection", "content", "media", "asset"]) {
     const updates = ["visibility='public'"];
     if (kind === "asset") updates.push("access_mode='public'");
-    if (["subsection", "asset"].includes(kind)) updates.push("download_policy='public'");
+    if (["section", "subsection", "asset"].includes(kind)) updates.push("download_policy='public'");
     statements.push(env.DB.prepare(`UPDATE ${SECURITY_TABLES[kind]} SET ${updates.join(",")} WHERE id IN (${ids}) AND ${active}`).bind(hash, kind, hash));
     const config = hooks.accessTables[kind];
     statements.push(env.DB.prepare(`DELETE FROM ${config.table} WHERE ${config.targetColumn} IN (${ids}) AND ${active}`).bind(hash, kind, hash));
@@ -187,7 +191,7 @@ export async function adminShares(request, env, token, action, hooks) {
     (SELECT kind,target_id FROM share_targets WHERE token_hash=? AND role!='guard') AND ${active}`).bind(hash, hash));
   // Boards/files already have a download-policy field in Studio. Remove their
   // explicit overrides so changing that field later really withdraws download.
-  statements.push(env.DB.prepare(`DELETE FROM download_rules WHERE target_kind IN ('subsection','asset') AND (target_kind,target_id) IN
+  statements.push(env.DB.prepare(`DELETE FROM download_rules WHERE target_kind IN ('section','subsection','asset') AND (target_kind,target_id) IN
     (SELECT kind,target_id FROM share_targets WHERE token_hash=? AND role!='guard') AND ${active}`).bind(hash, hash));
   statements.push(env.DB.prepare(`INSERT INTO download_rules(target_kind,target_id,mode,user_ids,updated_at)
     SELECT kind,target_id,'public','[]',? FROM share_targets WHERE token_hash=? AND kind IN ('content','media') AND role!='guard' AND ${active}
@@ -219,7 +223,7 @@ export async function resolveShare(env, token, hooks) {
   const locked = new Set(resultRows(locks).map(item => key(item.target_kind, item.target_id)));
   if (!targets.length || targets.some(target => {
     const k = key(target.kind, target.id), item = records.get(k);
-    const download = policies.get(k) || (["subsection", "asset"].includes(target.kind) ? item?.download_policy : "member");
+    const download = policies.get(k) || (["section", "subsection", "asset"].includes(target.kind) ? item?.download_policy : "member");
     return !item || (item.access_mode || item.visibility) !== "public" || download !== "public" || locked.has(k)
       || target.kind === "content" && item.status !== "published" || target.kind === "asset" && item.status !== "ready";
   })) {

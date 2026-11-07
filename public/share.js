@@ -71,7 +71,17 @@
   function renderWorks() {
     const data = state.data; if (!data) return;
     const host = node("share-works"); host.querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media)); host.replaceChildren();
-    const includes = item => !state.folder || item.subsectionId === state.folder;
+    const selectedBoards = new Set([state.folder]);
+    if (state.folder) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const board of data.subsections) if (selectedBoards.has(board.parentId) && !selectedBoards.has(board.id)) {
+          selectedBoards.add(board.id); changed = true;
+        }
+      }
+    }
+    const includes = item => !state.folder || selectedBoards.has(item.subsectionId);
     for (const article of data.content.filter(includes)) {
       const { item, actions } = card(article.title);
       const open = document.createElement("button"); open.type = "button"; open.textContent = "浏览文章";
@@ -88,7 +98,7 @@
     if (!host.children.length) { const empty = document.createElement("p"); empty.textContent = "这个分享范围内暂无已发布作品。"; host.append(empty); }
   }
   function renderFolders() {
-    const host = node("share-folders"); host.replaceChildren(); host.hidden = state.data.kind !== "subsection";
+    const host = node("share-folders"); host.replaceChildren(); host.hidden = !["section", "subsection"].includes(state.data.kind);
     if (host.hidden) return;
     for (const folder of [{ id: "", name: "全部分享作品" }, ...state.data.subsections]) {
       const control = document.createElement("button"); control.type = "button"; control.textContent = folder.name;

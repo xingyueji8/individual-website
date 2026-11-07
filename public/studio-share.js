@@ -6,6 +6,25 @@ function studioShareButton(kind, item, label = "分享") {
   control.addEventListener("click", () => openStudioShare(kind, item));
   return control;
 }
+function assetBoardShareTarget() {
+  const sectionId = document.getElementById("asset-section").value;
+  const subsectionId = document.getElementById("asset-subsection").value;
+  if (subsectionId) return { kind: "subsection", item: app.subsections.find(item => item.id === subsectionId && item.section_id === sectionId) };
+  return { kind: "section", item: app.sections.find(item => item.id === sectionId) };
+}
+function syncAssetBoardShareControl() {
+  const control = document.getElementById("asset-share-board");
+  const { item, kind } = assetBoardShareTarget();
+  const level = kind === "section" ? "大板块" : item?.parent_id ? "小小板块" : "小板块";
+  control.textContent = `分享当前${level}`;
+  control.title = item ? `分享${level}「${item.name}」及其已有下级和作品` : "请先选择一个已保存的文件板块";
+  control.setAttribute("aria-label", control.title);
+}
+function openStudioAssetBoardShare() {
+  const { kind, item } = assetBoardShareTarget();
+  if (!item) { alert("请先选择一个已保存的文件大板块或小板块；若原板块已删除，请刷新后重新选择。"); return; }
+  openStudioShare(kind, item);
+}
 
 async function copyStudioShareLink(value) {
   if (navigator.clipboard?.writeText) {
@@ -23,33 +42,35 @@ async function copyStudioShareLink(value) {
 }
 
 function reflectSharePermissions(targets) {
-  const collections = { content: app.content, media: app.media, asset: app.assets, subsection: app.subsections };
+  const collections = { section: app.sections, content: app.content, media: app.media, asset: app.assets, subsection: app.subsections };
   for (const target of targets || []) {
     const item = collections[target.kind]?.find(item => item.id === target.id);
     if (item) { item.visibility = "public"; item.download_policy = "public"; item.allowed_user_ids = []; }
+    if (item && target.kind === "asset") item.access_mode = "public";
   }
-  for (const kind of ["content", "subsection"]) {
+  for (const kind of ["section", "content", "subsection"]) {
     const id = document.getElementById(`${kind}-id`).value;
     if (!targets?.some(target => target.kind === kind && target.id === id)) continue;
     document.getElementById(`${kind}-visibility`).value = "public";
     syncAudiencePicker(`${kind}-visibility`, `${kind}-user-picker`, []);
     if (kind === "subsection") document.getElementById("subsection-download-policy").value = "public";
   }
-  renderContentList(); renderSubsectionList(); renderContentStructureNav();
+  renderContentList(); renderSectionList(); renderSubsectionList(); renderContentStructureNav();
   renderMedia(); renderAlbums(); renderAssetBrowser(); renderArticleAssets();
 }
 
 function openStudioShare(kind, item) {
-  if (!item?.id) { alert("请先保存作品或小板块，再分享。"); return; }
+  if (!item?.id) { alert("请先保存作品或板块，再分享。"); return; }
   if (activeStudioDirtyForms().length || document.querySelector(".media-card.is-editing")) {
     alert("请先保存当前修改，再复制分享链接。"); return;
   }
   const dialog = document.createElement("dialog");
   dialog.className = "resource-picker studio-share-dialog";
-  dialog.setAttribute("aria-label", "分享作品或小板块");
+  dialog.setAttribute("aria-label", "分享作品或板块");
   const heading = document.createElement("h2"); heading.textContent = "分享浏览链接";
   const help = document.createElement("p"); help.className = "status";
   help.textContent = "复制成功后，所选范围内的作品将开放给所有人浏览和下载，并解除其内容锁。以后修改浏览／下载权限或重新上锁，旧链接立即失效。上级板块与站内其他内容仍按原权限访问。";
+  if (kind === "section" || kind === "subsection") help.textContent = "分享范围为整个选中板块及其已有下级和文件夹中的作品。" + help.textContent;
   const choices = document.createElement("div"); choices.className = "actions";
   const detail = document.createElement("p"); detail.className = "status";
   const notice = document.createElement("p"); notice.className = "status"; notice.setAttribute("role", "status"); notice.setAttribute("aria-live", "polite");
@@ -61,7 +82,7 @@ function openStudioShare(kind, item) {
   document.body.append(dialog);
   dialog.addEventListener("close", () => dialog.remove(), { once: true });
   dialog.showModal();
-  const options = [{ kind, id: item.id, label: { content: "分享这篇文章", media: "分享这张图片", asset: "分享这个文件／视频", subsection: "分享这个小板块" }[kind] }];
+  const options = [{ kind, id: item.id, label: { content: "分享这篇文章", media: "分享这张图片", asset: "分享这个文件／视频", section: "分享这个大板块", subsection: item.parent_id ? "分享这个小小板块" : "分享这个小板块" }[kind] }];
   const subsection = app.subsections.find(section => section.id === item.subsection_id);
   if (kind !== "subsection" && subsection) options.push({ kind: "subsection", id: subsection.id, label: `分享小板块「${subsection.name}」` });
   let prepared = null, generation = 0, busy = false;
@@ -75,7 +96,7 @@ function openStudioShare(kind, item) {
       if (current !== generation || !dialog.open) return;
       prepared = result;
       const summary = result.summary;
-      detail.textContent = `「${result.title}」：${summary.content} 篇已发布文章、${summary.media} 张图片（含文章插图）、${summary.asset} 个文件／视频。小板块分享包含当前已有的下级小板块和作品，不含草稿及以后新增的作品。`;
+      detail.textContent = `「${result.title}」：${summary.content} 篇已发布文章、${summary.media} 张图片（含文章插图）、${summary.asset} 个文件／视频。板块分享包含当前已有的下级板块和作品，不含草稿、未完成上传及以后新增的作品。`;
       copy.disabled = false; copy.textContent = "复制分享链接";
     } catch (error) { if (current === generation) detail.textContent = error.message; }
   }

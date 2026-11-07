@@ -662,6 +662,7 @@
             <div class="field" style="margin:0"><label>文件备注</label><input id="asset-upload-note" maxlength="1200" placeholder="可留空"></div>
           </div>
           <div class="actions">
+            <button id="asset-share-board" class="btn small" type="button" aria-label="分享当前文件板块">分享当前板块</button>
             <button id="asset-new-folder" class="btn small" type="button">新建子文件夹</button>
             <button id="asset-upload-file" class="btn small" type="button">上传文件/视频</button>
             <button id="asset-upload-photo" class="btn small ghost" type="button" hidden>上传图片</button>
@@ -843,7 +844,7 @@
   <script src="/studio-upload.js?v=20261107"></script>
   <script src="/video-playback.js?v=20261107"></script>
   <script src="/studio-organize.js?v=20261107"></script>
-  <script src="/studio-share.js"></script>
+  <script src="/studio-share.js?v=20261107-file-board"></script>
   <script src="/studio-background.js"></script>
   <script src="/studio-rich-text.js?v=20261107"></script>
   <script>
@@ -1522,6 +1523,7 @@
       });select.value=current;
     }
     function renderAssetBrowser(){
+      syncAssetBoardShareControl();
       const browser=document.getElementById("asset-browser");clear(browser);const current=app.currentAssetFolder||null;const subsectionId=document.getElementById("asset-subsection").value||null;
       const folders=app.assetFolders.filter(item=>(item.section_id||"section-resources")===currentAssetSection()&&(item.parent_id||null)===current);
       const assets=app.assets.filter(item=>item.scope!=="article"&&item.section_id===currentAssetSection()&&(item.folder_id||null)===current&&(item.subsection_id||null)===subsectionId);
@@ -2448,6 +2450,7 @@
     document.getElementById("logout").addEventListener("click",async()=>{await api("/api/admin/logout",{method:"POST"});location.reload()});
     document.getElementById("content-share").addEventListener("click",()=>openStudioShare("content",app.content.find(item=>item.id===document.getElementById("content-id").value)));
     document.getElementById("subsection-share").addEventListener("click",()=>openStudioShare("subsection",app.subsections.find(item=>item.id===document.getElementById("subsection-id").value)));
+    document.getElementById("asset-share-board").addEventListener("click",openStudioAssetBoardShare);
     document.getElementById("refresh-sections").addEventListener("click",loadSections);
     document.getElementById("section-visibility").addEventListener("change",()=>syncAudiencePicker("section-visibility","section-user-picker",selectedAudienceIds("section-user-picker")));
     document.getElementById("section-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("section-id").value;const notice=document.getElementById("section-notice");const payload=sectionPayload();if(!validateVisibilityChoice(payload,notice))return;notice.textContent="正在保存…";try{const result=await api(id?`/api/admin/sections/${id}`:"/api/admin/sections",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});studioSectionCategory=payload.kind;syncContentManagerMeta();await loadSections();const saved=app.sections.find(item=>item.id===(id||result.id));if(saved)editSection(saved);notice.textContent="板块已保存，可继续设置下载权限和内容锁。";await loadContent();await loadAlbumsAndMedia();await loadDashboard()}catch(error){notice.textContent=error.message}});
