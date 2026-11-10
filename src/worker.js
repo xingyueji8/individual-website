@@ -4498,7 +4498,7 @@ async function syncEmbeddedArticleAssets(env, content, bodyHtml, timestamp) {
 }
 
 async function syncInlineMediaOwnership(env, content, bodyHtml) {
-  const ids = inlineMediaIdsFromHtml(bodyHtml);
+  const ids = [...new Set([...inlineMediaIdsFromHtml(bodyHtml), ...(validId(content.cover_media_id) ? [content.cover_media_id] : [])])];
   if (!ids.length) return;
   await env.DB.prepare(`UPDATE media SET content_id=?,section_id=?,subsection_id=?
     WHERE kind='inline' AND id IN (SELECT value FROM json_each(?)) AND (content_id IS NULL OR content_id=?)`)
@@ -4798,7 +4798,7 @@ async function adminContent(request, env, id) {
       ).run();
       await replaceAllowedUsers(env, "content", newId, allowedUserIds, timestamp);
       await syncEmbeddedArticleAssets(env, {
-        id: newId, type, section_id: sectionId, subsection_id: subsectionId,
+        id: newId, type, section_id: sectionId, subsection_id: subsectionId, cover_media_id: coverMediaId,
       }, bodyHtml, timestamp);
       if (status === "published") await notifyArticlePublished(env, newId, title);
       return { id: newId };
@@ -4815,7 +4815,7 @@ async function adminContent(request, env, id) {
       WHERE id = ?
     `).bind(type, sectionId, subsectionId, title, excerpt, bodyHtml, coverMediaId, status, visibility, publishedAt, timestamp, id).run();
     await syncEmbeddedArticleAssets(env, {
-      id, type, section_id: sectionId, subsection_id: subsectionId,
+      id, type, section_id: sectionId, subsection_id: subsectionId, cover_media_id: coverMediaId,
     }, bodyHtml, timestamp);
     await env.DB.prepare(`
       UPDATE assets SET section_id = ?, subsection_id = ?, updated_at = ?

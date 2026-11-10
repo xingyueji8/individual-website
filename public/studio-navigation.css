@@ -256,6 +256,15 @@
 }
 
 /* A permanent catalog inside the workspace keeps the site navigation stable. */
+.article-cover-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.article-cover-controls select { flex:1 1 200px; min-width:0; width:auto; }
+.article-cover-controls .btn { white-space:nowrap; }
+.article-image-hint { display:block; color:var(--muted); line-height:1.65; margin:9px 0; font-size:.8rem; }
+.article-image-drop.is-dragging { outline:3px dashed var(--cyan,#2495a6); outline-offset:-3px; background:rgba(81,173,190,.12) !important; }
+.article-image-drop[aria-busy="true"] { opacity:.7; }
+#content-cover-preview { cursor:pointer; }
+#content-cover-preview:focus-visible { outline:3px solid var(--cyan,#2495a6); outline-offset:3px; }
+#content-cover-preview span { padding:18px; text-align:center; line-height:1.6; }
 .content-workbench { display:grid; grid-template-columns:minmax(210px,250px) minmax(0,1fr); gap:20px; align-items:start; }
 .content-catalog { min-width:0; padding:18px 14px; border:1px solid var(--line,#dce5e8); border-radius:12px; background:var(--paper,#fff); position:sticky; top:0; }
 .content-catalog-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:18px; }

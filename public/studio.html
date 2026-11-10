@@ -352,7 +352,7 @@
   <link rel="stylesheet" href="/material.css">
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/studio-background.css">
-  <link rel="stylesheet" href="/studio-navigation.css?v=20261110-workspace">
+  <link rel="stylesheet" href="/studio-navigation.css?v=20261110-article-images">
   <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/mobile.css">
   <link rel="stylesheet" href="/media-performance.css?v=20261107">
@@ -575,7 +575,12 @@
               </div>
               <div class="field wide"><label>标题</label><input id="content-title" maxlength="120" required placeholder="输入标题"></div>
               <div class="field wide"><label>摘要</label><textarea id="content-excerpt" maxlength="500" style="min-height:75px" placeholder="列表中显示的简短介绍"></textarea></div>
-              <div class="field wide"><label>封面图片（从各图片资源中选择）</label><select id="content-cover"><option value="">无封面</option></select><div id="content-cover-preview" class="cover-preview"><span>尚未选择封面</span></div></div>
+              <div class="field wide"><label for="content-cover">封面图片</label>
+                <div class="article-cover-controls"><select id="content-cover" aria-label="从已上传图片中选择封面"><option value="">无封面</option></select><button id="content-cover-upload" class="btn small" type="button">上传本地封面</button><button id="content-cover-clear" class="btn small ghost" type="button">移除封面</button></div>
+                <input id="content-cover-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,.heic,.heif">
+                <div id="content-cover-preview" class="cover-preview article-image-drop" role="button" tabindex="0" aria-label="选择本地封面图片，或拖入一张图片"><span>点击选择本地图片，或将图片拖到这里</span></div>
+                <small>也可从上方图片库选择；支持 JPG、PNG、WebP、GIF、AVIF、HEIC/HEIF，单张最大 20MB。上传后请保存文章。</small><span id="content-cover-notice" class="status" role="status" aria-live="polite"></span>
+              </div>
               <div class="wide">
                 <!-- 正文工具栏：按钮使用 data-command 调用浏览器富文本命令。 -->
                 <label id="content-editor-label" style="display:block;margin-bottom:7px;color:var(--muted);font-size:.8rem;font-weight:700">正文（选中文字后可调整格式）</label>
@@ -586,9 +591,10 @@
                   <select id="editor-font-size" class="editor-tool-select" aria-label="选中文字的字号"><option value="12">12 px</option><option value="14">14 px</option><option value="16" selected>16 px</option><option value="18">18 px</option><option value="20">20 px</option><option value="24">24 px</option><option value="28">28 px</option><option value="32">32 px</option><option value="40">40 px</option><option value="48">48 px</option></select>
                   <label class="editor-color-control">文字颜色<input id="editor-text-color" type="color" value="#203037" aria-label="选中文字的颜色"></label>
                   <button type="button" data-block="h2">H2</button><button type="button" data-block="h3">H3</button>
-                  <button type="button" data-command="insertUnorderedList">列表</button><button type="button" data-command="removeFormat">清除格式</button><button type="button" id="insert-link">链接</button><button type="button" id="insert-image">插图</button><button type="button" id="insert-resource">插入文档/视频</button><button type="button" id="remove-editor-resource">删除选中资源</button><button type="button" id="preview-content">预览正文</button>
+                  <button type="button" data-command="insertUnorderedList">列表</button><button type="button" data-command="removeFormat">清除格式</button><button type="button" id="insert-link">链接</button><button type="button" id="insert-image">本地插图</button><button type="button" id="insert-resource">插入文档/视频</button><button type="button" id="remove-editor-resource">删除选中资源</button><button type="button" id="preview-content">预览正文</button>
                 </div>
-                <div id="content-editor" class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="content-editor-label"></div>
+                <small class="article-image-hint">点击“本地插图”，或直接把图片拖入正文；支持多张图片，也可粘贴剪贴板中的图片。</small>
+                <div id="content-editor" class="editor article-image-drop" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="content-editor-label"></div>
                 <input id="inline-image-input" class="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,.heic,.heif">
               </div>
             </div>
@@ -877,7 +883,7 @@
   <script src="/studio-organize.js?v=20261110-workspace"></script>
   <script src="/studio-share.js?v=20261107-share-mode-rename"></script>
   <script src="/studio-background.js"></script>
-  <script src="/studio-rich-text.js?v=20261107"></script>
+  <script src="/studio-rich-text.js?v=20261110-article-images"></script>
   <script src="/studio-content.js?v=20261110-workspace"></script>
   <script>
     const app = {
@@ -1387,7 +1393,7 @@
 
     async function loadContent(){app.content=await api("/api/admin/content");renderContentList();refreshCoverOptions()}
     function renderContentList(){renderStudioArticleList()}
-    function updateCoverPreview(){const host=document.getElementById("content-cover-preview");const id=document.getElementById("content-cover").value;const item=app.media.find(media=>media.id===id);clear(host);if(!item){const span=document.createElement("span");span.textContent="尚未选择封面";host.append(span);return}const img=document.createElement("img");img.src=`/api/admin/media/${item.id}/source?preview=1`;img.alt=item.caption||item.filename;host.append(img)}
+    function updateCoverPreview(){const host=document.getElementById("content-cover-preview");const id=document.getElementById("content-cover").value;const item=app.media.find(media=>media.id===id);clear(host);if(!item){const span=document.createElement("span");span.textContent="点击选择本地图片，或将图片拖到这里";host.append(span);return}const img=document.createElement("img");img.src=`/api/admin/media/${item.id}/source?preview=1`;img.alt=item.caption||item.filename;host.append(img)}
     function syncCurrentContentPanels(){const id=document.getElementById("content-id").value;document.querySelectorAll(".article-linked-panel").forEach(panel=>panel.classList.toggle("hidden",!id));renderArticleAssets();renderCurrentContentComments()}
     function articleEditorAssetIds(){
       return new Set([...document.querySelectorAll("#content-editor .resource-embed[data-resource-type='asset'][data-resource-id]")]
@@ -1413,9 +1419,9 @@
       removed.forEach(decideArticleAssetRemoval);
       return removed.filter(assetId=>app.articleAssetRemovalDecisions.get(assetId)===true);
     }
-    function resetContentForm({open=false}={}){studioWorkspace.articleOpen=open;const board=currentStudioBoard();const form=document.getElementById("content-form");form.reset();document.getElementById("content-title").value="";document.getElementById("content-excerpt").value="";document.getElementById("content-cover").value="";document.getElementById("content-id").value="";document.getElementById("content-editor").innerHTML="<p></p>";resetArticleAttachmentTracking(false);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.add("hidden");document.getElementById("content-notice").textContent="";document.getElementById("article-asset-notice").textContent="请先保存文章草稿，再上传只属于这篇文章的附件。";syncAudiencePicker("content-visibility","content-user-picker",[]);if(board)document.getElementById("content-section").value=board.section.id;refreshContentSubsectionOptions(document.getElementById("content-section").value,board?.kind==="subsection"?board.item.id:"");updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
-    function editContent(item){studioWorkspace.articleOpen=true;const form=document.getElementById("content-form");const sectionId=item.section_id||(item.type==="guide"?"section-guides":"section-essays");document.getElementById("content-id").value=item.id;document.getElementById("content-section").value=sectionId;refreshContentSubsectionOptions(sectionId,item.subsection_id||"");document.getElementById("content-status").value=item.status;document.getElementById("content-visibility").value=item.visibility||"public";syncAudiencePicker("content-visibility","content-user-picker",item.allowed_user_ids||[]);document.getElementById("content-title").value=item.title;document.getElementById("content-excerpt").value=item.excerpt||"";document.getElementById("content-cover").value=item.cover_media_id||"";document.getElementById("content-editor").innerHTML=item.body_html||"<p></p>";resetArticleAttachmentTracking(true);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.remove("hidden");document.getElementById("article-asset-notice").textContent="";updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
-    function contentPayload(deleteAssetIds=[]){const sectionId=document.getElementById("content-section").value;return{sectionId,subsectionId:document.getElementById("content-subsection").value||null,type:sectionId==="section-guides"?"guide":"article",status:document.getElementById("content-status").value,...visibilityPayload("content-visibility","content-user-picker"),title:document.getElementById("content-title").value,excerpt:document.getElementById("content-excerpt").value,coverMediaId:document.getElementById("content-cover").value,bodyHtml:document.getElementById("content-editor").innerHTML,deleteAssetIds}}
+    function resetContentForm({open=false}={}){resetStudioArticleImages();studioWorkspace.articleOpen=open;const board=currentStudioBoard();const form=document.getElementById("content-form");form.reset();document.getElementById("content-title").value="";document.getElementById("content-excerpt").value="";document.getElementById("content-cover").value="";document.getElementById("content-id").value="";refreshCoverOptions();document.getElementById("content-editor").innerHTML="<p></p>";resetArticleAttachmentTracking(false);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.add("hidden");document.getElementById("content-notice").textContent="";document.getElementById("article-asset-notice").textContent="请先保存文章草稿，再上传只属于这篇文章的附件。";syncAudiencePicker("content-visibility","content-user-picker",[]);if(board)document.getElementById("content-section").value=board.section.id;refreshContentSubsectionOptions(document.getElementById("content-section").value,board?.kind==="subsection"?board.item.id:"");updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
+    function editContent(item){if(document.getElementById("content-id").value!==item.id)resetStudioArticleImages();studioWorkspace.articleOpen=true;const form=document.getElementById("content-form");const sectionId=item.section_id||(item.type==="guide"?"section-guides":"section-essays");document.getElementById("content-id").value=item.id;document.getElementById("content-section").value=sectionId;refreshContentSubsectionOptions(sectionId,item.subsection_id||"");document.getElementById("content-status").value=item.status;document.getElementById("content-visibility").value=item.visibility||"public";syncAudiencePicker("content-visibility","content-user-picker",item.allowed_user_ids||[]);document.getElementById("content-title").value=item.title;document.getElementById("content-excerpt").value=item.excerpt||"";document.getElementById("content-cover").value="";refreshCoverOptions();document.getElementById("content-cover").value=item.cover_media_id||"";document.getElementById("content-editor").innerHTML=item.body_html||"<p></p>";hydrateStudioArticleImages();resetArticleAttachmentTracking(true);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.remove("hidden");document.getElementById("article-asset-notice").textContent="";updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
+    function contentPayload(deleteAssetIds=[]){const sectionId=document.getElementById("content-section").value;return{sectionId,subsectionId:document.getElementById("content-subsection").value||null,type:sectionId==="section-guides"?"guide":"article",status:document.getElementById("content-status").value,...visibilityPayload("content-visibility","content-user-picker"),title:document.getElementById("content-title").value,excerpt:document.getElementById("content-excerpt").value,coverMediaId:document.getElementById("content-cover").value,bodyHtml:studioArticleBodyHtml(),deleteAssetIds}}
 
     async function loadChangelogs(){app.changelogs=await api("/api/admin/changelogs");renderChangelogs()}
     function renderChangelogs(){const list=document.getElementById("changelog-list");clear(list);app.changelogs.forEach(item=>{const row=document.createElement("div");row.className="list-item";const title=document.createElement("div");title.className="list-title";title.textContent=`v${item.version} · ${item.title}`;const meta=document.createElement("div");meta.className="list-meta";meta.textContent=`${formatDate(item.published_at)} · 排序 ${item.sort_order||0}`;row.append(title,meta);row.addEventListener("click",()=>editChangelog(item));list.append(row)})}
@@ -1496,7 +1502,7 @@
         });
       updatePhotoBatchCount();fillPhotoMoveTargets();
     }
-    function refreshCoverOptions(){const select=document.getElementById("content-cover");if(!select)return;const current=select.value;clear(select);const none=document.createElement("option");none.value="";none.textContent="无封面";select.append(none);app.media.filter(item=>item.kind!=="inline").forEach(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=item.caption||item.filename;select.append(option)});if([...select.options].some(option=>option.value===current))select.value=current;updateCoverPreview()}
+    function refreshCoverOptions(){const select=document.getElementById("content-cover");if(!select)return;const current=select.value;clear(select);const none=document.createElement("option");none.value="";none.textContent="无封面";select.append(none);app.media.filter(item=>item.kind!=="inline"||item.content_id&&item.content_id===document.getElementById("content-id").value||item.id===current||studioArticleImages.uploaded.has(item.id)).forEach(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=item.caption||item.filename;select.append(option)});if([...select.options].some(option=>option.value===current))select.value=current;updateCoverPreview()}
 
     /* =========================================================
        R2 大文件分片上传与文件夹管理
@@ -2292,25 +2298,26 @@
       refreshOwnerOptions();
     }
 
-    async function uploadInline(file,{signal}={}) {
-      const visibility = document.getElementById("content-visibility").value;
-      const allowedUserIds = selectedAudienceIds("content-user-picker");
+    async function uploadInline(file,{signal,context,requiredPreview=false}={}) {
+      const visibility = context?.visibility ?? document.getElementById("content-visibility").value;
+      const allowedUserIds = context?.allowedUserIds ?? selectedAudienceIds("content-user-picker");
       if (visibilityUsesAudience(visibility) && !allowedUserIds.length) {
         throw new Error("插入图片前，请至少勾选一个能够查看本文的已审核账号");
       }
-      const item = await postStudioPhoto(file,{kind:"inline",contentId:document.getElementById("content-id").value,
-        visibility,allowedUserIds:JSON.stringify(allowedUserIds)},{signal,scope:"article",requiredPreview:false,confirmDuplicate:true});
-      app.media.unshift(item); refreshCoverOptions(); renderArticleAssets(); return item;
+      const item = await postStudioPhoto(file,{kind:"inline",contentId:context?.articleId ?? document.getElementById("content-id").value,
+        visibility,allowedUserIds:JSON.stringify(allowedUserIds)},{signal,scope:"article",requiredPreview,confirmDuplicate:true});
+      app.media.unshift(item); if(!context||studioArticleImageContextActive(context))studioArticleImages.uploaded.add(item.id); refreshCoverOptions(); renderArticleAssets(); return item;
     }
 
-    function insertInlineImageAtEditorRange(item,file){
+    function insertInlineImageAtEditorRange(item,file,{range:savedRange}={}){
       const editor=document.getElementById("content-editor");editor.focus();
-      let range=app.editorRange?.cloneRange();
+      let range=(savedRange||app.editorRange)?.cloneRange();
       if(!range||!editor.contains(range.commonAncestorContainer)){range=document.createRange();range.selectNodeContents(editor);range.collapse(false)}
-      const image=document.createElement("img");image.src=item.url;image.alt=file.name;image.loading="lazy";
+      const image=studioArticleImageElement(item,file);
       const lineBreak=document.createElement("br");const fragment=document.createDocumentFragment();fragment.append(image,lineBreak);
       range.deleteContents();range.insertNode(fragment);range.setStartAfter(lineBreak);range.collapse(true);
       const selection=getSelection();selection.removeAllRanges();selection.addRange(range);app.editorRange=range.cloneRange();
+      editor.dispatchEvent(new Event("input",{bubbles:true}));return range.cloneRange();
     }
 
     async function uploadSectionPhoto(file,{sectionId,subsectionId="",caption="",visibility="public",allowedUserIds=[],signal,scope}={}){
@@ -2492,6 +2499,7 @@
       event.preventDefault();
       const id=document.getElementById("content-id").value;
       const notice=document.getElementById("content-notice");
+      if(studioArticleImages.coverBusy||studioArticleImages.inlineBusy){notice.textContent="图片正在上传，请完成或停止上传后再保存文章。";return}
       const deleteAssetIds=id?removedArticleAssetIdsForSave():[];
       const payload=contentPayload(deleteAssetIds);
       if(!validateVisibilityChoice(payload,notice))return;
@@ -2521,16 +2529,12 @@
         if(savedRange&&!savedRange.collapsed)document.execCommand("createLink",false,url.href);
         else{const anchor=document.createElement("a");anchor.href=url.href;anchor.textContent=url.href;anchor.target="_blank";anchor.rel="noopener noreferrer";const range=savedRange||document.createRange();if(!savedRange)range.selectNodeContents(editor);range.collapse(false);range.insertNode(anchor);range.setStartAfter(anchor);range.collapse(true);selection.removeAllRanges();selection.addRange(range)}
       }catch{alert("网址格式不正确，请填写完整的 http:// 或 https:// 地址。");}
-    });document.getElementById("insert-image").addEventListener("click",()=>{const editor=document.getElementById("content-editor");const selection=getSelection();app.editorRange=selection.rangeCount&&editor.contains(selection.anchorNode)?selection.getRangeAt(0).cloneRange():null;document.getElementById("inline-image-input").click()});
+    });
     document.getElementById("insert-resource").addEventListener("click",()=>{const selection=getSelection();app.editorRange=selection.rangeCount&&document.getElementById("content-editor").contains(selection.anchorNode)?selection.getRangeAt(0).cloneRange():null;renderResourcePicker();document.getElementById("resource-picker").showModal()});
     document.getElementById("resource-picker-close").addEventListener("click",()=>document.getElementById("resource-picker").close());
     document.getElementById("content-editor").addEventListener("click",event=>{document.querySelectorAll("#content-editor .resource-embed.is-selected").forEach(node=>node.classList.remove("is-selected"));event.target.closest?.(".resource-embed")?.classList.add("is-selected")});
     document.getElementById("remove-editor-resource").addEventListener("click",()=>{const selected=document.querySelector("#content-editor .resource-embed.is-selected");if(!selected){alert("请先点击正文中要删除的文件卡片。");return}const assetId=selected.dataset.resourceType==="asset"?selected.dataset.resourceId:"";if(assetId)app.articleSessionAssetIds.add(assetId);const permanentlyDelete=assetId?decideArticleAssetRemoval(assetId):false;selected.remove();document.getElementById("content-notice").textContent=permanentlyDelete?"资源已移出正文；保存文章后会同时永久删除该附件。":"资源已移出正文；保存文章后仍会保留在当前文章附件栏。"});
-    document.getElementById("inline-image-input").addEventListener("change",async event=>{
-      const files=[...event.target.files];event.target.value="";if(!files.length)return;
-      const batch=beginStudioUploadBatch();const notice=document.getElementById("content-notice");let completed=0;const failures=[];
-      try{for(const file of files){if(batch.signal.aborted)break;notice.textContent=`正在上传插图 ${completed+1}/${files.length}…`;try{const item=await uploadInline(file,{signal:batch.signal});insertInlineImageAtEditorRange(item,file);completed+=1}catch(error){if(error.cancelled)break;failures.push(`${file.name}：${error.message}`)}}notice.textContent=`${batch.signal.aborted?"本批上传已停止；":""}已插入 ${completed}/${files.length} 张图片${failures.length?`；${failures.length} 张失败：${failures.join("；")}`:""}。`}finally{batch.finish()}
-    });
+
 
     document.getElementById("changelog-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("changelog-id").value;const notice=document.getElementById("changelog-notice");const date=document.getElementById("changelog-date").value;try{await api(id?`/api/admin/changelogs/${id}`:"/api/admin/changelogs",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:document.getElementById("changelog-version").value,title:document.getElementById("changelog-title").value,body:document.getElementById("changelog-body").value,publishedAt:date?new Date(date).toISOString():new Date().toISOString(),sortOrder:Number(document.getElementById("changelog-sort").value||0)})});notice.textContent="更新记录已保存，精确时间、顺序和网页版本号已同步。";resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()}catch(error){notice.textContent=error.message}});
     document.getElementById("new-changelog").addEventListener("click",resetChangelog);document.getElementById("delete-changelog").addEventListener("click",async()=>{const id=document.getElementById("changelog-id").value;if(!id||!confirm("确定删除这条更新记录吗？"))return;await api(`/api/admin/changelogs/${id}`,{method:"DELETE"});resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()});

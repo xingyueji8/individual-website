@@ -247,7 +247,24 @@ try {
       assert.deepEqual(scoped.chain(target.kind, target.id), full.chain(target.kind, target.id));
     }
   }
-  console.log("preview 304 transfer, permission revocation and bounded single-item graphs passed");
+  // A locally uploaded cover is article-owned even if it never appears in the
+  // body. It stays unreadable until assigned and obeys that article's audience.
+  const localCoverResponse = await upload("local-cover.png", "LOCAL-COVER", { kind: "inline" });
+  assert.equal(localCoverResponse.status, 200); const localCover = await localCoverResponse.json();
+  await status(404, `/media/${localCover.id}?preview=1`, { cookie: alice.cookie });
+  const coverArticlePayload = { sectionId: "section-essays", title: "Private local cover", status: "published", visibility: "selected", allowedUserIds: [alice.id], bodyHtml: "<p>No body image</p>", coverMediaId: localCover.id };
+  const coverArticle = await ok("/api/admin/content", { method: "POST", body: coverArticlePayload });
+  let ownedCover = await db.prepare("SELECT content_id,section_id FROM media WHERE id=?").bind(localCover.id).first();
+  assert.equal(ownedCover.content_id, coverArticle.id); assert.equal(ownedCover.section_id, "section-essays");
+  await status(200, `/media/${localCover.id}?preview=1`, { cookie: alice.cookie });
+  await status(404, `/media/${localCover.id}?preview=1`, { cookie: bob.cookie });
+  await ok(`/api/admin/content/${coverArticle.id}`, { method: "PUT", body: { ...coverArticlePayload, sectionId: "section-guides" } });
+  ownedCover = await db.prepare("SELECT content_id,section_id FROM media WHERE id=?").bind(localCover.id).first();
+  assert.equal(ownedCover.content_id, coverArticle.id); assert.equal(ownedCover.section_id, "section-guides");
+  const anotherArticle = await ok("/api/admin/content", { method: "POST", body: { ...coverArticlePayload, title: "Another article" } });
+  assert.notEqual(anotherArticle.id, coverArticle.id);
+  assert.equal((await db.prepare("SELECT content_id FROM media WHERE id=?").bind(localCover.id).first()).content_id, coverArticle.id, "another article cannot take ownership of this cover");
+  console.log("local-cover ownership, audience inheritance, preview transfer, permission revocation and bounded graphs passed");
   console.log("content hierarchy, one-use locks, downloads, photo batch/duplicates/HEIC/cancel regression passed");
 } finally { await mf.dispose(); }
 
