@@ -312,7 +312,7 @@ async function submitPhotoUploads(event) {
 }
 
 function initializePhotoManagement() {
-  document.getElementById("asset-section").addEventListener("change",()=>{app.currentAssetFolder="";refreshAssetSubsectionOptions();renderAssetFolderOptions();renderAssetBrowser()});
+  document.getElementById("asset-section").addEventListener("change",()=>{if(handleStudioScopeChoice("asset","section"))return;app.currentAssetFolder="";refreshAssetSubsectionOptions();renderAssetFolderOptions();renderAssetBrowser()});
   document.querySelectorAll("[data-studio-category]").forEach(control=>control.addEventListener("click",()=>{
     enterSectionManager(control.dataset.studioCategory);
   }));

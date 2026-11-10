@@ -36,7 +36,7 @@ const context = vm.createContext({ window, document, Element: window.Element, No
 });
 const run = source => vm.runInContext(source, context);
 const node = id => document.getElementById(id);
-for (const name of ["studio-upload", "studio-organize", "studio-share", "studio-background", "studio-rich-text"]) run(await readFile(`public/${name}.js`, "utf8"));
+for (const name of ["studio-upload", "studio-organize", "studio-share", "studio-background", "studio-rich-text", "studio-content"]) run(await readFile(`public/${name}.js`, "utf8"));
 const main = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).find(source => source.includes("const app ="));
 run(main.replace("checkSession();", ""));
 run('app.sections=[{id:"photos",name:"Photos",kind:"gallery"}];refreshSectionOptions();enterSectionManager("gallery")');

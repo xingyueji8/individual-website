@@ -31,8 +31,9 @@ assert.match(navigationCss, /\.content-manager-layout\.has-one-panel \{ grid-tem
 assert.match(navigationCss, /#view-sections#view-sections \.content-panel-close \{[\s\S]*background:transparent !important/);
 assert.match(studioHtml, /function initializeEmbeddedContentEditors/);
 assert.match(studioHtml, /function syncInlineContentSelection/);
-assert.match(studioHtml, /classList\.toggle\("content-mode",name==="sections"\)/);
+assert.match(studioHtml, /id="content-board-search"/);
 assert.match(studioHtml, /initializeEmbeddedContentEditors\(\);initializeStudioSafetyNavigation/);
+new Function(await readFile("public/studio-content.js","utf8"));
 assert.doesNotMatch(studioHtml, /id="content-manager-open"/);
 assert.doesNotMatch(studioHtml, /id="studio-back-button"[^>]*>← 返回</);
 assert.match(navigationCss, /\.studio-back-button \{[\s\S]*background:transparent !important/);

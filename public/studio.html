@@ -352,7 +352,7 @@
   <link rel="stylesheet" href="/material.css">
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/studio-background.css">
-  <link rel="stylesheet" href="/studio-navigation.css">
+  <link rel="stylesheet" href="/studio-navigation.css?v=20261110-workspace">
   <link rel="stylesheet" href="/personal-space.css">
   <link rel="stylesheet" href="/mobile.css">
   <link rel="stylesheet" href="/media-performance.css?v=20261107">
@@ -401,13 +401,6 @@
         <button data-view="users">用户与审核</button>
         <button data-view="settings">网站设置</button>
       </nav>
-      <section id="studio-content-navigation" class="side-content-navigation hidden" aria-label="网站内容板块层级">
-        <div class="side-content-heading">
-          <div><strong id="side-content-title">文章层级</strong><small>选择大板块、小板块或小小板块</small></div>
-          <button id="content-structure-new" class="side-content-add" type="button" aria-label="新建当前层级" title="新建当前层级">＋</button>
-        </div>
-        <nav id="content-structure-nav" class="content-structure-nav"></nav>
-      </section>
       <!-- 在当前标签页返回公开网站；不要添加 target="_blank"，否则浏览器会另开标签页或窗口。 -->
       <div class="side-footer"><a href="/">打开网站</a><button id="logout" class="btn small danger">退出登录</button></div>
     </aside>
@@ -460,21 +453,44 @@
         <div class="content-manager-toolbar">
           <div>
             <div class="content-manager-title-row">
-              <strong id="content-manager-title">文章板块与内容</strong>
-              <div class="content-creation-actions" aria-label="管理板块">
-                <button class="btn small" type="button" data-studio-create="section">新建大板块</button>
-                <button id="create-subsection" class="btn small" type="button" data-studio-create="subsection">新建小板块</button>
-                <button id="create-subsection-child" class="btn small" type="button" data-studio-create="child">新建小小板块</button>
-                <button id="rename-current-board" class="btn small" type="button">重命名当前板块</button>
+              <strong id="content-manager-title">文章管理</strong>
+              <div class="content-category-tabs" role="group" aria-label="内容类型">
+                <button class="btn small" type="button" data-studio-category="content">文章</button>
+                <button class="btn small" type="button" data-studio-category="gallery">图片</button>
+                <button class="btn small" type="button" data-studio-category="resources">文件与视频</button>
               </div>
-              <div id="content-panel-controls" class="content-panel-controls" role="group" aria-label="显示编辑面板">
-                <button id="content-settings-open" class="btn small ghost" type="button" data-content-panel-open="settings" aria-controls="content-settings-panel" aria-expanded="true">大板块设置</button>
-                <button id="content-editor-open" class="btn small ghost" type="button" data-content-panel-open="editor" aria-controls="content-editor-panel" aria-expanded="true">文章内容</button>
-              </div>
+              <button id="content-workspace-refresh" class="btn small ghost" type="button">刷新目录与内容</button>
             </div>
-            <small>在左侧选择层级；板块设置与该层级内容会在本页同时显示</small>
+            <small>先从板块目录选择已有板块，再管理内容；修改名称、权限或样式，请打开“板块设置”。</small>
           </div>
         </div>
+        <div class="content-workbench">
+          <aside id="studio-content-navigation" class="content-catalog" aria-label="已有板块目录">
+            <div class="content-catalog-heading"><strong id="side-content-title">文章板块</strong><span id="content-catalog-count" class="status"></span></div>
+            <label class="field" for="content-board-search">查找已有板块<input id="content-board-search" type="search" placeholder="输入大板块或小板块名称" autocomplete="off"></label>
+            <p id="content-catalog-status" class="status" role="status" aria-live="polite"></p>
+            <nav id="content-structure-nav" class="content-structure-nav" aria-label="选择板块"></nav>
+            <details class="content-catalog-create"><summary>＋ 新建板块</summary>
+              <div class="content-creation-actions" aria-label="新建板块">
+                <button id="content-structure-new" class="btn small" type="button" data-studio-create="section">新建大板块</button>
+                <button id="create-subsection" class="btn small" type="button" data-studio-create="subsection">新建小板块</button>
+                <button id="create-subsection-child" class="btn small" type="button" data-studio-create="child">新建小小板块</button>
+              </div>
+            </details>
+          </aside>
+          <div class="content-workspace-main">
+            <header class="content-selection-header">
+              <nav id="content-workspace-breadcrumb" aria-label="当前板块路径"></nav>
+              <div class="content-selection-heading"><div><h3 id="content-selection-title">选择已有板块</h3><p id="content-selection-description" class="status"></p></div>
+                <div class="actions"><button id="rename-current-board" class="btn small ghost" type="button">重命名当前板块</button><button id="content-board-share" class="btn small ghost" type="button">分享板块</button></div>
+              </div>
+              <div id="content-panel-controls" class="content-panel-controls" role="group" aria-label="切换内容与板块设置">
+                <button id="content-editor-open" class="btn small" type="button" data-content-panel-open="editor" aria-controls="content-editor-panel" aria-expanded="true">内容列表</button>
+                <button id="content-settings-open" class="btn small ghost" type="button" data-content-panel-open="settings" aria-controls="content-settings-panel" aria-expanded="false">板块设置</button>
+                <button id="content-panels-both" class="btn small ghost" type="button">并排编辑</button>
+              </div>
+            </header>
+            <div id="content-workspace-empty" class="panel content-workspace-empty" hidden><p id="content-workspace-empty-text" role="status"></p><button class="btn" type="button" data-studio-create="section">新建大板块</button></div>
         <div id="content-manager-layout" class="content-manager-layout">
           <div id="content-settings-panel" class="content-editor-stack">
             <button class="content-panel-close" type="button" data-content-panel-close="settings" aria-label="关闭板块设置面板" title="关闭面板（保留未保存的修改）"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
@@ -523,16 +539,24 @@
           </section>
           <p id="content-panels-empty" class="content-panels-empty" hidden>面板已收起。点击上方对应的面板按钮重新显示；未保存的修改仍会保留。</p>
         </div>
+          </div>
+        </div>
       </section>
 
       <!-- ==================== 文章类板块内容编辑器 ==================== -->
       <section id="view-content" class="view">
-        <div class="split">
-          <div class="panel" style="margin-top:0">
-            <div class="actions" style="margin:0 0 14px"><button id="new-content" class="btn small">新建内容</button><button id="refresh-content" class="btn small ghost">刷新</button></div>
+        <div class="split article-workspace">
+          <div class="panel article-list-panel" style="margin-top:0">
+            <div class="actions" style="margin:0 0 14px"><button id="new-content" class="btn small" type="button">新建文章</button><button id="refresh-content" class="btn small ghost" type="button">刷新</button></div>
+            <label class="field" for="content-search">查找文章<input id="content-search" type="search" placeholder="搜索标题或摘要" autocomplete="off"></label>
+            <div class="field"><label for="content-list-status">文章状态</label><select id="content-list-status"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option></select></div>
+            <p id="content-list-summary" class="status" role="status"></p>
             <div id="content-list" class="list"></div>
           </div>
-          <form id="content-form" class="panel" style="margin-top:0">
+          <div id="content-document-pane">
+          <div id="content-document-empty" class="panel content-workspace-empty"><h3>选择文章开始编辑</h3><p>在列表中找到已有文章并打开；需要写新文章时，点击“新建文章”。</p></div>
+          <form id="content-form" class="panel" style="margin-top:0" hidden>
+            <div class="manager-form-heading"><h3 id="content-document-title">编辑文章</h3><button id="content-document-close" class="btn small ghost" type="button">返回文章列表</button></div>
             <input id="content-id" type="hidden">
             <div class="form-grid">
               <div class="field"><label>所属大板块</label><select id="content-section"></select></div>
@@ -570,6 +594,7 @@
             </div>
             <div class="actions"><button class="btn" type="submit">保存内容</button><button id="content-share" class="btn ghost" type="button">分享</button><button id="content-security" class="btn ghost" type="button">PDF 下载权限 / 内容锁</button><button id="delete-content" class="btn danger hidden" type="button">删除</button><span id="content-notice" class="status"></span></div>
           </form>
+          </div>
         </div>
         <section id="article-assets-panel" class="panel article-linked-panel hidden">
           <h3>当前文章的图片与文件</h3>
@@ -849,10 +874,11 @@
   <!-- 后台 JavaScript：登录验证、读取数据、保存内容和上传图片。 -->
   <script src="/studio-upload.js?v=20261107"></script>
   <script src="/video-playback.js?v=20261107"></script>
-  <script src="/studio-organize.js?v=20261107"></script>
+  <script src="/studio-organize.js?v=20261110-workspace"></script>
   <script src="/studio-share.js?v=20261107-share-mode-rename"></script>
   <script src="/studio-background.js"></script>
   <script src="/studio-rich-text.js?v=20261107"></script>
+  <script src="/studio-content.js?v=20261110-workspace"></script>
   <script>
     const app = {
       sections: [], subsections: [], content: [], changelogs: [], albums: [], media: [], assetFolders: [], assets: [], comments: [], feedback: [], guestAnalytics: null,
@@ -1136,32 +1162,28 @@
       }
     }
 
-    async function checkSession(){try{await api("/api/admin/session");showStudio();await loadAll()}catch{document.getElementById("login-shell").classList.remove("hidden")}}
+    async function checkSession(){try{await api("/api/admin/session")}catch{document.getElementById("login-shell").classList.remove("hidden");return}showStudio();await loadAll()}
     function showStudio(){document.getElementById("login-shell").classList.add("hidden");document.getElementById("studio").classList.remove("hidden")}
 
     const studioDirtyForms = new Set();
-    const articlePanelVisibility = { settings: true, editor: true };
+    const articlePanelVisibility = { settings: false, editor: true };
     function syncArticlePanels(){
-      const enabled=studioSectionCategory==="content";
-      const settingsVisible=!enabled||articlePanelVisibility.settings;
-      const editorVisible=!enabled||articlePanelVisibility.editor;
+      const settingsVisible=articlePanelVisibility.settings,editorVisible=articlePanelVisibility.editor;
       const layout=document.getElementById("content-manager-layout");
-      document.getElementById("content-panel-controls").hidden=!enabled;
-      document.querySelectorAll("[data-content-panel-close]").forEach(control=>{control.hidden=!enabled});
+      document.getElementById("content-panel-controls").hidden=!(currentStudioBoard()||studioWorkspace.creating);
+      document.querySelectorAll("[data-content-panel-close]").forEach(control=>{control.hidden=false});
       document.getElementById("content-settings-panel").hidden=!settingsVisible;
       document.getElementById("content-editor-panel").hidden=!editorVisible;
-      document.getElementById("content-settings-open").setAttribute("aria-expanded",String(settingsVisible));
-      document.getElementById("content-editor-open").setAttribute("aria-expanded",String(editorVisible));
-      document.getElementById("content-settings-open").textContent=app.sectionEditorLevel==="subsection"?"小板块设置":"大板块设置";
-      layout.classList.toggle("has-article-panel-controls",enabled);
+      for(const name of ["settings","editor"]){const control=document.getElementById(`content-${name}-open`);control.setAttribute("aria-expanded",String(articlePanelVisibility[name]));control.classList.toggle("active",articlePanelVisibility[name])}
+      document.getElementById("content-settings-open").textContent="板块设置";
+      layout.classList.add("has-article-panel-controls");
       layout.classList.toggle("has-one-panel",settingsVisible!==editorVisible);
       document.getElementById("content-panels-empty").hidden=settingsVisible||editorVisible;
     }
     function setArticlePanelVisible(name,visible){
-      if(studioSectionCategory!=="content"||!Object.hasOwn(articlePanelVisibility,name))return;
-      // Visibility only: leave form nodes, unsaved inputs, selection and dirty tracking intact.
-      articlePanelVisibility[name]=visible;
-      syncArticlePanels();
+      if(!Object.hasOwn(articlePanelVisibility,name))return;
+      if(visible){articlePanelVisibility.settings=false;articlePanelVisibility.editor=false}
+      articlePanelVisibility[name]=visible;syncArticlePanels();
       if(!visible)document.getElementById(`content-${name}-open`).focus();
     }
     function markStudioDirty(form){if(form)studioDirtyForms.add(form)}
@@ -1189,9 +1211,7 @@
       document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
       const contentViews=new Set(["site-content","sections","content","media","assets"]);
       document.querySelectorAll(".side-nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name||(b.dataset.view==="site-content"&&contentViews.has(name))));
-      document.querySelector(".side")?.classList.toggle("content-mode",name==="sections");
-      document.getElementById("studio-primary-nav").classList.toggle("hidden",name==="sections");
-      document.getElementById("studio-content-navigation").classList.toggle("hidden",name!=="sections");
+      document.getElementById("studio-primary-nav").classList.remove("hidden");
       const info=viewInfo[name]||viewInfo.dashboard;document.getElementById("view-title").textContent=info[0];document.getElementById("view-desc").textContent=info[1];
       updateStudioBackButton();
       if(name==="messages")loadStudioMessages().catch(error=>{document.getElementById("studio-message-title").textContent=error.message});
@@ -1213,7 +1233,7 @@
       document.getElementById("content-inline-title").textContent=`${meta.label}内容`;
       if(app.currentView==="sections"){
         document.getElementById("view-title").textContent=`${meta.label}管理`;
-        document.getElementById("view-desc").textContent="从左侧选择层级，在同一页面编辑板块设置与对应内容。";
+        document.getElementById("view-desc").textContent="先从目录选择已有板块，再管理内容；名称、权限与样式在“板块设置”中修改。";
       }
     }
     function initializeEmbeddedContentEditors(){
@@ -1261,8 +1281,8 @@
       small.disabled=false;small.title=section?`在“${section.name}”中新建小板块`:"新建小板块并选择所属大板块";
       child.disabled=false;child.title=parent?`在“${parent.name}”中新建小小板块`:"新建小小板块并选择上级小板块";
       const add=document.getElementById("content-structure-new");
-      add.dataset.createLevel=parent?"child":section?"subsection":"section";
-      const label=parent?"新建小小板块":section?"新建小板块":"新建大板块";
+      add.dataset.createLevel="section";
+      const label="新建大板块";
       add.title=label;add.setAttribute("aria-label",label);
     }
     function startStudioCreation(level){
@@ -1273,12 +1293,13 @@
       // Resolve parents before discarding a draft, because resets clear IDs.
       if(!confirmStudioNavigation())return false;
       discardCurrentStudioDraft();
-      if(studioSectionCategory==="content")setArticlePanelVisible("settings",true);
+      setArticlePanelVisible("settings",true);
       if(level==="section"){resetSectionForm();setSectionEditorLevel("section")}
       else{
         resetSubsectionForm({sectionId:section.id,parentId:level==="child"?parent?.id||"":"",creationLevel:level});
         syncInlineContentSelection(section,level==="child"?parent:null);
       }
+      studioWorkspace.creating=level;renderContentStructureNav();
       const field=document.getElementById(level==="section"?"section-name":level==="child"&&!parent?"subsection-parent":"subsection-name");
       field.focus({preventScroll:true});
       field.scrollIntoView?.({block:"center",behavior:"smooth"});
@@ -1302,49 +1323,28 @@
       }
       document.getElementById("subsection-form-description").textContent=description;
     }
-    function renderContentStructureNav(){
-      syncArticlePanels();
-      syncStudioCreationControls();
-      const host=document.getElementById("content-structure-nav");if(!host)return;clear(host);
-      const sections=app.sections.filter(item=>item.kind===studioSectionCategory);
-      if(!sections.length){const empty=document.createElement("p");empty.className="content-structure-empty";empty.textContent="此分类还没有大板块，请点击“新增”。";host.append(empty);return}
-      const activeSection=document.getElementById("section-id").value;const activeSubsection=document.getElementById("subsection-id").value;
-      const appendSubsections=(group,section,parentId=null,depth=0)=>{
-        app.subsections.filter(item=>item.section_id===section.id&&(item.parent_id||null)===parentId).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).forEach(item=>{
-          const control=button(item.name,`structure-subsection${depth?" is-child":""}`);control.classList.toggle("active",activeSubsection===item.id);control.addEventListener("click",()=>{if(!confirmStudioNavigation())return;discardCurrentStudioDraft();setSectionEditorLevel("subsection");editSubsection(item)});group.append(control);appendSubsections(group,section,item.id,depth+1);
-        });
-      };
-      sections.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).forEach(section=>{
-        const group=document.createElement("div");group.className="structure-group";
-        const control=button(section.name,"structure-section");control.classList.toggle("active",activeSection===section.id&&app.sectionEditorLevel==="section");control.addEventListener("click",()=>{if(!confirmStudioNavigation())return;discardCurrentStudioDraft();setSectionEditorLevel("section");editSection(section)});group.append(control);appendSubsections(group,section);host.append(group);
-      });
-    }
-    function enterSectionManager(kind){
-      if(!switchView("sections"))return false;studioSectionCategory=kind;syncContentManagerMeta();resetSectionForm();resetSubsectionForm();setSectionEditorLevel("section");renderSectionList();renderSubsectionList();renderContentStructureNav();showInlineContentEditor();
-      const first=app.sections.filter(item=>item.kind===kind).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))[0];if(first)editSection(first);else document.getElementById("content-inline-scope").textContent="请先新建一个大板块";return true;
-    }
+    function renderContentStructureNav(){renderStudioBoardCatalog()}
+    function enterSectionManager(kind){return enterStudioContentCategory(kind)}
     function initializeStudioSafetyNavigation(){
       document.querySelectorAll("[data-content-panel-open]").forEach(control=>control.addEventListener("click",()=>setArticlePanelVisible(control.dataset.contentPanelOpen,true)));
       document.querySelectorAll("[data-content-panel-close]").forEach(control=>control.addEventListener("click",()=>setArticlePanelVisible(control.dataset.contentPanelClose,false)));
       ["section-form","subsection-form","content-form","media-form"].forEach(id=>{const form=document.getElementById(id);form.addEventListener("input",event=>{if(!event.target.closest("button"))markStudioDirty(form)});form.addEventListener("change",event=>{if(!event.target.closest("button"))markStudioDirty(form)})});
       document.getElementById("studio-back-button").addEventListener("click",studioGoBack);
       document.querySelectorAll("[data-view-target]").forEach(control=>control.addEventListener("click",()=>switchView(control.dataset.viewTarget)));
-      document.getElementById("content-structure-new").addEventListener("click",event=>startStudioCreation(event.currentTarget.dataset.createLevel));
       document.querySelectorAll("[data-studio-create]").forEach(control=>control.addEventListener("click",()=>startStudioCreation(control.dataset.studioCreate)));
     }
 
     async function loadAll(){
-      // 先取得已审核用户，随后渲染文章和照片时才能立即生成白名单选择器。
-      await Promise.all([loadSections(),loadUsers()]);
-      await Promise.all([loadDashboard(),loadSubsections(),loadContent(),loadChangelogs(),loadAlbumsAndMedia(),loadAssets(),loadComments(),loadFeedback(),loadGuestAnalytics(),loadSettings()]);
-      await showPendingUploadNotice();
+      await loadStudioContentData({initial:true});
+      await Promise.allSettled([loadDashboard(),loadChangelogs(),loadComments(),loadFeedback(),loadGuestAnalytics(),loadSettings()]);
+      try{await showPendingUploadNotice()}catch(error){console.warn("续传列表暂时无法加载",error.message)}
     }
     async function loadDashboard(){const data=await api("/api/admin/dashboard");const stats=document.getElementById("stats");clear(stats);[["今日游客人次",data.guestVisitorsToday],["今日浏览",data.guestPageViewsToday],["大板块",data.sections],["全部内容",data.content],["已发布",data.published],["注册用户",data.users],["待审核",data.pendingUsers],["当前在线",data.onlineUsers],["重置申请",data.resetRequests],["评论",data.comments],["图片",data.media],["文件资源",data.assets],["更新记录",data.changelogs],["新留言",data.unreadFeedback],["全部留言",data.feedback]].forEach(([label,value])=>{const card=document.createElement("div");card.className="stat";const s=document.createElement("span");s.textContent=label;const strong=document.createElement("strong");strong.textContent=value;card.append(s,strong);stats.append(card)})}
 
     async function loadSections(){app.sections=await api("/api/admin/sections");renderSectionList();refreshSectionOptions();renderContentStructureNav()}
     function renderSectionList(){const list=document.getElementById("section-list");clear(list);if(!app.sections.length){const p=document.createElement("p");p.className="status";p.textContent="还没有大板块。";list.append(p);return}app.sections.filter(item=>item.kind===studioSectionCategory).forEach(item=>{const row=document.createElement("div");row.className=`list-item${document.getElementById("section-id").value===item.id?" active":""}`;const title=document.createElement("div");title.className="list-title";title.textContent=item.name;const meta=document.createElement("div");meta.className="list-meta";const audience=visibilityUsesAudience(item.visibility)?`（${item.allowed_user_ids?.length||0} 人）`:"";const kindLabel=item.kind==="gallery"?"图片类":item.kind==="resources"?"文件资源类":"文章类";const counts=`小板块 ${item.subsection_count||0} · 文章 ${item.content_count||0} · 图片 ${item.media_count||0} · 文件 ${item.resource_count||0}`;meta.textContent=`${kindLabel} · ${visibilityLabels[item.visibility]||visibilityLabels.public}${audience} · ${counts}`;row.append(title,meta);row.addEventListener("click",()=>editSection(item));list.append(row)})}
     function resetSectionForm(){const form=document.getElementById("section-form");form.reset();document.getElementById("section-id").value="";document.getElementById("section-kind").disabled=false;document.getElementById("section-sort").value="0";document.getElementById("section-show-all").checked=true;document.getElementById("delete-section").classList.add("hidden");document.getElementById("section-notice").textContent="";syncAudiencePicker("section-visibility","section-user-picker",[]);document.getElementById("section-kind").value=studioSectionCategory;app.sectionEditorLevel="section";setStudioPresentation("section");markStudioClean(form);renderSectionList();renderContentStructureNav()}
-    function editSection(item){const form=document.getElementById("section-form");app.sectionEditorLevel="section";document.querySelectorAll("[data-section-editor-level]").forEach(node=>node.classList.toggle("active",node.dataset.sectionEditorLevel==="section"));document.getElementById("section-id").value=item.id;document.getElementById("section-name").value=item.name;document.getElementById("section-kind").value=item.kind;document.getElementById("section-kind").disabled=item.id==="section-resources";document.getElementById("section-description").value=item.description||"";document.getElementById("section-sort").value=item.sort_order||0;document.getElementById("section-visibility").value=item.visibility||"public";syncAudiencePicker("section-visibility","section-user-picker",item.allowed_user_ids||[]);document.getElementById("section-show-all").checked=Number(item.show_all)!==0;document.getElementById("delete-section").classList.toggle("hidden",item.id==="section-resources");setStudioPresentation("section",item);markStudioClean(form);renderSectionList();renderContentStructureNav();if(app.currentView==="sections")syncInlineContentSelection(item)}
+    function editSection(item){studioWorkspace.creating="";const form=document.getElementById("section-form");app.sectionEditorLevel="section";document.querySelectorAll("[data-section-editor-level]").forEach(node=>node.classList.toggle("active",node.dataset.sectionEditorLevel==="section"));document.getElementById("section-id").value=item.id;document.getElementById("section-name").value=item.name;document.getElementById("section-kind").value=item.kind;document.getElementById("section-kind").disabled=item.id==="section-resources";document.getElementById("section-description").value=item.description||"";document.getElementById("section-sort").value=item.sort_order||0;document.getElementById("section-visibility").value=item.visibility||"public";syncAudiencePicker("section-visibility","section-user-picker",item.allowed_user_ids||[]);document.getElementById("section-show-all").checked=Number(item.show_all)!==0;document.getElementById("delete-section").classList.toggle("hidden",item.id==="section-resources");setStudioPresentation("section",item);markStudioClean(form);renderSectionList();renderContentStructureNav();rememberStudioBoard();if(app.currentView==="sections")syncInlineContentSelection(item)}
     function sectionPayload(){return{...studioPresentationPayload("section"),name:document.getElementById("section-name").value,kind:document.getElementById("section-kind").value,description:document.getElementById("section-description").value,sortOrder:Number(document.getElementById("section-sort").value||0),...visibilityPayload("section-visibility","section-user-picker"),showAll:document.getElementById("section-show-all").checked}}
     function refreshSectionOptions(){
       const contentSelect=document.getElementById("content-section");const mediaSelect=document.getElementById("media-section");const subsectionSection=document.getElementById("subsection-section");
@@ -1379,14 +1379,14 @@
       setStudioPresentation("subsection");
       markStudioClean(form);renderSubsectionList();
     }
-    function editSubsection(item){const form=document.getElementById("subsection-form");form.dataset.creationLevel="";app.sectionEditorLevel="subsection";document.querySelectorAll("[data-section-editor-level]").forEach(node=>node.classList.toggle("active",node.dataset.sectionEditorLevel==="subsection"));document.getElementById("subsection-id").value=item.id;document.getElementById("subsection-section").value=item.section_id;fillSubsectionParents(item.parent_id||"");document.getElementById("subsection-name").value=item.name;document.getElementById("subsection-description").value=item.description||"";document.getElementById("subsection-sort").value=item.sort_order||0;document.getElementById("subsection-visibility").value=item.visibility||"public";document.getElementById("subsection-download-policy").value=item.download_policy||"public";syncAudiencePicker("subsection-visibility","subsection-user-picker",item.allowed_user_ids||[]);document.getElementById("delete-subsection").classList.remove("hidden");setStudioPresentation("subsection",item);markStudioClean(form);renderSubsectionList();renderContentStructureNav();const section=app.sections.find(value=>value.id===item.section_id);if(app.currentView==="sections"&&section)syncInlineContentSelection(section,item)}
+    function editSubsection(item){studioWorkspace.creating="";const form=document.getElementById("subsection-form");form.dataset.creationLevel="";app.sectionEditorLevel="subsection";document.querySelectorAll("[data-section-editor-level]").forEach(node=>node.classList.toggle("active",node.dataset.sectionEditorLevel==="subsection"));document.getElementById("subsection-id").value=item.id;document.getElementById("subsection-section").value=item.section_id;fillSubsectionParents(item.parent_id||"");document.getElementById("subsection-name").value=item.name;document.getElementById("subsection-description").value=item.description||"";document.getElementById("subsection-sort").value=item.sort_order||0;document.getElementById("subsection-visibility").value=item.visibility||"public";document.getElementById("subsection-download-policy").value=item.download_policy||"public";syncAudiencePicker("subsection-visibility","subsection-user-picker",item.allowed_user_ids||[]);document.getElementById("delete-subsection").classList.remove("hidden");setStudioPresentation("subsection",item);markStudioClean(form);renderSubsectionList();renderContentStructureNav();rememberStudioBoard();const section=app.sections.find(value=>value.id===item.section_id);if(app.currentView==="sections"&&section)syncInlineContentSelection(section,item)}
     function fillSubsectionSelect(select,sectionId,selectedId="",noneText="未分类"){if(!select)return;const current=selectedId||select.value;clear(select);const none=document.createElement("option");none.value="";none.textContent=noneText;select.append(none);app.subsections.filter(item=>item.section_id===sectionId).forEach(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=subsectionPath(item);select.append(option)});if([...select.options].some(option=>option.value===current))select.value=current}
     function refreshContentSubsectionOptions(sectionId,selectedId=""){fillSubsectionSelect(document.getElementById("content-subsection"),sectionId,selectedId);renderContentSectionAssets()}
     function refreshMediaSubsectionOptions(sectionId,selectedId=""){fillSubsectionSelect(document.getElementById("media-subsection"),sectionId,selectedId,"全部");fillSubsectionSelect(document.getElementById("media-album"),sectionId,selectedId)}
     function refreshAssetSubsectionOptions(selectedId=""){fillSubsectionSelect(document.getElementById("asset-subsection"),currentAssetSection(),selectedId)}
 
     async function loadContent(){app.content=await api("/api/admin/content");renderContentList();refreshCoverOptions()}
-    function renderContentList(){const list=document.getElementById("content-list");clear(list);const sectionId=document.getElementById("content-section").value;const subsectionId=document.getElementById("content-subsection").value;const items=app.currentView==="sections"?app.content.filter(item=>item.section_id===sectionId&&(!subsectionId||item.subsection_id===subsectionId)):app.content;if(!items.length){const p=document.createElement("p");p.className="status";p.textContent="当前层级还没有内容。";list.append(p);return}items.forEach(item=>{const row=document.createElement("div");row.className=`list-item${document.getElementById("content-id").value===item.id?" active":""}`;const title=document.createElement("div");title.className="list-title";title.textContent=item.title;const meta=document.createElement("div");meta.className="list-meta";const section=app.sections.find(s=>s.id===item.section_id);const audienceCount=visibilityUsesAudience(item.visibility)?`（${item.allowed_user_ids?.length||0} 人）`:"";meta.textContent=`${section?.name||(item.type==="guide"?"北京旅行指南":"文章")} · ${item.status==="published"?"已发布":"草稿"} · ${visibilityLabels[item.visibility]||visibilityLabels.public}${audienceCount} · ${formatDate(item.updated_at)}`;row.append(title,meta);row.addEventListener("click",()=>editContent(item));list.append(row)})}
+    function renderContentList(){renderStudioArticleList()}
     function updateCoverPreview(){const host=document.getElementById("content-cover-preview");const id=document.getElementById("content-cover").value;const item=app.media.find(media=>media.id===id);clear(host);if(!item){const span=document.createElement("span");span.textContent="尚未选择封面";host.append(span);return}const img=document.createElement("img");img.src=`/api/admin/media/${item.id}/source?preview=1`;img.alt=item.caption||item.filename;host.append(img)}
     function syncCurrentContentPanels(){const id=document.getElementById("content-id").value;document.querySelectorAll(".article-linked-panel").forEach(panel=>panel.classList.toggle("hidden",!id));renderArticleAssets();renderCurrentContentComments()}
     function articleEditorAssetIds(){
@@ -1413,8 +1413,8 @@
       removed.forEach(decideArticleAssetRemoval);
       return removed.filter(assetId=>app.articleAssetRemovalDecisions.get(assetId)===true);
     }
-    function resetContentForm(){const form=document.getElementById("content-form");form.reset();document.getElementById("content-id").value="";document.getElementById("content-editor").innerHTML="<p></p>";resetArticleAttachmentTracking(false);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.add("hidden");document.getElementById("content-notice").textContent="";document.getElementById("article-asset-notice").textContent="请先保存文章草稿，再上传只属于这篇文章的附件。";syncAudiencePicker("content-visibility","content-user-picker",[]);refreshContentSubsectionOptions(document.getElementById("content-section").value);updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
-    function editContent(item){const form=document.getElementById("content-form");const sectionId=item.section_id||(item.type==="guide"?"section-guides":"section-essays");document.getElementById("content-id").value=item.id;document.getElementById("content-section").value=sectionId;refreshContentSubsectionOptions(sectionId,item.subsection_id||"");document.getElementById("content-status").value=item.status;document.getElementById("content-visibility").value=item.visibility||"public";syncAudiencePicker("content-visibility","content-user-picker",item.allowed_user_ids||[]);document.getElementById("content-title").value=item.title;document.getElementById("content-excerpt").value=item.excerpt||"";document.getElementById("content-cover").value=item.cover_media_id||"";document.getElementById("content-editor").innerHTML=item.body_html||"<p></p>";resetArticleAttachmentTracking(true);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.remove("hidden");document.getElementById("article-asset-notice").textContent="";updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
+    function resetContentForm({open=false}={}){studioWorkspace.articleOpen=open;const board=currentStudioBoard();const form=document.getElementById("content-form");form.reset();document.getElementById("content-title").value="";document.getElementById("content-excerpt").value="";document.getElementById("content-cover").value="";document.getElementById("content-id").value="";document.getElementById("content-editor").innerHTML="<p></p>";resetArticleAttachmentTracking(false);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.add("hidden");document.getElementById("content-notice").textContent="";document.getElementById("article-asset-notice").textContent="请先保存文章草稿，再上传只属于这篇文章的附件。";syncAudiencePicker("content-visibility","content-user-picker",[]);if(board)document.getElementById("content-section").value=board.section.id;refreshContentSubsectionOptions(document.getElementById("content-section").value,board?.kind==="subsection"?board.item.id:"");updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
+    function editContent(item){studioWorkspace.articleOpen=true;const form=document.getElementById("content-form");const sectionId=item.section_id||(item.type==="guide"?"section-guides":"section-essays");document.getElementById("content-id").value=item.id;document.getElementById("content-section").value=sectionId;refreshContentSubsectionOptions(sectionId,item.subsection_id||"");document.getElementById("content-status").value=item.status;document.getElementById("content-visibility").value=item.visibility||"public";syncAudiencePicker("content-visibility","content-user-picker",item.allowed_user_ids||[]);document.getElementById("content-title").value=item.title;document.getElementById("content-excerpt").value=item.excerpt||"";document.getElementById("content-cover").value=item.cover_media_id||"";document.getElementById("content-editor").innerHTML=item.body_html||"<p></p>";resetArticleAttachmentTracking(true);clear(document.getElementById("article-upload-queue"));app.assetUploadContext=null;document.getElementById("delete-content").classList.remove("hidden");document.getElementById("article-asset-notice").textContent="";updateCoverPreview();syncCurrentContentPanels();markStudioClean(form);renderContentList()}
     function contentPayload(deleteAssetIds=[]){const sectionId=document.getElementById("content-section").value;return{sectionId,subsectionId:document.getElementById("content-subsection").value||null,type:sectionId==="section-guides"?"guide":"article",status:document.getElementById("content-status").value,...visibilityPayload("content-visibility","content-user-picker"),title:document.getElementById("content-title").value,excerpt:document.getElementById("content-excerpt").value,coverMediaId:document.getElementById("content-cover").value,bodyHtml:document.getElementById("content-editor").innerHTML,deleteAssetIds}}
 
     async function loadChangelogs(){app.changelogs=await api("/api/admin/changelogs");renderChangelogs()}
@@ -1423,7 +1423,7 @@
     function editChangelog(item){document.getElementById("changelog-id").value=item.id;document.getElementById("changelog-version").value=item.version;document.getElementById("changelog-title").value=item.title;document.getElementById("changelog-body").value=item.body;document.getElementById("changelog-date").value=localDateTimeInput(item.published_at);document.getElementById("changelog-sort").value=item.sort_order||0;document.getElementById("delete-changelog").classList.remove("hidden")}
 
     async function loadAlbumsAndMedia(){app.media=await api("/api/admin/media");renderAlbums();renderMedia();renderAssetBrowser();renderContentSectionAssets();refreshCoverOptions();renderArticleAssets()}
-    function renderAlbums(){const row=document.getElementById("album-row");const sectionId=document.getElementById("media-section").value;clear(row);const items=app.subsections.filter(item=>item.section_id===sectionId);items.forEach(item=>{const wrap=document.createElement("span");wrap.className="album-chip";const choose=button(`${item.name}（图片 ${item.media_count||0} / 文件 ${item.asset_count||0}）· ${visibilityLabels[item.visibility]||"公开"}`);choose.addEventListener("click",()=>{document.getElementById("media-subsection").value=item.id;document.getElementById("media-album").value=item.id;renderMedia()});const edit=button("编辑","btn small ghost");edit.addEventListener("click",()=>{if(enterSectionManager("gallery"))editSubsection(item)});wrap.append(choose,edit);row.append(wrap)});refreshMediaSubsectionOptions(sectionId)}
+    function renderAlbums(){const row=document.getElementById("album-row");const sectionId=document.getElementById("media-section").value;clear(row);const items=app.subsections.filter(item=>item.section_id===sectionId);items.forEach(item=>{const wrap=document.createElement("span");wrap.className="album-chip";const choose=button(`${item.name}（图片 ${item.media_count||0} / 文件 ${item.asset_count||0}）· ${visibilityLabels[item.visibility]||"公开"}`);choose.addEventListener("click",()=>{if(app.currentView==="sections"&&studioSectionCategory==="gallery"){selectStudioBoard("subsection",item.id);return}document.getElementById("media-subsection").value=item.id;document.getElementById("media-album").value=item.id;renderMedia()});const edit=button("编辑","btn small ghost");edit.addEventListener("click",()=>{if(enterSectionManager("gallery")&&selectStudioBoard("subsection",item.id))setArticlePanelVisible("settings",true)});wrap.append(choose,edit);row.append(wrap)});refreshMediaSubsectionOptions(sectionId)}
     function renderMedia() {
       const grid = document.getElementById("media-grid");
       const sectionId = document.getElementById("media-section").value;
@@ -2480,7 +2480,7 @@
       }catch(error){notice.textContent=error.message}
     });
     document.getElementById("delete-subsection").addEventListener("click",async()=>{const id=document.getElementById("subsection-id").value;if(!id||!confirm("删除后，原有文章、图片和文件都会保留并变为未分类。确定继续吗？"))return;await api(`/api/admin/subsections/${id}`,{method:"DELETE"});resetSubsectionForm();await Promise.all([loadSubsections(),loadContent(),loadAlbumsAndMedia(),loadAssets()])});
-    document.getElementById("new-content").addEventListener("click",()=>{if(!confirmStudioNavigation())return;activeStudioDirtyForms().forEach(form=>studioDirtyForms.delete(form));resetContentForm()});document.getElementById("refresh-content").addEventListener("click",loadContent);
+    document.getElementById("new-content").addEventListener("click",startStudioArticle);document.getElementById("refresh-content").addEventListener("click",loadContent);
     document.getElementById("content-section").addEventListener("change",event=>{refreshContentSubsectionOptions(event.target.value);renderContentList()});
     document.getElementById("content-subsection").addEventListener("change",()=>{renderContentSectionAssets();renderContentList()});
     document.getElementById("content-visibility").addEventListener("change",()=>{
@@ -2535,8 +2535,8 @@
     document.getElementById("changelog-form").addEventListener("submit",async event=>{event.preventDefault();const id=document.getElementById("changelog-id").value;const notice=document.getElementById("changelog-notice");const date=document.getElementById("changelog-date").value;try{await api(id?`/api/admin/changelogs/${id}`:"/api/admin/changelogs",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:document.getElementById("changelog-version").value,title:document.getElementById("changelog-title").value,body:document.getElementById("changelog-body").value,publishedAt:date?new Date(date).toISOString():new Date().toISOString(),sortOrder:Number(document.getElementById("changelog-sort").value||0)})});notice.textContent="更新记录已保存，精确时间、顺序和网页版本号已同步。";resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()}catch(error){notice.textContent=error.message}});
     document.getElementById("new-changelog").addEventListener("click",resetChangelog);document.getElementById("delete-changelog").addEventListener("click",async()=>{const id=document.getElementById("changelog-id").value;if(!id||!confirm("确定删除这条更新记录吗？"))return;await api(`/api/admin/changelogs/${id}`,{method:"DELETE"});resetChangelog();await loadChangelogs();await loadSettings();await loadDashboard()});
 
-    document.getElementById("media-section").addEventListener("change",()=>{renderAlbums();renderMedia()});
-    document.getElementById("media-subsection").addEventListener("change",event=>{const uploadTarget=document.getElementById("media-album");if(event.target.value&&[...uploadTarget.options].some(option=>option.value===event.target.value))uploadTarget.value=event.target.value;renderMedia()});
+    document.getElementById("media-section").addEventListener("change",()=>{if(handleStudioScopeChoice("media","section"))return;renderAlbums();renderMedia()});
+    document.getElementById("media-subsection").addEventListener("change",event=>{if(handleStudioScopeChoice("media","subsection"))return;const uploadTarget=document.getElementById("media-album");if(event.target.value&&[...uploadTarget.options].some(option=>option.value===event.target.value))uploadTarget.value=event.target.value;renderMedia()});
     document.getElementById("media-visibility").addEventListener("change",()=>{
       const picker=document.getElementById("media-user-picker");
       picker.classList.toggle("hidden",!visibilityUsesAudience(document.getElementById("media-visibility").value));
@@ -2544,7 +2544,7 @@
     document.getElementById("add-album").addEventListener("click",async()=>{const sectionId=document.getElementById("media-section").value;if(!sectionId){alert("请先新建一个图片类大板块");return}const name=prompt("新图片小板块名称");if(!name)return;const description=prompt("小板块说明（选填，可留空）")||"";const parent=app.sections.find(item=>item.id===sectionId);const choice=await openVisibilityEditor(`设置小板块“${name}”的权限`,parent?.visibility||"public",parent?.allowed_user_ids||[]);if(!choice)return;await api("/api/admin/subsections",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,description,sectionId,...choice})});await loadSubsections();renderAlbums()});
     document.getElementById("media-form").addEventListener("submit", submitPhotoUploads);
     document.getElementById("asset-current-folder").addEventListener("change",event=>{app.currentAssetFolder=event.target.value;renderAssetBrowser()});
-    document.getElementById("asset-subsection").addEventListener("change",renderAssetBrowser);
+    document.getElementById("asset-subsection").addEventListener("change",()=>{if(!handleStudioScopeChoice("asset","subsection"))renderAssetBrowser()});
     document.getElementById("asset-upload-visibility").addEventListener("change",()=>syncAudiencePicker("asset-upload-visibility","asset-upload-user-picker",selectedAudienceIds("asset-upload-user-picker")));
     document.getElementById("asset-refresh").addEventListener("click",loadAssets);
     document.getElementById("asset-new-folder").addEventListener("click",async()=>{const name=prompt("新文件夹名称");if(!name||!name.trim())return;const description=prompt("文件夹说明（选填）")||"";const choice=visibilityPayload("asset-upload-visibility","asset-upload-user-picker");if(!validateVisibilityChoice(choice))return;await api("/api/admin/asset-folders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,description,sectionId:currentAssetSection(),parentId:app.currentAssetFolder||null,...choice})});await loadAssets()});
@@ -2587,7 +2587,7 @@
 
     // 用户在线状态每60秒更新一次；未登录后台时不会发起刷新请求。
     window.setInterval(()=>{if(!document.getElementById("studio").classList.contains("hidden"))loadUsers().catch(()=>null)},60_000);
-    initializeEmbeddedContentEditors();initializeStudioSafetyNavigation();initializePhotoManagement();initializeStudioUploadControls();initializeEntryBackgroundSettings();initializeStudioRichText();resetSubsectionForm();resetSectionForm();resetContentForm();resetChangelog();syncContentManagerMeta();checkSession();
+    initializeEmbeddedContentEditors();initializeStudioSafetyNavigation();initializeStudioContentWorkspace();initializePhotoManagement();initializeStudioUploadControls();initializeEntryBackgroundSettings();initializeStudioRichText();resetSubsectionForm();resetSectionForm();resetContentForm();resetChangelog();syncContentManagerMeta();checkSession();
   </script>
   <script src="/experience.js"></script>
 </body>

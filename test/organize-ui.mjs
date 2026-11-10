@@ -58,6 +58,7 @@ studio.run(await readFile("public/studio-organize.js", "utf8"));
 studio.run(await readFile("public/studio-share.js", "utf8"));
 studio.run(await readFile("public/studio-background.js", "utf8"));
 studio.run(await readFile("public/studio-rich-text.js", "utf8"));
+studio.run(await readFile("public/studio-content.js", "utf8"));
 const main = [...studioHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(source => source.includes("const app ="));
 assert.ok(main);
@@ -82,14 +83,17 @@ const richText = articleNode("content-editor");
 const closeSettings = studio.document.querySelector('[data-content-panel-close="settings"]');
 const closeEditor = studio.document.querySelector('[data-content-panel-close="editor"]');
 assert.equal(articleNode("content-panel-controls").hidden, false);
-assert.equal(settingsPanel.hidden, false);
+assert.equal(settingsPanel.hidden, true, "existing content is the default workspace");
 assert.equal(editorPanel.hidden, false);
+articleNode("new-content").click();
+articleNode("content-panels-both").click();
+assert.equal(settingsPanel.hidden, false);
 assert.equal(settingsOpen.getAttribute("aria-controls"), settingsPanel.id);
 assert.equal(editorOpen.getAttribute("aria-controls"), editorPanel.id);
 for (const control of [settingsOpen, editorOpen, closeSettings, closeEditor]) assert.equal(control.type, "button");
 assert.ok(settingsPanel.contains(closeSettings));
 assert.ok(editorPanel.contains(closeEditor));
-assert.ok(studio.document.querySelector(".content-manager-title-row").contains(settingsOpen));
+assert.ok(studio.document.querySelector(".content-selection-header").contains(settingsOpen));
 articleNode("section-name").value = "未保存的板块名称";
 articleNode("section-name").dispatchEvent(new studio.window.Event("input", { bubbles: true }));
 articleNode("content-title").value = "尚未保存的文章标题";
@@ -122,6 +126,8 @@ settingsOpen.click();
 settingsOpen.click(); // Reopening a visible panel is idempotent, not a draft-clearing toggle.
 assert.equal(settingsPanel.hidden, false);
 assert.equal(settingsOpen.getAttribute("aria-expanded"), "true");
+assert.equal(editorOpen.getAttribute("aria-expanded"), "false");
+articleNode("content-panels-both").click();
 assert.equal(editorOpen.getAttribute("aria-expanded"), "true");
 assert.equal(panelLayout.classList.contains("has-one-panel"), false);
 assert.equal(articleNode("section-form"), settingsForm);
@@ -132,33 +138,23 @@ assert.equal(articleNode("content-title").value, "尚未保存的文章标题");
 assert.equal(richText.innerHTML, draftHtml);
 assert.equal(studio.run("activeStudioDirtyForms().length"), 2);
 studio.run('setSectionEditorLevel("subsection")');
-assert.equal(settingsOpen.textContent, "小板块设置");
+assert.equal(settingsOpen.textContent, "板块设置");
 closeSettings.click();
 settingsOpen.click();
 assert.equal(studio.document.querySelector('[data-section-editor-level="subsection"]').classList.contains("active"), true);
 studio.run('setSectionEditorLevel("section")');
-assert.equal(settingsOpen.textContent, "大板块设置");
+assert.equal(settingsOpen.textContent, "板块设置");
 
-// These article-only visibility choices must not hide the image or file management workspaces.
-closeSettings.click();
-closeEditor.click();
-studio.context.confirm = () => true;
-studio.run("discardCurrentStudioDraft()"); // Explicitly discard the test draft before switching categories.
-studio.run('enterSectionManager("gallery")');
-assert.equal(settingsPanel.hidden, false);
-assert.equal(editorPanel.hidden, false);
-assert.equal(articleNode("content-panel-controls").hidden, true);
-assert.equal(closeSettings.hidden, true);
-assert.equal(closeEditor.hidden, true);
-studio.run('enterSectionManager("resources")');
-assert.equal(settingsPanel.hidden, false);
-assert.equal(editorPanel.hidden, false);
-studio.run('enterSectionManager("content")');
-assert.equal(settingsPanel.hidden, true, "article visibility survives category switches");
-assert.equal(editorPanel.hidden, true);
-settingsOpen.click();
-editorOpen.click();
-assert.equal(studio.run("activeStudioDirtyForms().length"), 0);
+// All categories follow the same browse-first workflow, independent of closed panels.
+closeSettings.click();closeEditor.click();studio.context.confirm=()=>true;
+studio.run("discardCurrentStudioDraft()");
+for(const category of ["gallery","resources","content"]){
+  studio.run(`enterSectionManager("${category}")`);
+  assert.equal(settingsPanel.hidden,true);assert.equal(editorPanel.hidden,false);
+  assert.equal(articleNode("content-panel-controls").hidden,false);
+  assert.equal(closeSettings.hidden,false);assert.equal(closeEditor.hidden,false);
+}
+assert.equal(studio.run("activeStudioDirtyForms().length"),0);
 
 assert.equal(studio.document.querySelectorAll("#media-grid .media-card").length, 1);
 assert.match(studio.document.querySelector("#media-grid").textContent, /A note/);
@@ -173,13 +169,13 @@ assert.match(studio.document.getElementById("photo-batch-target").textContent, /
 studio.document.querySelector('[data-studio-category="gallery"]').click();
 assert.equal(studio.document.getElementById("section-kind").value, "gallery");
 assert.deepEqual([...studio.document.getElementById("subsection-section").options].map(item => item.value), ["photos"]);
-assert.ok(studio.document.getElementById("studio-primary-nav").classList.contains("hidden"));
+assert.ok(!studio.document.getElementById("studio-primary-nav").classList.contains("hidden"));
 assert.ok(!studio.document.getElementById("studio-content-navigation").classList.contains("hidden"));
 assert.equal(studio.document.getElementById("view-media").parentElement.id, "content-inline-editor-host");
 assert.ok(studio.document.getElementById("view-media").classList.contains("active"));
 assert.equal(studio.document.getElementById("media-section").value, "photos");
 const childHierarchy = [...studio.document.querySelectorAll("#content-structure-nav button")]
-  .find(button => button.textContent === "Child");
+  .find(button => button.dataset.boardId === "photo-child");
 assert.ok(childHierarchy);
 childHierarchy.click();
 assert.equal(studio.document.getElementById("subsection-id").value, "photo-child");
@@ -455,4 +451,98 @@ assert.equal(studio.document.querySelector('[data-presentation-prefix="section"]
 studio.run('editSubsection({...app.subsections[0],gallery_layout:"rows"});');
 assert.equal(studio.run('studioPresentationPayload("subsection").galleryLayout'), "rows");
 assert.equal(studio.document.querySelector('[data-presentation-prefix="subsection"][data-presentation-kind="content"]').hidden, true);
-console.log("photo queue controls, permission feedback, lock editor and three-category DOM regression passed");
+// The redesigned workspace uses real saved boards and content instead of an
+// implicit creation form. It includes descendant drafts without changing scope
+// when the article editor's own destination selects change.
+async function workspaceFixture() {
+  const fixture = domContext(studioHtml);
+  for (const file of ["studio-upload", "studio-organize", "studio-share", "studio-background", "studio-rich-text", "studio-content"]) fixture.run(await readFile(`public/${file}.js`, "utf8"));
+  fixture.run(main.replace("checkSession();", "")); return fixture;
+}
+const workspace = await workspaceFixture();
+const workspaceSections = [...sections, { id: "other-articles", kind: "content", name: "Other essays", visibility: "private" }];
+const workspaceSubsections = [...subsections, { id: "essay-parent", section_id: "articles", name: "Linux" }, { id: "essay-child", section_id: "articles", parent_id: "essay-parent", name: "Kernel" }];
+const workspaceArticles = [
+  { id: "root-essay", section_id: "articles", title: "Root essay", status: "published", body_html: "<p>root</p>" },
+  { id: "child-essay", section_id: "articles", subsection_id: "essay-child", title: "Kernel diary", excerpt: "memory maps", status: "draft", body_html: "<p>Keep <strong>formatting</strong></p>" },
+  { id: "outside-essay", section_id: "other-articles", title: "Other essay", status: "published", body_html: "<p>outside</p>" },
+];
+workspace.run(`app.sections=${JSON.stringify(workspaceSections)};app.subsections=${JSON.stringify(workspaceSubsections)};app.content=${JSON.stringify(workspaceArticles)};refreshSectionOptions();enterSectionManager('content')`);
+const wnode = id => workspace.document.getElementById(id);
+assert.equal(wnode("section-id").value, "articles");
+assert.equal(wnode("content-settings-panel").hidden, true);
+assert.equal(wnode("content-form").hidden, true);
+assert.equal(workspace.document.querySelectorAll("#content-list button").length, 2);
+assert.ok(!wnode("studio-primary-nav").classList.contains("hidden"));
+assert.equal(wnode("studio-content-navigation").closest(".view").id, "view-sections");
+wnode("content-list-status").value = "draft"; wnode("content-list-status").dispatchEvent(new workspace.window.Event("change"));
+assert.equal(workspace.document.querySelectorAll("#content-list button").length, 1);
+wnode("content-list-status").value = ""; wnode("content-search").value = "memory maps"; wnode("content-search").dispatchEvent(new workspace.window.Event("input"));
+assert.match(wnode("content-list").textContent, /Kernel diary/);
+wnode("content-search").value = ""; wnode("content-search").dispatchEvent(new workspace.window.Event("input"));
+wnode("content-board-search").value = "kernel"; wnode("content-board-search").dispatchEvent(new workspace.window.Event("input"));
+assert.deepEqual([...workspace.document.querySelectorAll("#content-structure-nav button")].map(control => control.dataset.boardId), ["articles", "essay-parent", "essay-child"]);
+workspace.document.querySelector('[data-board-id="essay-parent"]').click();
+assert.equal(workspace.document.querySelectorAll("#content-list button").length, 1, "a parent includes its child's draft");
+workspace.document.querySelector("#content-list button").click();
+assert.equal(wnode("content-form").hidden, false); assert.equal(wnode("content-title").value, "Kernel diary");
+assert.equal(wnode("subsection-id").value, "essay-parent", "opening a descendant article keeps the catalog's scope");
+assert.equal(wnode("content-subsection").value, "essay-child");
+const keptBody = wnode("content-editor").innerHTML;
+wnode("content-title").value = "Unsaved title"; wnode("content-title").dispatchEvent(new workspace.window.Event("input", { bubbles: true }));
+workspace.context.confirm = () => false;
+assert.equal(workspace.run("enterSectionManager('gallery')"), false);
+assert.equal(workspace.run("enterSectionManager('content')"), true, "re-entering the active category is a no-op");
+workspace.document.querySelector('[data-board-id="articles"]').click();
+assert.equal(wnode("content-title").value, "Unsaved title"); assert.equal(wnode("content-editor").innerHTML, keptBody);
+wnode("content-document-close").click(); assert.equal(wnode("content-form").hidden, false);
+workspace.context.confirm = () => true; wnode("content-document-close").click();
+assert.equal(wnode("content-form").hidden, true);
+workspace.document.querySelector('[data-board-id="essay-child"]').click();
+wnode("new-content").click();
+assert.equal(wnode("content-title").value, ""); assert.equal(wnode("content-subsection").value, "essay-child");
+assert.equal(wnode("content-settings-panel").hidden, true);
+workspace.run("enterSectionManager('gallery');enterSectionManager('content')");
+assert.equal(wnode("subsection-id").value, "essay-child");
+wnode("create-subsection").click();
+assert.equal(wnode("content-settings-panel").hidden, false); assert.equal(wnode("content-editor-open").disabled, true);
+assert.match(wnode("content-selection-title").textContent, /新建小板块/);
+assert.ok(workspace.document.querySelector('[data-board-id="essay-child"]'), "creation never removes the saved catalog");
+workspace.run("enterSectionManager('gallery')");
+wnode("media-subsection").value = "photo-child";
+wnode("media-subsection").dispatchEvent(new workspace.window.Event("change", { bubbles: true }));
+assert.equal(wnode("subsection-id").value, "photo-child", "filter controls keep the catalog selection in sync");
+assert.equal(wnode("content-selection-title").textContent, "Child");
+workspace.run("enterSectionManager('resources')");
+wnode("asset-subsection").value = "file-parent";
+wnode("asset-subsection").dispatchEvent(new workspace.window.Event("change", { bubbles: true }));
+assert.equal(wnode("subsection-id").value, "file-parent");
+assert.equal(wnode("content-selection-title").textContent, "Docs");
+
+// Failed or delayed reads are surfaced as loading/retry states, never as a
+// claim that the owner has no saved boards. A retry reconciles the selection.
+const loadingWorkspace = await workspaceFixture();
+loadingWorkspace.run("enterSectionManager('content')");
+let failSectionRead = true, resumeSectionRead;
+let sectionReadDelay = new Promise(resolve => { resumeSectionRead = resolve; });
+loadingWorkspace.context.fetch = async path => {
+  if (path === "/api/admin/sections") {
+    if (sectionReadDelay) await sectionReadDelay;
+    if (failSectionRead) return Response.json({ error: "test network failure" }, { status: 503 });
+    return Response.json(workspaceSections);
+  }
+  return Response.json(path === "/api/admin/subsections" ? workspaceSubsections : path === "/api/admin/content" ? workspaceArticles : []);
+};
+const pendingWorkspaceRead = loadingWorkspace.run("loadStudioContentData({initial:true})");
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(loadingWorkspace.run("studioWorkspace.status"), "loading");
+assert.match(loadingWorkspace.document.getElementById("content-workspace-empty-text").textContent, /正在加载/);
+resumeSectionRead(); assert.equal(await pendingWorkspaceRead, false);
+assert.equal(loadingWorkspace.run("studioWorkspace.status"), "error");
+assert.match(loadingWorkspace.document.getElementById("content-workspace-empty-text").textContent, /加载失败.*刷新/);
+failSectionRead = false; sectionReadDelay = null;
+assert.equal(await loadingWorkspace.run("loadStudioContentData()"), true);
+assert.equal(loadingWorkspace.run("studioWorkspace.status"), "ready");
+assert.equal(loadingWorkspace.document.getElementById("section-id").value, "articles");
+assert.equal(loadingWorkspace.document.querySelectorAll("#content-list button").length, 2);
+console.log("catalog search, saved-board selection, descendant drafts, article editing, loading/retry, photo queue, permissions and hierarchy passed");

@@ -254,3 +254,68 @@
   .content-inline-heading { display:grid; }
   .content-inline-heading small { text-align:left; }
 }
+
+/* A permanent catalog inside the workspace keeps the site navigation stable. */
+.content-workbench { display:grid; grid-template-columns:minmax(210px,250px) minmax(0,1fr); gap:20px; align-items:start; }
+.content-catalog { min-width:0; padding:18px 14px; border:1px solid var(--line,#dce5e8); border-radius:12px; background:var(--paper,#fff); position:sticky; top:0; }
+.content-catalog-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:18px; }
+.content-catalog-heading strong { font-size:1rem; }
+.content-catalog-heading .status { white-space:nowrap; font-size:.74rem; }
+.content-catalog .field { font-size:.8rem; }
+.content-catalog > .status { margin:10px 0; font-size:.75rem; line-height:1.6; overflow-wrap:anywhere; }
+#studio #studio-content-navigation .content-structure-nav { display:grid; max-height:55dvh; overflow:auto; align-items:stretch; gap:12px; min-width:0; }
+#studio #studio-content-navigation .structure-group { display:grid; gap:4px; }
+#studio #studio-content-navigation .content-structure-nav button { display:flex; align-items:center; justify-content:space-between; gap:9px; width:100% !important; padding:10px 9px 10px calc(9px + var(--board-depth,0)*12px) !important; min-height:42px !important; white-space:normal !important; font-size:clamp(13px,.85vw,15px); border-radius:8px; }
+#studio #studio-content-navigation .content-structure-nav button.active { color:#102e38 !important; background:rgba(209,231,236,.96) !important; border-color:rgba(42,119,144,.42) !important; }
+#studio #studio-content-navigation .content-structure-nav button.active :is(span,small) { color:inherit !important; }
+.content-catalog .board-name { min-width:0; text-align:left; overflow-wrap:anywhere; line-height:1.5; }
+.content-catalog .content-structure-nav small { flex:0 0 auto; font-size:10px; color:var(--muted); font-weight:400; }
+.content-catalog-create { border-top:1px solid var(--line); padding-top:14px; margin-top:18px; }
+.content-catalog-create summary { cursor:pointer; font-weight:700; font-size:.85rem; padding:8px 0; }
+.content-catalog-create .content-creation-actions { display:grid; gap:8px; margin-top:8px; }
+.content-workspace-main { min-width:0; }
+.content-selection-header { padding:4px 0 18px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+#content-workspace-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:5px; color:var(--muted); font-size:.75rem; }
+#content-workspace-breadcrumb .breadcrumb-board { padding:3px 0; border:0; background:none; box-shadow:none; color:inherit; font:inherit; cursor:pointer; }
+.content-selection-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:14px 0; }
+.content-selection-heading > div:first-child { flex:1 1 240px; min-width:0; }
+.content-selection-heading h3 { margin:0 0 6px; overflow-wrap:anywhere; font-size:1.45rem; }
+.content-selection-heading p { margin:0; line-height:1.6; font-size:.78rem; }
+.content-selection-heading .actions { margin:0; }
+.content-category-tabs { display:flex; flex-wrap:wrap; gap:6px; flex:1 1 auto; }
+.content-category-tabs .btn { min-height:38px; }
+#studio .content-selection-header .content-panel-controls .active,#studio .content-category-tabs .active { background:rgba(174,214,222,.75) !important; color:#153c48 !important; text-shadow:none !important; }
+.content-workspace-empty { padding:28px 22px; line-height:1.8; }
+.content-workspace-main .content-manager-layout { grid-template-columns:minmax(270px,.65fr) minmax(0,1.35fr); }
+.content-workspace-main .content-manager-layout.has-one-panel { grid-template-columns:minmax(0,1fr); }
+.content-workspace-main .has-one-panel #content-settings-panel .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.content-workspace-main .has-one-panel #content-settings-panel .form-grid .wide { grid-column:1/-1; }
+.article-workspace { grid-template-columns:minmax(0,1fr); align-items:start; }
+.article-workspace.is-editing { grid-template-columns:minmax(200px,.35fr) minmax(0,1fr); }
+.article-workspace:not(.is-editing) #content-document-pane { display:none; }
+#content-document-pane { min-width:0; }
+.article-list-panel .list-item { display:grid; gap:7px; width:100%; text-align:left; font:inherit; color:var(--ink); cursor:pointer; }
+.article-list-panel .list-title,.article-list-panel .list-meta { overflow-wrap:anywhere; }
+.article-workspace.is-editing .article-list-panel #content-list { max-height:65dvh; overflow:auto; }
+.content-workspace-main .content-manager-layout:not(.has-one-panel) .article-workspace.is-editing { grid-template-columns:1fr; }
+#content-workspace-empty[hidden],#content-manager-layout[hidden],#content-form[hidden],#content-document-empty[hidden] { display:none !important; }
+:root[data-theme="dark"] #studio .content-selection-header .active,:root[data-theme="dark"] #studio .content-category-tabs .active,:root[data-theme="dark"] #studio #studio-content-navigation .content-structure-nav button.active { color:#e6f6fa !important; background:rgba(53,113,130,.58) !important; }
+@media (max-width:1450px) {
+  .content-workbench { grid-template-columns:220px minmax(0,1fr); gap:14px; }
+  .article-workspace.is-editing,.content-workspace-main .content-manager-layout { grid-template-columns:1fr; }
+  .article-workspace.is-editing .article-list-panel #content-list { max-height:260px; }
+}
+@media (max-width:1050px) {
+  .content-workbench { grid-template-columns:minmax(0,1fr); }
+  .content-catalog { position:static; }
+  #studio #studio-content-navigation .content-structure-nav { max-height:260px; }
+  .content-catalog .content-catalog-create .content-creation-actions { display:flex; flex-wrap:wrap; }
+}
+@media (max-width:720px) {
+  .content-workspace-main .has-one-panel #content-settings-panel .form-grid { grid-template-columns:minmax(0,1fr); }
+  .content-selection-heading h3 { font-size:clamp(20px,5.4vw,26px); }
+  #studio .content-selection-header { scroll-margin-top:155px; }
+  #studio .content-selection-header .content-panel-controls { width:auto; }
+  #studio #studio-content-navigation .content-structure-nav button { font-size:14px; }
+  .content-catalog { padding:16px 12px; }
+}
