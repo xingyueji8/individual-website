@@ -256,6 +256,21 @@ function personalSpaceDate(value) {
   if (Number.isNaN(date.getTime())) return "日期未标注";
   return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(date);
 }
+function personalSpaceArticleCover(item) {
+  if (item.locked || !item.coverUrl) return null;
+  let source; try { source = new URL(item.coverUrl, location.href); } catch { return null; }
+  if (source.origin !== location.origin || !/^\/media\/[a-zA-Z0-9_-]{1,80}$/.test(source.pathname)) return null;
+  source.searchParams.set("preview", "1"); source.searchParams.delete("download");
+  const figure = document.createElement("figure"); figure.className = "ps-article-cover";
+  const image = document.createElement("img"); image.alt = `${item.title || "文章"}的封面`;
+  image.loading = "lazy"; image.decoding = "async"; image.width = 1600; image.height = 900;
+  image.addEventListener("error", () => {
+    figure.classList.add("is-unavailable");
+    const hint = document.createElement("span"); hint.textContent = "封面暂时无法加载，仍可打开文章";
+    figure.replaceChildren(hint);
+  }, { once: true });
+  image.src = protectedMediaUrl(`${source.pathname}${source.search}`); figure.append(image); return figure;
+}
 function renderPersonalSpaceFeed(host, items) {
   const generation = personalSpaceRenderId;
   const controller = personalSpaceRequests = new AbortController();
@@ -287,7 +302,9 @@ function renderPersonalSpaceFeed(host, items) {
     const actions = document.createElement("div"); actions.className = "ps-feed-actions";
     const read = document.createElement("button"); read.type = "button"; read.className = "btn small ghost"; read.textContent = "阅读全文与评论";
     read.addEventListener("click", () => personalSpaceActivate(read, () => openContent(item.id))); actions.append(read);
-    card.append(date, document.createElement("hr"), title, body, actions); feed.append(card);
+    card.append(date, document.createElement("hr"));
+    const cover = personalSpaceArticleCover(item); if (cover) card.append(cover);
+    card.append(title, body, actions); feed.append(card);
     if (item.locked) lockedContentNotice(body, "content", item);
     else { body.append(empty("正在读取正文…")); jobs.set(card, { item, body }); }
   });

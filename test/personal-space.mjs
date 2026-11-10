@@ -39,7 +39,20 @@ try {
     assert.equal((await ok("/api/bootstrap", { identity: guest })).sections.find(item => item.id === gallery.id).gallery_layout, galleryLayout);
   }
   const html = '<p>普通文字<span style="color:#c02642;font-size:24px;font-family:KaiTi;font-weight:700;text-decoration:underline;position:fixed" onclick="alert(1)">局部格式</span>普通结尾</p><script>alert(1)</script>';
-  const article = await ok("/api/admin/content", { method: "POST", body: { sectionId: section.id, subsectionId: child.id, title: "富文本保存", status: "published", visibility: "public", bodyHtml: html } });
+  const articleInput = { sectionId: section.id, subsectionId: child.id, title: "富文本保存", status: "published", visibility: "public", bodyHtml: html };
+  const article = await ok("/api/admin/content", { method: "POST", body: articleInput });
+  const coverForm = new FormData();
+  coverForm.append("file", new File(["ORIGINAL-COVER"], "cover.png", { type: "image/png" }));
+  coverForm.append("preview", new File(["PREVIEW-COVER"], "cover.webp", { type: "image/webp" }));
+  coverForm.append("kind", "inline"); coverForm.append("contentId", article.id); coverForm.append("visibility", "public");
+  const coverRequest = new Request("https://localhost/api/admin/media", { method: "POST", headers: { Cookie: admin, "User-Agent": "personal-space-test" }, body: coverForm });
+  const uploadedCoverResponse = await mf.dispatchFetch(coverRequest.url, { method: coverRequest.method, headers: coverRequest.headers, body: await coverRequest.arrayBuffer() });
+  assert.equal(uploadedCoverResponse.status, 200); const cover = await uploadedCoverResponse.json();
+  await ok(`/api/admin/content/${article.id}`, { method: "PUT", body: { ...articleInput, coverMediaId: cover.id } });
+  const cardData = (await ok("/api/bootstrap", { identity: guest })).content.find(item => item.id === article.id);
+  assert.equal(cardData.coverUrl, `/media/${cover.id}?preview=1`);
+  const coverResponse = await request(cardData.coverUrl, { identity: guest });
+  assert.equal(coverResponse.status, 200); assert.equal(await coverResponse.text(), "PREVIEW-COVER");
   const saved = await ok(`/api/admin/content/${article.id}`);
   const shown = await ok(`/api/content/${article.id}`, { identity: guest });
   const preview = await ok("/api/admin/content-preview", { method: "POST", body: { bodyHtml: html } });
@@ -55,6 +68,8 @@ try {
   await ok(`/api/admin/security/content/${article.id}`, { method: "PUT", body: { lock: { enabled: true, code: "765432" } } });
   assert.equal((await request(`/api/content/${article.id}`, { identity: guest })).status, 423, "inline feeds must not bypass article locks");
   assert.equal((await ok("/api/bootstrap", { identity: guest })).content.find(item => item.id === article.id).locked, true);
+  assert.equal((await ok("/api/bootstrap", { identity: guest })).content.find(item => item.id === article.id).coverUrl, null);
+  assert.equal((await request(`/media/${cover.id}?preview=1`, { identity: guest })).status, 423, "a locked article's cover cannot be read separately");
   const hidden = await ok("/api/admin/sections", { method: "POST", body: { name: "隐私板块", kind: "content", visibility: "private", articleLayout: "feed" } });
   assert.ok(!(await ok("/api/bootstrap", { identity: guest })).sections.some(item => item.id === hidden.id));
   console.log("personal space layouts, inheritance, safe rich-text round-trip, previews and locked feeds passed");

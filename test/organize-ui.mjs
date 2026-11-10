@@ -392,6 +392,22 @@ portfolio.document.getElementById("personal-space-title").focus = () => {};
 portfolio.context.history = { state: null, pushState(value, _, url) { this.state = value; portfolio.context.location.hash = new URL(url, "https://example.test").hash; },
   replaceState(value, _, url) { this.state = value; portfolio.context.location.hash = new URL(url, "https://example.test").hash; } };
 const indexSource = await readFile("public/index.html", "utf8");
+// Exercise the real shared article card rather than the layout-only stub.
+portfolio.context.contentTimeLabels = () => ({ published: "发布时间", updated: "修改时间" });
+portfolio.run(indexSource.slice(indexSource.indexOf('    function contentCard('), indexSource.indexOf('    function renderPortfolioPanel()', indexSource.indexOf('    function contentCard('))));
+portfolio.run(`contentViewGrants.clear();contentViewGrants.set('content:cover-article',{token:'${"c".repeat(64)}',expiresAt:Date.now()+10000,owner:'content:cover-article'})`);
+const coveredCard = portfolio.run(`contentCard({id:'cover-article',title:'有封面的文章',coverUrl:'/media/cover-image?download=1'}, {name:'文章'})`);
+const cardCover = coveredCard.querySelector(".ps-article-cover img"); assert.ok(cardCover);
+assert.match(cardCover.getAttribute("src"), /preview=1/); assert.doesNotMatch(cardCover.getAttribute("src"), /download=/);
+assert.match(cardCover.getAttribute("src"), /grants=/); assert.equal(cardCover.loading, "lazy");
+assert.equal(coveredCard.getAttribute("role"), "button"); assert.equal(coveredCard.firstElementChild.className, "ps-article-cover");
+assert.equal(portfolio.run(`contentCard({id:'no-cover',title:'无封面'}, {name:'文章'})`).querySelector("img"), null);
+assert.equal(portfolio.run(`contentCard({id:'locked-cover',title:'已锁定',locked:true,coverUrl:'/media/secret-cover?preview=1'}, {name:'文章'})`).querySelector("img"), null);
+assert.equal(portfolio.run(`personalSpaceArticleCover({title:'外部地址',coverUrl:'https://external.test/private.jpg'})`), null);
+cardCover.dispatchEvent(new portfolio.window.Event("error"));
+assert.equal(coveredCard.querySelector(".ps-article-cover img"), null);
+assert.match(coveredCard.querySelector(".ps-article-cover").textContent, /仍可打开文章/);
+portfolio.run("contentViewGrants.clear()");
 const historyFunction = indexSource.slice(indexSource.indexOf('    function updateSectionHistory('), indexSource.indexOf('    /* 同一游客'));
 portfolio.run('const APP_HISTORY_LAYER="app";'); portfolio.run(historyFunction);
 portfolio.run('contentViewGrants.clear();personalSpaceNavigate({category:"gallery",sectionId:"photos",subsectionId:"photo-parent",all:true});');
@@ -431,8 +447,8 @@ portfolio.run(indexSource.slice(indexSource.indexOf('    function renderReaderBo
 portfolio.run(`state.data.sections.find(item=>item.id==="articles").article_layout="feed";
   state.data.content=[
     {id:"older",section_id:"articles",title:"旧动态",published_at:"2026-09-01T00:00:00Z",updated_at:"2026-10-05T00:00:00Z"},
-    {id:"newer",section_id:"articles",title:"新动态",published_at:"2026-10-04T00:00:00Z"},
-    {id:"secret",section_id:"articles",title:"已锁定动态",published_at:"2026-09-03T00:00:00Z",locked:true}];
+    {id:"newer",section_id:"articles",title:"新动态",published_at:"2026-10-04T00:00:00Z",coverUrl:"/media/feed-cover?preview=1"},
+    {id:"secret",section_id:"articles",title:"已锁定动态",published_at:"2026-09-03T00:00:00Z",locked:true,coverUrl:"/media/locked-feed-cover?preview=1"}];
   personalSpaceNavigate({category:"content",sectionId:"articles"});`);
 await new Promise(resolve => setTimeout(resolve, 0));
 assert.deepEqual([...portfolio.document.querySelectorAll(".ps-feed-entry")].map(node => node.dataset.contentId), ["newer", "secret", "older"]);
@@ -440,6 +456,8 @@ assert.deepEqual(requestedBodies.sort(), ["/api/content/newer", "/api/content/ol
 assert.match(portfolio.document.querySelector(".ps-feed-date").textContent, /2026年10月4日.*星期日/);
 assert.match(portfolio.document.querySelector(".ps-feed-body").innerHTML, /font-size:24px/);
 assert.ok(portfolio.document.querySelector('[data-content-id="secret"] .locked-content-notice'));
+assert.match(portfolio.document.querySelector('[data-content-id="newer"] .ps-article-cover img').getAttribute("src"), /feed-cover\?preview=1/);
+assert.equal(portfolio.document.querySelector('[data-content-id="secret"] .ps-article-cover'), null);
 portfolio.run('personalSpaceNavigate({category:"resources",sectionId:"files",all:true});state.currentResourceFolder="custom-folder";contentViewGrants.set("assetFolder:custom-folder",{kind:"assetFolder",id:"custom-folder",token:"folder-token",expiresAt:Date.now()+10000});personalSpaceNavigate(personalSpaceRoute,{preserveFolder:true});');
 assert.equal(portfolio.run('contentViewGrants.has("assetFolder:custom-folder")'), true, "opening a protected folder keeps its redeemed lock");
 portfolio.run('contentViewGrants.clear();');
