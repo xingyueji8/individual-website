@@ -11,6 +11,7 @@
     return data;
   }
   function expire(message) {
+    document.querySelectorAll("#share-works video,#share-works audio,#share-reader video,#share-reader audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
     node("share-title").textContent = "分享链接已失效";
     node("share-status").textContent = message;
     node("share-works").replaceChildren(); node("share-folders").replaceChildren();
@@ -57,14 +58,17 @@
   }
   function assetCard(asset) {
     const { item, info, actions } = card(asset.title);
+    let playbackControls = null;
     if (asset.kind === "video") {
       const video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata";
       if (!state.data?.canDownload) video.setAttribute("controlsList", "nodownload");
-      video.src = globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url;
+      if (globalThis.XYJVideo?.previewControls) playbackControls = globalThis.XYJVideo.previewControls(video, { originalUrl: asset.url, variants: asset.variants });
+      else video.src = globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url;
       if (asset.posterUrl) video.poster = asset.posterUrl; item.prepend(video);
     }
     const meta = document.createElement("p"); meta.textContent = `${asset.kind.toUpperCase()} · ${(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB`;
     info.insertBefore(meta, actions);
+    if (playbackControls) info.insertBefore(playbackControls, actions);
     if (asset.kind === "audio") {
       const audio = document.createElement("audio"); audio.controls = true; audio.preload = "metadata"; audio.src = asset.url;
       if (!state.data?.canDownload) audio.setAttribute("controlsList", "nodownload"); item.prepend(audio);
@@ -133,6 +137,7 @@
       node("share-back").hidden = state.data.kind === "content";
       node("reader-title").textContent = article.title;
       node("reader-meta").textContent = `发布于 ${new Date(article.published_at).toLocaleString("zh-CN")} · 更新于 ${new Date(article.updated_at).toLocaleString("zh-CN")}`;
+      node("reader-body").querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
       node("reader-body").innerHTML = article.body_html;
       node("reader-body").querySelectorAll(".resource-embed[data-resource-id]").forEach(element => {
         const asset = state.data.assets.find(item => item.id === element.dataset.resourceId);

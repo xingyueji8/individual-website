@@ -14,7 +14,7 @@
     "test:organize": "node test/content-organize.mjs && node test/organize-ui.mjs",
     "test:photos": "node test/photo-viewer-ui.mjs",
     "test:mobile": "node test/mobile-entry-ui.mjs",
-    "test:mobile-media": "node test/mobile-media.mjs",
+    "test:mobile-media": "node test/mobile-media.mjs && node test/video-playback.mjs",
     "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",
     "test:agent": "node test/site-agent.mjs && node test/site-agent-ui.mjs && node test/site-agent-interactions.mjs && node test/site-agent-visibility.mjs",
     "test:shares": "node test/shares.mjs && node test/shares-ui.mjs",

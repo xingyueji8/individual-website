@@ -265,15 +265,21 @@ readonlyViewer.context.fetch = async path => {
   if (path === prefix) return Response.json({ kind: "subsection", title: "仅浏览", canDownload: false, subsections: [],
     content: [{ id: "readonly", title: "文章" }],
     media: [{ id: "image", role: "item", title: "图片", url: `${prefix}/media/image?preview=1`, downloadUrl: `${prefix}/media/image?download=1` }],
-    assets: [{ id: "video", kind: "video", title: "视频", sizeBytes: 10, url: `${prefix}/asset/video`, downloadUrl: `${prefix}/asset/video?download=1` },
+    assets: [{ id: "video", kind: "video", title: "视频", sizeBytes: 10, url: `${prefix}/asset/video`, downloadUrl: `${prefix}/asset/video?download=1`, variants: [480,720].map(height=>({label:`${height}p`,status:"ready",url:`${prefix}/asset/video?variant=${height}p`})) },
       { id: "word", kind: "word", title: "文档", sizeBytes: 10, url: `${prefix}/asset/word`, previewUrl: `${prefix}/asset/word?variant=preview` },
       { id: "zip", kind: "archive", title: "压缩包", sizeBytes: 10, url: `${prefix}/asset/zip`, downloadUrl: `${prefix}/asset/zip?download=1` }] });
   if (path === `${prefix}/content/readonly`) return Response.json({ id: "readonly", title: "文章", canDownload: false, body_html: "<p>只读正文</p>" });
   throw new Error("Unexpected readonly request: " + path);
 };
+readonlyViewer.window.HTMLElement.prototype.load = function () { this.paused = true; };
+readonlyViewer.window.HTMLElement.prototype.pause = function () { this.paused = true; };
+readonlyViewer.run(await readFile("public/video-playback.js", "utf8"));
 readonlyViewer.run(await readFile("public/share.js", "utf8")); await settle();
 assert.equal(readonlyViewer.document.querySelectorAll('a[href*="download=1"]').length, 0);
 assert.equal(readonlyViewer.document.querySelector("video").getAttribute("controlsList"), "nodownload");
+assert.match(readonlyViewer.document.querySelector("video").src, /variant=720p/);
+assert.equal(readonlyViewer.document.querySelector("video").preload, "none");
+assert.ok(readonlyViewer.document.querySelector('.video-quality-controls select[aria-label="视频播放画质"]'));
 assert.ok(readonlyViewer.document.querySelector('a[href$="?variant=preview"]'));
 assert.ok(readonlyViewer.document.getElementById("share-works").textContent.includes("暂不支持在线预览"));
 [...readonlyViewer.document.querySelectorAll("button")].find(control => control.textContent === "浏览文章").click(); await settle();

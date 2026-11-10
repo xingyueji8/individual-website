@@ -231,6 +231,18 @@ try {
   const visible = vm.runInNewContext(functionSource("normalizedVisibility") + functionSource("visibleToWebsite") + "visibleToWebsite;");
   const hooks = { accessTables, visible, hash: async value => createHash("sha256").update(value).digest("hex"),
     error: (status, message) => Object.assign(new Error(message), { status }) };
+  let videoGraphSize = 0;
+  const playbackContext = vm.createContext({ URL,
+    websiteAccessContext: async () => ({ adminAccess: true }),
+    contentSecurity: async (req, env, seed) => {
+      const security = await createContentSecurity(req, env, { fullAccess: true, adminAccess: true }, hooks, seed);
+      videoGraphSize = security.records.size; return security;
+    },
+  });
+  const playbackStart = workerSource.indexOf("async function assetAccessContext(");
+  const playbackAccess = vm.runInContext(workerSource.slice(playbackStart, workerSource.indexOf("\n}", playbackStart) + 2) + ";assetAccessContext", playbackContext);
+  await playbackAccess(new Request(`${base}/files/${asset.id}`, { headers: { Range: "bytes=0-9" } }), { DB: db }, { id: asset.id, kind: "video" });
+  assert.ok(videoGraphSize < 10, "video range authorization reads only this video's ancestor graph despite a large photo library");
   const targets = [{ kind: "media", id: first.id }, { kind: "media", id: newInline.id }, { kind: "asset", id: asset.id },
     { kind: "subsection", id: child.id }, { kind: "assetFolder", id: newFolder.id }, { kind: "media", id: "missing-photo" }];
   for (const context of [{ user: { id: alice.id }, fullAccess: true }, { user: { id: bob.id }, fullAccess: true },

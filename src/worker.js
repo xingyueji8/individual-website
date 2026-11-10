@@ -4289,7 +4289,7 @@ function parseByteRange(header, totalSize) {
 }
 
 async function assetAccessContext(request, env, asset) {
-  const security = await contentSecurity(request, env);
+  const security = await contentSecurity(request, env, { targets: [{ kind: "asset", id: asset.id }] });
   const wantsDownload = new URL(request.url).searchParams.get("download") === "1"
     || asset.kind === "archive" || asset.kind === "file";
   security.requireView("asset", asset.id, { download: wantsDownload });

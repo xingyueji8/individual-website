@@ -275,9 +275,22 @@ try {
   await db.prepare(`INSERT INTO asset_variants(id,asset_id,label,object_key,mime_type,size_bytes,status,created_at,updated_at)
     VALUES('ro-word-preview','ro-word','preview','ro-word-pdf','application/pdf',10,'ready',?,?)`).bind(timestamp, timestamp).run();
   await bucket.put("ro-word-pdf", "0123456789", { httpMetadata: { contentType: "application/pdf" } });
+  for (const [id,assetId,label,state] of [["ro-720","ro-video","720p","ready"],["ro-480","ro-video","480p","ready"],["ro-pending","ro-video","1080p","uploading"],["outside-720","file-board-outside","720p","ready"]]) {
+    await db.prepare("INSERT INTO asset_variants(id,asset_id,label,object_key,mime_type,size_bytes,status,created_at,updated_at) VALUES(?,?,?,?,'video/mp4',10,?,?,?)").bind(id,assetId,label,`${id}-bytes`,state,timestamp,timestamp).run();
+    await bucket.put(`${id}-bytes`, "0123456789", { httpMetadata: { contentType: "video/mp4" } });
+  }
   const roBoardPrefix = await readonly("section", roBoard.id);
   const roFiles = await ok(roBoardPrefix, { cookie: "" }); assert.equal(roFiles.canDownload, false);
   assert.ok(roFiles.assets.every(asset => asset.downloadUrl === null)); assert.ok(roFiles.assets.find(asset => asset.id === "ro-word").previewUrl.endsWith("?variant=preview"));
+  const sharedVideoVariants = roFiles.assets.find(item => item.id === "ro-video").variants;
+  assert.deepEqual(new Set(sharedVideoVariants.map(item => item.label)), new Set(["480p","720p"]));
+  assert.ok(sharedVideoVariants.every(item => item.downloadUrl === null && item.url.startsWith(`${roBoardPrefix}/asset/ro-video?variant=`)));
+  assert.doesNotMatch(JSON.stringify(roFiles), /outside-720|object_key|ro-720-bytes/);
+  for (const variant of sharedVideoVariants) {
+    const response = await request(variant.url, { cookie: "", headers: { Range: "bytes=2-5" } }); assert.equal(response.status, 206); assert.equal(await response.text(), "2345");
+    await status(403, variant.url + "&download=1", { cookie: "" });
+  }
+  await status(404, `${roBoardPrefix}/asset/file-board-outside?variant=720p`, { cookie: "" });
   assert.equal((await db.prepare("SELECT download_policy FROM portfolio_sections WHERE id=?").bind(roBoard.id).first()).download_policy, "member");
   assert.equal((await db.prepare("SELECT download_policy FROM assets WHERE id='ro-video'").first()).download_policy, "member");
   for (const id of ["ro-video", "ro-audio", "ro-pdf", "ro-word?variant=preview"]) {

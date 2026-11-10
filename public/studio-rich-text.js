@@ -186,8 +186,9 @@ function studioPreviewAsset(asset) {
   if (asset.kind === "video" || asset.kind === "audio") {
     const media = document.createElement(asset.kind); media.controls = true; media.preload = "metadata";
     if (asset.kind === "video") media.playsInline = true;
-    media.src = asset.kind === "video" ? globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url : asset.url;
     if (asset.kind === "video" && asset.poster_url) media.poster = asset.poster_url; box.append(media);
+    if (asset.kind === "video" && globalThis.XYJVideo?.previewControls) box.append(globalThis.XYJVideo.previewControls(media, { originalUrl: asset.url, variants: asset.variants }));
+    else media.src = asset.kind === "video" ? globalThis.XYJVideo?.preferredVariant(asset.variants)?.url || asset.url : asset.url;
   } else if (asset.kind === "pdf" || asset.kind === "word") {
     const frame = document.createElement("iframe"); frame.title = title.textContent;
     frame.src = asset.kind === "pdf" ? asset.url : asset.variants?.find(item => item.label === "preview")?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}&studio=1`;

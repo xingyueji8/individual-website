@@ -302,10 +302,17 @@ export async function shareListing(env, share) {
     EXISTS(SELECT 1 FROM asset_variants v WHERE v.asset_id=a.id AND v.label='preview' AND v.status='ready' AND v.mime_type='application/pdf') AS has_preview
     FROM assets a JOIN share_targets t ON t.kind='asset' AND t.target_id=a.id
     WHERE t.token_hash=? AND t.role!='guard' AND a.status='ready'`).bind(share.hash).all());
+  const variantRows = resultRows(await env.DB.prepare(`SELECT v.asset_id,v.label,v.mime_type,v.size_bytes,v.status
+    FROM asset_variants v JOIN share_targets t ON t.kind='asset' AND t.target_id=v.asset_id
+    JOIN assets a ON a.id=v.asset_id WHERE t.token_hash=? AND t.role!='guard' AND a.status='ready'
+    AND v.status='ready' AND v.label IN ('360p','480p','720p','1080p')`).bind(share.hash).all());
   const assets = assetRows.map(item => ({ id: item.id, title: item.display_name, mimeType: item.mime_type, kind: item.kind,
     sizeBytes: item.size_bytes, contentId: share.has("content", item.content_id) ? item.content_id : null, subsectionId: boardId(item.subsection_id),
     url: `${prefix}/asset/${item.id}`, downloadUrl: share.allowDownload ? `${prefix}/asset/${item.id}?download=1` : null,
     previewUrl: item.has_preview ? `${prefix}/asset/${item.id}?variant=preview` : item.kind === "pdf" ? `${prefix}/asset/${item.id}` : "",
+    variants: variantRows.filter(variant => variant.asset_id === item.id).map(variant => ({ label: variant.label, status: variant.status,
+      mime_type: variant.mime_type, size_bytes: variant.size_bytes, url: `${prefix}/asset/${item.id}?variant=${variant.label}`,
+      downloadUrl: share.allowDownload ? `${prefix}/asset/${item.id}?variant=${variant.label}&download=1` : null })),
     posterUrl: item.poster_object_key ? `${prefix}/asset/${item.id}?poster=1` : "" }));
   const root = share.records.get(key(share.kind, share.target_id));
   return { kind: share.kind, targetId: share.target_id, canDownload: share.allowDownload, title: root.title || root.caption || root.filename || root.display_name || root.name,

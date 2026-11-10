@@ -1522,7 +1522,7 @@
   <link rel="stylesheet" href="/personal-space.css?v=20261111-article-covers">
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/mobile.css">
-  <link rel="stylesheet" href="/media-performance.css?v=20261107">
+  <link rel="stylesheet" href="/media-performance.css?v=20261111-adaptive-video">
 </head>
 <body>
   <!-- ========================================================
@@ -2001,7 +2001,7 @@
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js?v=20261111-article-covers"></script>
   <script src="/entry-auth.js"></script>
-  <script src="/video-playback.js?v=20261107"></script>
+  <script src="/video-playback.js?v=20261111-adaptive-video"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
     const state = {
@@ -2752,8 +2752,9 @@
           const script = document.createElement("script");
           script.src = "https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js";
           script.referrerPolicy = "no-referrer";
-          script.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error("HLS 组件加载失败"));
-          script.onerror = () => reject(new Error("HLS 组件加载失败"));
+          const timer=setTimeout(()=>{script.remove();reject(new Error("HLS 组件加载超时"))},8000);
+          script.onload = () => {clearTimeout(timer);window.Hls ? resolve(window.Hls) : reject(new Error("HLS 组件加载失败"))};
+          script.onerror = () => {clearTimeout(timer);reject(new Error("HLS 组件加载失败"))};
           document.head.append(script);
         }).catch((error) => { state.hlsLibraryPromise = null; throw error; });
       }
@@ -2762,34 +2763,32 @@
 
     async function setResourceVideoSource(video, source, { hls = false } = {}) {
       const generation = state.resourceSourceGeneration = (state.resourceSourceGeneration || 0) + 1;
+      state.hlsSourceCancel?.();state.hlsSourceCancel=null;
       state.hlsPlayer?.destroy?.(); state.hlsPlayer = null;
       if (!hls || video.canPlayType("application/vnd.apple.mpegurl")) { video.src = source; video.load(); return; }
       const Hls = await loadHlsLibrary();
       if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video || !video.isConnected) return;
       if (!Hls.isSupported()) throw new Error("当前浏览器不支持 HLS 自动画质");
       const player = new Hls(globalThis.XYJVideo.hlsConfig()); state.hlsPlayer = player;
-      player.on(Hls.Events.MANIFEST_PARSED, () => globalThis.XYJVideo.capHlsLevels(player));
-      player.loadSource(source); player.attachMedia(video);
+      await new Promise((resolve,reject)=>{
+        let settled=false;
+        const finish=(callback,value)=>{if(settled)return;settled=true;clearTimeout(timer);state.hlsSourceCancel=null;callback(value)};
+        const timer=setTimeout(()=>finish(reject,new Error("自动流读取超时")),12000);
+        state.hlsSourceCancel=()=>finish(resolve);
+        player.on(Hls.Events.MANIFEST_PARSED,()=>{globalThis.XYJVideo.capHlsLevels(player);finish(resolve)});
+        player.on(Hls.Events.ERROR,(_event,data)=>{
+          if(!data.fatal||generation!==state.resourceSourceGeneration)return;
+          if(!settled)finish(reject,new Error("自动流暂时无法播放"));
+          else video.dispatchEvent(new Event("xyj-video-source-error"));
+        });
+        player.loadSource(source);player.attachMedia(video);
+      });
     }
 
     function videoSourceButton(video, source, label, host, options = {}) {
-      const button = document.createElement("button"); button.type = "button"; button.className = "btn small ghost"; button.textContent = label;
-      button.addEventListener("click", async () => {
-        state.videoFrameCleanup?.(); state.videoFrameCleanup = null;
-        host.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
-        const position = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-        const wasPlaying = !video.paused;
-        const generation = (state.resourceSourceGeneration || 0) + 1;
-        try {
-          video.addEventListener("loadedmetadata", () => {
-            if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video) return;
-            if (Number.isFinite(video.duration) && position < video.duration) video.currentTime = position;
-            if (wasPlaying) video.play().catch(() => null);
-          }, { once: true });
-          await setResourceVideoSource(video, source, options);
-        } catch (error) { alert(error.message); }
-      });
-      return button;
+      const control=document.createElement("button");control.type="button";control.className="btn small ghost";control.textContent=label;control.dataset.videoSource=source;
+      control.addEventListener("click",()=>state.videoPlaybackController?.select(source,{...options,label}));
+      return control;
     }
 
     const RESOURCE_VIDEO_SEEK_SECONDS = 5;
@@ -2857,55 +2856,21 @@
         state.activeResourceVideo = video;
         document.body.classList.add("video-preview-active");
         if (asset.poster_url) video.poster = asset.poster_url;
-        const qualityOrder = { "360p": 360, "480p": 480, "720p": 720, "1080p": 1080 };
-        const videoVariants = variants.filter((item) => qualityOrder[item.label]).sort((a, b) => qualityOrder[a.label] - qualityOrder[b.label]);
-        const preferred = globalThis.XYJVideo.preferredVariant(videoVariants);
-        const fallbackSource = preferred?.url || asset.url;
-        const defaultSource = asset.stream_hls_url || fallbackSource; viewer.append(video);
-        let usingHls = Boolean(asset.stream_hls_url);
-        setResourceVideoSource(video, defaultSource, { hls: Boolean(asset.stream_hls_url) }).catch(() => {
-          if (state.activeResourceVideo === video && video.isConnected) { usingHls = false; setResourceVideoSource(video, fallbackSource); }
+        const videoVariants=globalThis.XYJVideo.videoVariants(variants);
+        const automatic=document.createElement("button");automatic.type="button";automatic.className="btn small ghost";automatic.textContent="自动流畅";automatic.dataset.videoAuto="true";automatic.hidden=!videoVariants.length&&!asset.stream_hls_url;
+        automatic.addEventListener("click",()=>state.videoPlaybackController?.auto());quality.append(automatic);
+        quality.append(videoSourceButton(video,asset.url,"原始文件",quality));
+        videoVariants.forEach(variant=>quality.append(videoSourceButton(video,variant.url,variant.label,quality)));
+        viewer.append(video);
+        state.videoPlaybackController=globalThis.XYJVideo.attachPlayer(video,{
+          originalUrl:asset.url,variants:videoVariants,streamUrl:asset.stream_hls_url,preload:"metadata",
+          setSource:(source,options)=>setResourceVideoSource(video,source,options),
+          lowerStream:()=>{const hls=state.hlsPlayer;if(!hls||!Number.isInteger(hls.currentLevel)||hls.currentLevel<=0)return false;const level=hls.currentLevel-1;hls.autoLevelCapping=level;hls.nextLevel=level;return true},
+          onStatus:message=>{if(state.activeResourceVideo!==video)return;const status=document.getElementById("resource-video-status");status.hidden=false;status.textContent=message},
+          onSourceChange:source=>{quality.querySelectorAll("button").forEach(control=>control.classList.toggle("active",source.automatic&&!automatic.hidden?control.dataset.videoAuto==="true":control.dataset.videoSource===source.url));const status=document.getElementById("resource-video-status");status.hidden=false;status.textContent=source.label==="原始文件"&&!videoVariants.length&&!asset.stream_hls_url?"当前只有原始文件，暂无较低清晰度预览版本。":`当前画质：${source.label}${source.automatic?"（流畅优先）":""}`},
         });
-        let currentVariant = preferred;
-        const watchFrames = () => {
-          state.videoFrameCleanup = globalThis.XYJVideo.watchFrameDrops(video, async () => {
-            if (state.activeResourceVideo !== video) return;
-            const status = document.getElementById("resource-video-status");
-            status.hidden = false;
-            const hls = state.hlsPlayer;
-            if (usingHls && hls?.currentLevel > 0) {
-              const level = hls.currentLevel - 1; hls.autoLevelCapping = level; hls.nextLevel = level;
-              status.textContent = "已降低自动画质，优先保证流畅播放。"; state.videoFrameCleanup?.(); watchFrames(); return;
-            }
-            const lower = usingHls ? preferred : videoVariants.filter(item => !currentVariant || parseInt(item.label) < parseInt(currentVariant.label)).at(-1);
-            if (!lower) { status.textContent = "当前设备播放此视频较吃力，暂无更低画质版本可切换。"; return; }
-            const position = video.currentTime; const wasPlaying = !video.paused;
-            const generation = (state.resourceSourceGeneration || 0) + 1;
-            video.addEventListener("loadedmetadata", () => {
-              if (generation !== state.resourceSourceGeneration || state.activeResourceVideo !== video) return;
-              if (Number.isFinite(video.duration) && position < video.duration) video.currentTime = position;
-              if (wasPlaying) video.play().catch(() => null);
-            }, { once: true });
-            currentVariant = lower; usingHls = false;
-            await setResourceVideoSource(video, lower.url);
-            quality.querySelectorAll("button").forEach(control => control.classList.toggle("active", control.dataset.videoSource === lower.url));
-            status.textContent = `已切换为 ${lower.label}，优先保证流畅播放。`;
-            state.videoFrameCleanup?.(); watchFrames();
-          });
-        };
-        watchFrames();
-        if (asset.stream_hls_url) {
-          const automatic = videoSourceButton(video, asset.stream_hls_url, "自动画质", quality, { hls: true }); automatic.classList.add("active"); quality.append(automatic);
-        }
-        const originalButton = videoSourceButton(video, asset.url, "原始文件", quality); quality.append(originalButton);
-        videoVariants.forEach((variant) => {
-          const control = videoSourceButton(video, variant.url, variant.label, quality);
-          control.dataset.videoSource = variant.url;
-          if (variant.url === defaultSource) control.classList.add("active"); quality.append(control);
-        });
-        if (!videoVariants.length && !asset.stream_hls_url) originalButton.classList.add("active");
-        downloads.append(resourceDownloadButton("下载原始视频", asset.downloadUrl));
-        videoVariants.forEach((variant) => downloads.append(resourceDownloadButton(`下载 ${variant.label}`, variant.downloadUrl)));
+        downloads.append(resourceDownloadButton("下载原始视频",asset.downloadUrl));
+        videoVariants.forEach(variant=>downloads.append(resourceDownloadButton(`下载 ${variant.label}`,variant.downloadUrl)));
       } else if (asset.kind === "audio") {
         const audio = document.createElement("audio"); audio.controls = true; audio.preload = "metadata"; audio.src = asset.url; audio.style.width = "min(680px,90%)"; viewer.append(audio);
         downloads.append(resourceDownloadButton("下载音频", asset.downloadUrl));
@@ -4403,6 +4368,8 @@
     const imageDialog = document.getElementById("image-dialog");
     const resourceDialog = document.getElementById("resource-dialog");
     function stopResourcePlayback() {
+      state.videoPlaybackController?.dispose();state.videoPlaybackController=null;
+      state.hlsSourceCancel?.();state.hlsSourceCancel=null;
       state.videoFrameCleanup?.(); state.videoFrameCleanup = null;
       state.resourceSourceGeneration = (state.resourceSourceGeneration || 0) + 1;
       state.hlsPlayer?.destroy?.(); state.hlsPlayer = null;
