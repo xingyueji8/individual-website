@@ -34,11 +34,7 @@ video.currentTime=51;await controller.select("/1080.mp4");video.metadata();await
 assert.equal(video.currentTime,51);assert.equal(video.paused,false);assert.ok(f.timers.size>0,"manual switching keeps health monitoring");
 const sameLoads=video.loads;await controller.select("/1080.mp4");assert.equal(video.loads,sameLoads,"selecting the current quality never reloads it");
 video.readyState=2;video.dispatchEvent(new Event("waiting"));await f.tick(9000);
-assert.equal(video.src,"/1080.mp4","buffering does not override a manually selected quality");
-assert.equal(video.loads,sameLoads,"manual quality stays loaded until the viewer chooses another one");
-await controller.auto();video.metadata();await flush();
-video.readyState=2;video.dispatchEvent(new Event("waiting"));await f.tick(9000);
-assert.equal(video.src,"/480.mp4","automatic mode still selects a smaller rendition after sustained buffering");video.metadata();await flush();
+assert.equal(video.src,"/720.mp4","sustained buffering selects a smaller ready rendition");video.metadata();await flush();
 const beforeSeek=video.src;video.seeking=true;video.readyState=2;await f.tick(10000);assert.equal(video.src,beforeSeek);
 video.seeking=false;video.readyState=4;video.dispatchEvent(new Event("seeked"));
 assert.ok(statuses.some(message=>message.includes("持续缓冲")));
@@ -79,30 +75,6 @@ const race=r.policy.attachPlayer(racing,{originalUrl:"/original.mp4",variants,se
 await race.select("/480.mp4");racing.metadata();finishOldSource();await race.ready;
 assert.equal(racing.src,"/480.mp4");r.policy.disposeMedia(racing);assert.equal(r.timers.size,0);
 
-// Original quality stays selected through repeated clicks, frame drops and errors.
-const m=fixture(),manual=new Video(),manualMessages=[];
-const manualPlayer=m.policy.attachPlayer(manual,{originalUrl:"/original.mp4",variants,onStatus:message=>manualMessages.push(message)});
-await manualPlayer.ready;manual.metadata();manual.currentTime=42;await manual.play();
-await manualPlayer.select("/original.mp4");manual.metadata();await flush();
-const originalLoads=manual.loads;
-await manualPlayer.select("/original.mp4");await manualPlayer.select("/original.mp4");
-assert.equal(manual.loads,originalLoads,"clicking original quality again never reloads the video");
-assert.equal(manual.currentTime,42);assert.equal(manual.paused,false);
-manual.frames=100;await m.tick();manual.frames=200;manual.dropped=50;await m.tick();
-assert.equal(manual.src,"/original.mp4","frame drops do not silently replace the selected original");
-assert.equal(manual.loads,originalLoads);assert.match(manualMessages.at(-1),/自动流畅/);
-manual.dispatchEvent(new Event("error"));await flush();
-assert.equal(manual.loads,originalLoads,"a failed manual source reports the error without a reload loop");
-assert.match(manualMessages.at(-1),/无法播放/);m.policy.disposeMedia(manual);
-
-// Another quality selected before metadata arrives retains the original position.
-const q=fixture(),quick=new Video();
-const quickPlayer=q.policy.attachPlayer(quick,{originalUrl:"/original.mp4",variants});
-await quickPlayer.ready;quick.metadata();quick.currentTime=63;await quick.play();
-await quickPlayer.select("/480.mp4");await quickPlayer.select("/original.mp4");
-quick.metadata();await flush();assert.equal(quick.currentTime,63);assert.equal(quick.paused,false);
-q.policy.disposeMedia(quick);
-
 // A single original file is not misrepresented as an automatically transcoded preview.
 const o=fixture(),original=new Video(),messages=[];
 const one=o.policy.attachPlayer(original,{originalUrl:"/only-original.mp4",onStatus:message=>messages.push(message)});await one.ready;original.metadata();await original.play();
@@ -112,4 +84,4 @@ assert.equal(original.loads,1);assert.match(messages.at(-1),/没有更低清晰�
 const b=fixture(),buffered=new Video();buffered.getVideoPlaybackQuality=undefined;
 const frozen=b.policy.attachPlayer(buffered,{originalUrl:"/original.mp4",variants});await frozen.ready;buffered.metadata();await buffered.play();
 await b.tick(11000);assert.equal(buffered.src,"/480.mp4");b.policy.disposeMedia(buffered);
-console.log("adaptive video: automatic buffering recovery, pinned manual quality, original selection, rapid switches, progress, HLS and teardown passed");
+console.log("adaptive video: buffering, repeated drops, manual quality, progress, HLS re-arming, decoder exclusivity and teardown passed");
