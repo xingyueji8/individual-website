@@ -90,7 +90,7 @@
     const prepared = versions.map(item => ({ ...item, height: parseInt(item.label), hls: false }));
     const best = prepared.find(item => item.url === preferredVariant(versions)?.url) || (originalUrl ? original : prepared[0]);
     const automaticSource = streamUrl ? { url: streamUrl, label: "自动画质", height: Infinity, hls: true } : best;
-    let current = null, automatic = true, disposed = false, generation = 0, stopHealth = null, restore = null, switching = false, wantsPlayback = false, intentEpoch = 0;
+    let current = null, automatic = true, disposed = false, generation = 0, stopHealth = null, restore = null, pendingPosition = null, switching = false, wantsPlayback = false, intentEpoch = 0;
     const failed = new Set();
     video.preload = preload; video.playsInline = true;
     const notify = () => { if (current) onSourceChange({ ...current, automatic }); };
@@ -98,14 +98,17 @@
     const load = setSource || ((source, options) => { if (options.hls) throw new Error("此处暂不支持自动流"); video.src = source; video.load(); });
     async function change(next, { auto = automatic } = {}) {
       if (disposed || !next?.url) return;
+      const modeChanged = automatic !== auto;
       automatic = auto;
-      if (current?.url === next.url && current.hls === next.hls) { notify(); arm(); return; }
-      const sequence = ++generation, position = Number(video.currentTime) || 0, resume = wantsPlayback || !video.paused, restoreIntent = intentEpoch;
+      if (current?.url === next.url && current.hls === next.hls) { notify(); if (modeChanged) arm(); return; }
+      // A second selection can arrive while load() has reset currentTime to zero.
+      const sequence = ++generation, position = pendingPosition ?? (Number(video.currentTime) || 0), resume = wantsPlayback || !video.paused, restoreIntent = intentEpoch;
+      pendingPosition = position;
       stopHealth?.(); stopHealth = null;
       if (restore) video.removeEventListener("loadedmetadata", restore);
       restore = () => {
         if (disposed || sequence !== generation) return;
-        restore = null;
+        restore = null; pendingPosition = null;
         if (position > 0 && Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(position, Math.max(0, video.duration - .05));
         if (resume && restoreIntent === intentEpoch && restoreIntent === playEpoch) { wantsPlayback = true; Promise.resolve(video.play()).catch(() => onStatus("请点击播放继续观看。")); }
       };
@@ -117,6 +120,14 @@
     }
     async function downgrade(reason) {
       if (disposed || !current) return;
+      // Manual quality is a fixed choice; health monitoring may suggest a change.
+      if (!automatic) {
+        const alternatives = prepared.length || streamUrl;
+        onStatus(reason === "source-error"
+          ? `所选画质无法播放，${alternatives ? "可选择其他清晰度或“自动流畅”。" : "请稍后重试或联系站长。"}`
+          : `检测到${reason === "buffering" ? "持续缓冲" : "播放掉帧"}，已保留您选择的${current.label}。${alternatives ? "可切换为“自动流畅”或较低清晰度。" : "当前尚无较低清晰度预览版本。"}`);
+        return;
+      }
       if (reason !== "source-error" && current.hls && lowerStream?.()) {
         onStatus("已降低自动画质，优先保证流畅播放。"); arm(); return;
       }

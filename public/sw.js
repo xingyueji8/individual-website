@@ -6,7 +6,7 @@
  */
 const CACHE_PREFIX = "xyj-static-shell-";
 // 修改此名称会让已安装的桌面/PWA 版本立即替换旧的离线首页外壳。
-const STATIC_CACHE = `${CACHE_PREFIX}adaptive-video-2-3-3`;
+const STATIC_CACHE = `${CACHE_PREFIX}video-quality-selection-2-3-4`;
 const APP_SHELL = [
   "/",
   "/theme.css",
