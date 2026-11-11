@@ -12,9 +12,9 @@ function fixture() {
   return { policy:context.XYJVideo,timers,classes,async tick(ms=1500){now+=ms;for(const callback of [...timers.values()])callback();await flush()} };
 }
 class Video extends EventTarget {
-  constructor(){super();Object.assign(this,{paused:true,seeking:false,ended:false,readyState:4,currentTime:0,duration:120,playbackRate:1,frames:0,dropped:0,loads:0,src:""})}
-  load(){this.loads++;this.currentTime=0;this.frames=this.dropped=0;this.readyState=0;this.paused=true;this.dispatchEvent(new Event("pause"))}
-  metadata(){this.readyState=4;this.dispatchEvent(new Event("loadedmetadata"))}
+  constructor(){super();Object.assign(this,{paused:true,seeking:false,ended:false,readyState:4,currentTime:0,duration:120,playbackRate:1,frames:0,dropped:0,loads:0,src:"",videoWidth:1280,videoHeight:720})}
+  load(){this.loads++;this.currentTime=0;this.frames=this.dropped=0;this.videoWidth=this.videoHeight=0;this.readyState=0;this.paused=true;this.dispatchEvent(new Event("pause"))}
+  metadata({width=1280,height=720}={}){this.readyState=4;this.videoWidth=width;this.videoHeight=height;this.dispatchEvent(new Event("loadedmetadata"));this.dispatchEvent(new Event("loadeddata"))}
   play(){this.paused=false;this.dispatchEvent(new Event("play"));this.dispatchEvent(new Event("playing"));return Promise.resolve()}
   pause(){this.paused=true;this.dispatchEvent(new Event("pause"))}
   getVideoPlaybackQuality(){return {totalVideoFrames:this.frames,droppedVideoFrames:this.dropped}}
@@ -75,6 +75,43 @@ const race=r.policy.attachPlayer(racing,{originalUrl:"/original.mp4",variants,se
 await race.select("/480.mp4");racing.metadata();finishOldSource();await race.ready;
 assert.equal(racing.src,"/480.mp4");r.policy.disposeMedia(racing);assert.equal(r.timers.size,0);
 
+// Phoenix share: automatic mode already uses 720p. Selecting that same file
+// changes only the mode, while rapid original -> 720p retains the saved seek.
+const p=fixture(),phoenix=new Video(),selections=[];
+const phoenixPlayer=p.policy.attachPlayer(phoenix,{originalUrl:"/phoenix-original.mp4",variants:variants.filter(item=>item.label==="720p"),onSourceChange:source=>selections.push(source)});
+await phoenixPlayer.ready;phoenix.metadata();phoenix.currentTime=10.318;await phoenix.play();
+assert.equal(selections.at(-1).automatic,true);
+const autoLoads=phoenix.loads;await phoenixPlayer.select("/720.mp4");
+assert.equal(phoenix.loads,autoLoads);assert.equal(phoenix.currentTime,10.318);
+await phoenixPlayer.auto();assert.equal(phoenix.loads,autoLoads);assert.equal(selections.at(-1).automatic,true);
+await phoenixPlayer.select("/phoenix-original.mp4");await phoenixPlayer.select("/720.mp4");
+phoenix.metadata();await flush();assert.equal(phoenix.currentTime,10.318);assert.equal(phoenix.paused,false);
+p.policy.disposeMedia(phoenix);
+
+// HEVC Main 10 can report canplay while only decoding AAC: no MediaError,
+// video dimensions remain zero. Recover once and retain the current position.
+const u=fixture(),audioOnly=new Video(),compatibility=[];
+const compatible=u.policy.attachPlayer(audioOnly,{originalUrl:"/hevc.mp4",variants:variants.filter(item=>item.label==="720p"),onStatus:message=>compatibility.push(message)});
+const dimensions=new Map();audioOnly.style={setProperty:(key,value)=>dimensions.set(key,value)};
+await compatible.ready;audioOnly.metadata();audioOnly.currentTime=17;await audioOnly.play();
+await compatible.select("/hevc.mp4");audioOnly.metadata({width:0,height:0});await flush();
+assert.equal(audioOnly.src,"/720.mp4");audioOnly.metadata();await flush();
+assert.equal(audioOnly.currentTime,17);assert.equal(audioOnly.paused,false);
+assert.equal(dimensions.get("--video-aspect-ratio"),"1280 / 720");
+assert.match(compatibility.at(-1),/无法解码.*720p/);
+const recoveredLoads=audioOnly.loads;await compatible.select("/hevc.mp4");
+assert.equal(audioOnly.loads,recoveredLoads,"a known audio-only original never triggers another load");
+assert.equal(audioOnly.src,"/720.mp4");assert.equal(audioOnly.currentTime,17);
+u.policy.disposeMedia(audioOnly);
+
+// Devices which decode the 4K original keep original playback available.
+const c=fixture(),capable=new Video();
+const originalPlayer=c.policy.attachPlayer(capable,{originalUrl:"/4k.mp4",variants});
+await originalPlayer.ready;capable.metadata();capable.currentTime=21;
+await originalPlayer.select("/4k.mp4");capable.metadata({width:3840,height:2160});await flush();
+assert.equal(capable.src,"/4k.mp4");assert.equal(capable.currentTime,21);
+c.policy.disposeMedia(capable);
+
 // A single original file is not misrepresented as an automatically transcoded preview.
 const o=fixture(),original=new Video(),messages=[];
 const one=o.policy.attachPlayer(original,{originalUrl:"/only-original.mp4",onStatus:message=>messages.push(message)});await one.ready;original.metadata();await original.play();
@@ -84,4 +121,4 @@ assert.equal(original.loads,1);assert.match(messages.at(-1),/没有更低清晰�
 const b=fixture(),buffered=new Video();buffered.getVideoPlaybackQuality=undefined;
 const frozen=b.policy.attachPlayer(buffered,{originalUrl:"/original.mp4",variants});await frozen.ready;buffered.metadata();await buffered.play();
 await b.tick(11000);assert.equal(buffered.src,"/480.mp4");b.policy.disposeMedia(buffered);
-console.log("adaptive video: buffering, repeated drops, manual quality, progress, HLS re-arming, decoder exclusivity and teardown passed");
+console.log("adaptive video: same-file selection, rapid-switch progress, audio-only HEVC fallback, supported 4K, buffering, HLS and teardown passed");

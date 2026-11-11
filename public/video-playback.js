@@ -90,22 +90,39 @@
     const prepared = versions.map(item => ({ ...item, height: parseInt(item.label), hls: false }));
     const best = prepared.find(item => item.url === preferredVariant(versions)?.url) || (originalUrl ? original : prepared[0]);
     const automaticSource = streamUrl ? { url: streamUrl, label: "自动画质", height: Infinity, hls: true } : best;
-    let current = null, automatic = true, disposed = false, generation = 0, stopHealth = null, restore = null, switching = false, wantsPlayback = false, intentEpoch = 0;
-    const failed = new Set();
+    let current = null, automatic = true, disposed = false, generation = 0, stopHealth = null, restore = null, pendingPosition = null, switching = false, wantsPlayback = false, intentEpoch = 0, sourceNotice = "";
+    const failed = new Set(), unsupported = new Set();
     video.preload = preload; video.playsInline = true;
-    const notify = () => { if (current) onSourceChange({ ...current, automatic }); };
+    video.classList?.add("video-playback-managed");
+    const notify = () => { if (current) { onSourceChange({ ...current, automatic }); if (sourceNotice) onStatus(sourceNotice); } };
+    const resetFailures = () => { failed.clear(); for (const url of unsupported) failed.add(url); };
     const arm = () => { stopHealth?.(); stopHealth = watchPlaybackHealth(video, issue => downgrade(issue.reason)); };
+    const picture = () => {
+      if (disposed || !current) return;
+      const width = Number(video.videoWidth), height = Number(video.videoHeight);
+      if (width > 0 && height > 0) {
+        video.style?.setProperty("--video-aspect-ratio", `${width} / ${height}`);
+      } else if (!switching && !current.hls && video.readyState >= 2 && width === 0 && height === 0 && !unsupported.has(current.url)) {
+        // Some browsers play only the AAC track of an unsupported HEVC file,
+        // reporting canplay and no MediaError despite having no video picture.
+        unsupported.add(current.url);
+        downgrade("unsupported-video").catch(() => {});
+      }
+    };
     const load = setSource || ((source, options) => { if (options.hls) throw new Error("此处暂不支持自动流"); video.src = source; video.load(); });
     async function change(next, { auto = automatic } = {}) {
       if (disposed || !next?.url) return;
       automatic = auto;
       if (current?.url === next.url && current.hls === next.hls) { notify(); arm(); return; }
-      const sequence = ++generation, position = Number(video.currentTime) || 0, resume = wantsPlayback || !video.paused, restoreIntent = intentEpoch;
+      // load() immediately resets currentTime. Another selection must retain
+      // the saved position until the replacement's metadata has restored it.
+      const sequence = ++generation, position = pendingPosition ?? (Number(video.currentTime) || 0), resume = wantsPlayback || !video.paused, restoreIntent = intentEpoch;
+      pendingPosition = position;
       stopHealth?.(); stopHealth = null;
       if (restore) video.removeEventListener("loadedmetadata", restore);
       restore = () => {
         if (disposed || sequence !== generation) return;
-        restore = null;
+        restore = null; pendingPosition = null;
         if (position > 0 && Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(position, Math.max(0, video.duration - .05));
         if (resume && restoreIntent === intentEpoch && restoreIntent === playEpoch) { wantsPlayback = true; Promise.resolve(video.play()).catch(() => onStatus("请点击播放继续观看。")); }
       };
@@ -113,19 +130,24 @@
       current = next; switching = true; notify();
       try { await load(next.url, { hls: next.hls }); }
       catch { if (!disposed && sequence === generation) { failed.add(next.url); await downgrade("source-error"); } }
-      finally { if (!disposed && sequence === generation) { switching = false; arm(); updateVideoRendering(); } }
+      finally { if (!disposed && sequence === generation) { switching = false; arm(); picture(); updateVideoRendering(); } }
     }
     async function downgrade(reason) {
       if (disposed || !current) return;
       if (reason !== "source-error" && current.hls && lowerStream?.()) {
         onStatus("已降低自动画质，优先保证流畅播放。"); arm(); return;
       }
-      if (reason === "source-error") failed.add(current.url);
+      const sourceFailed = reason === "source-error" || reason === "unsupported-video";
+      if (sourceFailed) failed.add(current.url);
       const lower = current.hls ? (prepared.length ? best : null) : prepared.filter(item => item.height < current.height && !failed.has(item.url)).at(-1);
-      const candidate = lower && !failed.has(lower.url) ? lower : reason === "source-error" ? [...prepared].reverse().find(item => !failed.has(item.url)) || (originalUrl && !failed.has(originalUrl) ? original : null) : null;
+      const candidate = lower && !failed.has(lower.url) ? lower : sourceFailed ? [...prepared].reverse().find(item => !failed.has(item.url)) || (originalUrl && !failed.has(originalUrl) ? original : null) : null;
       if (!candidate || candidate.url === current.url) {
+        if (reason === "unsupported-video") {
+          sourceNotice = "当前浏览器无法解码此视频的画面，暂无兼容清晰度可切换。"; onStatus(sourceNotice); return;
+        }
         onStatus(reason === "source-error" ? "当前视频版本无法播放，请尝试其他清晰度或联系站长。" : "当前视频没有更低清晰度的预览版本，无法继续降低画质。"); return;
       }
+      if (reason === "unsupported-video") sourceNotice = `当前浏览器无法解码${current.label}的视频画面，已切换为 ${candidate.label}。`;
       onStatus(`${reason === "buffering" ? "检测到持续缓冲" : reason === "decoding" ? "检测到播放掉帧" : "当前视频版本播放失败"}，正在切换为 ${candidate.label}。`);
       await change(candidate, { auto: true });
     }
@@ -133,20 +155,29 @@
     const pause = () => { if (!switching) wantsPlayback = false; updateVideoRendering(); };
     const error = () => { if (!switching) downgrade("source-error").catch(() => {}); };
     const controller = {
-      select(url, options = {}) { failed.clear(); return change(prepared.find(item => item.url === url) || { url, label: options.label || (options.hls ? "自动画质" : "原始文件"), height: Infinity, hls: Boolean(options.hls) }, { auto: false }); },
-      auto() { failed.clear(); return change(automaticSource, { auto: true }); },
+      select(url, options = {}) {
+        if (unsupported.has(url)) {
+          sourceNotice = `当前浏览器无法解码所选文件的视频画面，${current && current.url !== url ? `当前保留 ${current.label}。` : "请使用兼容的视频版本。"}`;
+          notify(); return Promise.resolve();
+        }
+        sourceNotice = ""; resetFailures();
+        return change(prepared.find(item => item.url === url) || { url, label: options.label || (options.hls ? "自动画质" : "原始文件"), height: Infinity, hls: Boolean(options.hls) }, { auto: false });
+      },
+      auto() { sourceNotice = ""; resetFailures(); return change(automaticSource, { auto: true }); },
       get current() { return current; },
       dispose() {
         if (disposed) return; disposed = true; generation += 1; stopHealth?.();
         if (restore) video.removeEventListener("loadedmetadata", restore);
         video.removeEventListener("play", play); video.removeEventListener("pause", pause); video.removeEventListener("ended", pause);
         video.removeEventListener("error", error); video.removeEventListener("xyj-video-source-error", error);
+        for (const event of ["loadedmetadata", "loadeddata", "canplay"]) video.removeEventListener(event, picture);
         managed.delete(video); updateVideoRendering();
       },
     };
     managed.set(video, controller);
     video.addEventListener("play", play); video.addEventListener("pause", pause); video.addEventListener("ended", pause);
     video.addEventListener("error", error); video.addEventListener("xyj-video-source-error", error);
+    for (const event of ["loadedmetadata", "loadeddata", "canplay"]) video.addEventListener(event, picture);
     controller.ready = change(automaticSource, { auto: true }); return controller;
   }
   function previewControls(video, { originalUrl, variants = [] } = {}) {

@@ -19,6 +19,8 @@ body.video-preview-active :is(#resource-dialog,#reader-dialog,#editor-preview-di
 body.video-preview-active :is(#resource-dialog,#reader-dialog,#editor-preview-dialog),
 body.video-preview-active :is(#resource-dialog,#reader-dialog,#editor-preview-dialog) :is(.resource-view,.resource-viewer,.reader-wrap,.reader-body,.editor-preview-body,.editor-preview-asset,video) { -webkit-backdrop-filter:none !important; backdrop-filter:none !important; filter:none !important; animation:none !important; transition:none !important; }
 .video-quality-controls { display:grid; gap:7px; margin:10px 0; min-width:0; }
+/* Keep the video box when load() temporarily removes its intrinsic dimensions. */
+video.video-playback-managed { width:100%; aspect-ratio:var(--video-aspect-ratio,16 / 9); object-fit:contain; }
 .video-quality-controls label { display:flex; flex-wrap:wrap; align-items:center; gap:9px; font-size:14px; }
 .video-quality-controls select { width:auto; max-width:100%; padding:8px 12px; color:var(--ink,#23383f); background:var(--paper,#fff); border:1px solid var(--line,#dce5e8); border-radius:8px; font:inherit; }
 .video-playback-status { margin:0; color:var(--muted,#667c84); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
