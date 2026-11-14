@@ -206,7 +206,7 @@ viewer.context.fetch = async path => {
   if (revoked) return Response.json({ error: "站长已收回权限" }, { status: 410 });
   if (path === prefix) return Response.json({ canDownload: true, kind: "subsection", targetId: "board", title: "分享范围", description: "", content: [{ id: "shared", title: "分享文章", subsectionId: "board" }],
     media: [{ id: "photo", title: "分享图片", role: "item", subsectionId: "board", url: prefix + "/media/photo?preview=1", downloadUrl: prefix + "/media/photo?download=1" }], assets: [], subsections: [{ id: "board", name: "小板块" }] });
-  if (path === prefix + "/content/shared") return Response.json({ canDownload: true, id: "shared", title: "分享文章", body_html: '<p>共享正文</p><a href="/#about">关于我</a>', published_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  if (path === prefix + "/content/shared") return Response.json({ canDownload: true, id: "shared", title: "分享文章", body_html: `<p>共享正文</p><a href="/#about">关于我</a><a href="/#about"><img src="${prefix}/media/first?preview=1" alt="第一张"></a><img src="${prefix}/media/second?preview=1" alt="第二张"><img src="/protected-image.svg" alt="未分享">`, published_at: new Date().toISOString(), updated_at: new Date().toISOString() });
   throw new Error("Out of scope request: " + path);
 };
 viewer.run(await readFile("public/share.js", "utf8")); await settle();
@@ -230,7 +230,38 @@ openArticle.click(); await settle();
 assert.equal(viewer.document.getElementById("share-reader").hidden, false);
 assert.ok(viewer.document.getElementById("reader-body").textContent.includes("共享正文"));
 assert.equal(click(viewer.document.querySelector("#reader-body a")).defaultPrevented, true);
+viewer.document.getElementById("share-login-dialog").close();
+const articleImages = [...viewer.document.querySelectorAll("#reader-body img.reader-inline-image")];
+assert.equal(articleImages.length, 2, "unshared placeholders must not be previewable");
+const imageDialog = viewer.document.getElementById("share-image-dialog");
+const previewImage = viewer.document.getElementById("share-image-preview");
+const beforePreview = viewCalls.length;
+assert.equal(click(articleImages[0]).defaultPrevented, true);
+assert.equal(imageDialog.open, true);
+assert.equal(viewer.document.getElementById("share-login-dialog").open, false, "image links open the viewer before the outside-navigation gate");
+assert.equal(previewImage.src, `https://example.test${prefix}/media/first?preview=1`);
+previewImage.onload(); assert.equal(viewer.document.getElementById("share-image-status").hidden, true);
+viewer.document.getElementById("share-image-next").click();
+assert.equal(previewImage.src, `https://example.test${prefix}/media/second?preview=1`);
+assert.match(viewer.document.getElementById("share-image-caption").textContent, /^2 \/ 2/);
+assert.equal(viewer.document.getElementById("share-image-next").disabled, true);
+previewImage.onerror(); assert.match(viewer.document.getElementById("share-image-status").textContent, /加载失败/);
+const left = new viewer.window.Event("keydown", { bubbles: true, cancelable: true });
+Object.defineProperty(left, "key", { value: "ArrowLeft" }); imageDialog.dispatchEvent(left);
+assert.equal(left.defaultPrevented, true);
+assert.match(previewImage.src, /\/media\/first\?preview=1$/);
+viewer.document.getElementById("share-image-zoom").click();
+assert.equal(viewer.document.getElementById("share-image-zoom").getAttribute("aria-pressed"), "true");
+viewer.document.getElementById("share-image-close").click();
+assert.equal(imageDialog.open, false); assert.equal(previewImage.hasAttribute("src"), false);
+assert.equal(viewer.document.getElementById("share-reader").hidden, false);
+const enter = new viewer.window.Event("keydown", { bubbles: true, cancelable: true });
+Object.defineProperty(enter, "key", { value: "Enter" }); articleImages[1].dispatchEvent(enter);
+assert.equal(imageDialog.open, true);
+assert.match(previewImage.src, /\/media\/second\?preview=1$/);
+assert.equal(viewCalls.length, beforePreview, "previews must not request normal site APIs or change download permissions");
 revoked = true; await viewer.intervals[0](); await settle();
+assert.equal(imageDialog.open, false); assert.equal(previewImage.hasAttribute("src"), false, "revoking a share also removes the enlarged image");
 assert.equal(viewer.document.getElementById("reader-body").textContent, "");
 assert.equal(viewer.document.getElementById("share-reader").hidden, true);
 assert.equal(viewer.document.getElementById("share-title").textContent, "分享链接已失效");
@@ -268,7 +299,7 @@ readonlyViewer.context.fetch = async path => {
     assets: [{ id: "video", kind: "video", title: "视频", sizeBytes: 10, url: `${prefix}/asset/video`, downloadUrl: `${prefix}/asset/video?download=1`, variants: [480,720].map(height=>({label:`${height}p`,status:"ready",url:`${prefix}/asset/video?variant=${height}p`})) },
       { id: "word", kind: "word", title: "文档", sizeBytes: 10, url: `${prefix}/asset/word`, previewUrl: `${prefix}/asset/word?variant=preview` },
       { id: "zip", kind: "archive", title: "压缩包", sizeBytes: 10, url: `${prefix}/asset/zip`, downloadUrl: `${prefix}/asset/zip?download=1` }] });
-  if (path === `${prefix}/content/readonly`) return Response.json({ id: "readonly", title: "文章", canDownload: false, body_html: "<p>只读正文</p>" });
+  if (path === `${prefix}/content/readonly`) return Response.json({ id: "readonly", title: "文章", canDownload: false, body_html: `<p>只读正文</p><img src="${prefix}/media/inline?preview=1" alt="只读图片">` });
   throw new Error("Unexpected readonly request: " + path);
 };
 readonlyViewer.window.HTMLElement.prototype.load = function () { this.paused = true; };
@@ -285,6 +316,11 @@ assert.ok(readonlyViewer.document.getElementById("share-works").textContent.incl
 [...readonlyViewer.document.querySelectorAll("button")].find(control => control.textContent === "浏览文章").click(); await settle();
 assert.equal(readonlyViewer.document.getElementById("share-pdf").hidden, true);
 assert.ok(readonlyViewer.document.getElementById("reader-body").textContent.includes("只读正文"));
+readonlyViewer.document.querySelector("#reader-body img").click();
+assert.equal(readonlyViewer.document.getElementById("share-image-dialog").open, true);
+assert.match(readonlyViewer.document.getElementById("share-image-preview").src, /\/media\/inline\?preview=1$/);
+assert.equal(readonlyViewer.document.querySelectorAll('#share-image-dialog a[href*="download"]').length, 0);
+readonlyViewer.document.getElementById("share-image-close").click();
 readonlyViewer.document.getElementById("share-pdf").click(); await settle();
 assert.ok(!readonlyCalls.some(path => path.includes("download=1")));
 console.log("share modes and races, clipboard failures, board renaming, readonly previews, login gate and active-page revocation passed");

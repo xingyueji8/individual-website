@@ -7,10 +7,10 @@
   <meta name="referrer" content="no-referrer">
   <title>作品分享 · 星月集</title>
   <link rel="icon" href="/assets/avatar-glass.png" type="image/png">
-  <link rel="stylesheet" href="/share.css">
+  <link rel="stylesheet" href="/share.css?v=20261114-article-images">
   <link rel="stylesheet" href="/media-performance.css?v=20261111-video-compat">
   <script src="/video-playback.js?v=20261111-video-compat" defer></script>
-  <script src="/share.js?v=20261111-adaptive-video" defer></script>
+  <script src="/share.js?v=20261114-article-images" defer></script>
 </head>
 <body>
   <header class="share-header">
@@ -44,6 +44,19 @@
     </article>
   </main>
   <footer>分享入口仅开放本次分享的作品。浏览更多内容，请注册／登录。</footer>
+  <dialog id="share-image-dialog" class="share-image-dialog" aria-label="图片预览">
+    <div id="share-image-stage" class="share-image-stage">
+      <img id="share-image-preview" alt="图片预览" decoding="async" draggable="false">
+      <p id="share-image-status" role="status" aria-live="polite" hidden></p>
+    </div>
+    <div class="share-image-toolbar">
+      <button id="share-image-previous" type="button" aria-label="上一张图片">上一张</button>
+      <button id="share-image-next" type="button" aria-label="下一张图片">下一张</button>
+      <p id="share-image-caption" aria-live="polite"></p>
+      <button id="share-image-zoom" type="button" aria-pressed="false">放大图片</button>
+      <button id="share-image-close" type="button" autofocus>关闭图片预览</button>
+    </div>
+  </dialog>
   <dialog id="share-login-dialog" aria-labelledby="share-login-title">
     <h2 id="share-login-title">注册／登录后继续浏览</h2>
     <p>当前链接只允许浏览所分享的作品。访问其他板块、评论或使用网站功能，请先注册／登录。</p>

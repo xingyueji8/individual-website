@@ -303,7 +303,8 @@ function renderPersonalSpaceFeed(host, items) {
     const read = document.createElement("button"); read.type = "button"; read.className = "btn small ghost"; read.textContent = "阅读全文与评论";
     read.addEventListener("click", () => personalSpaceActivate(read, () => openContent(item.id))); actions.append(read);
     card.append(date, document.createElement("hr"));
-    const cover = personalSpaceArticleCover(item); if (cover) card.append(cover);
+    const cover = personalSpaceArticleCover(item);
+    if (cover) { enhanceReaderImages(cover, { content: item }); card.append(cover); }
     card.append(title, body, actions); feed.append(card);
     if (item.locked) lockedContentNotice(body, "content", item);
     else { body.append(empty("正在读取正文…")); jobs.set(card, { item, body }); }

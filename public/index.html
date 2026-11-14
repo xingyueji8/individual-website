@@ -1161,17 +1161,17 @@
       正文图片会在 JavaScript 中变成可操作的预览入口：鼠标、键盘都能打开大图。
       这里仅提示“可以放大查看”，是否显示原片下载仍由登录权限统一控制。
     */
-    .reader-body img.reader-inline-image {
+    .reader-body img.reader-inline-image, .ps-article-cover img.reader-inline-image {
       cursor: zoom-in;
       box-shadow: 0 10px 24px rgba(27,50,58,.10);
       transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
     }
-    .reader-body img.reader-inline-image:hover {
+    .reader-body img.reader-inline-image:hover, .ps-article-cover img.reader-inline-image:hover {
       transform: translateY(-2px) scale(1.008);
       box-shadow: 0 16px 34px rgba(27,50,58,.18);
       filter: saturate(1.04);
     }
-    .reader-body img.reader-inline-image:focus-visible {
+    .reader-body img.reader-inline-image:focus-visible, .ps-article-cover img.reader-inline-image:focus-visible {
       outline: 3px solid rgba(49,191,200,.38);
       outline-offset: 4px;
     }
@@ -1999,7 +1999,7 @@
        负责读取 API、切换板块、渲染内容和绑定按钮事件。
        ======================================================== -->
   <script src="/portfolio-organize.js"></script>
-  <script src="/personal-space.js?v=20261111-article-covers"></script>
+  <script src="/personal-space.js?v=20261114-article-images"></script>
   <script src="/entry-auth.js"></script>
   <script src="/video-playback.js?v=20261111-video-compat"></script>
   <script>
@@ -3077,6 +3077,10 @@
 
       root.replaceChildren(template.content);
       enhanceArticleLinks(root);
+      enhanceReaderImages(root, { content });
+    }
+
+    function enhanceReaderImages(root, { content = state.currentContent } = {}) {
       const images = Array.from(root.querySelectorAll("img"));
       const photos = images.map((image, index) => {
         const source = image.getAttribute("src") || image.src;

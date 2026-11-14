@@ -458,6 +458,11 @@ assert.match(portfolio.document.querySelector(".ps-feed-body").innerHTML, /font-
 assert.ok(portfolio.document.querySelector('[data-content-id="secret"] .locked-content-notice'));
 assert.match(portfolio.document.querySelector('[data-content-id="newer"] .ps-article-cover img').getAttribute("src"), /feed-cover\?preview=1/);
 assert.equal(portfolio.document.querySelector('[data-content-id="secret"] .ps-article-cover'), null);
+let feedPreview;
+portfolio.context.openImage = photo => { feedPreview = photo; };
+portfolio.document.querySelector('[data-content-id="newer"] .ps-article-cover img').click();
+assert.match(feedPreview.previewUrl, /feed-cover\?preview=1/);
+assert.equal(feedPreview.canDownload, false, "article cover previews must not grant image download permission");
 portfolio.run('personalSpaceNavigate({category:"resources",sectionId:"files",all:true});state.currentResourceFolder="custom-folder";contentViewGrants.set("assetFolder:custom-folder",{kind:"assetFolder",id:"custom-folder",token:"folder-token",expiresAt:Date.now()+10000});personalSpaceNavigate(personalSpaceRoute,{preserveFolder:true});');
 assert.equal(portfolio.run('contentViewGrants.has("assetFolder:custom-folder")'), true, "opening a protected folder keeps its redeemed lock");
 portfolio.run('contentViewGrants.clear();');

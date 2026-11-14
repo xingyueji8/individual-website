@@ -110,4 +110,30 @@ const inline = document.querySelector("#reader-body img");
 assert.equal(inline.getAttribute("loading"), "lazy");
 assert.equal(inline.getAttribute("decoding"), "async");
 assert.match(inline.src, /preview=1/);
-console.log("immediate preview, quick pagination, stale-result protection, recovery, bounded preload, lazy images and version preservation passed");
+
+// Real click/keyboard events on reader images open the existing viewer at the
+// clicked image. A surrounding article link must not steal the click.
+const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); };
+run("contentViewGrants.clear()");
+run(`renderReaderBody('<a href="https://example.test/other"><img src="/media/first?v=article" alt="第一张"></a><img src="/media/second?download=1" alt="第二张">', {content:{id:'clickable',inlineMedia:[]}})`);
+const articleImages = [...document.querySelectorAll("#reader-body img")];
+dialog.open = false;
+articleImages[1].click(); await settle();
+assert.equal(dialog.open, true);
+assert.equal(state.currentImageIndex, 1);
+assert.equal(state.imageSequence.length, 2);
+assert.equal(preview.src, "/media/second?preview=1");
+assert.equal(state.imageSequence[1].canDownload, false);
+assert.equal(state.imageSequence[1].downloadUrl, "");
+let linkClicks = 0;
+articleImages[0].parentElement.addEventListener("click", () => { linkClicks++; });
+articleImages[0].click(); await settle();
+assert.equal(linkClicks, 0);
+assert.equal(state.currentImageIndex, 0);
+assert.equal(preview.src, "/media/first?v=article&preview=1");
+const key = new document.defaultView.Event("keydown", { bubbles: true, cancelable: true });
+Object.defineProperty(key, "key", { value: "Enter" });
+articleImages[1].dispatchEvent(key); await settle();
+assert.equal(key.defaultPrevented, true);
+assert.equal(state.currentImageIndex, 1);
+console.log("image click/keyboard previews, pagination, stale-result protection, recovery, bounded preload, lazy images and permissions passed");

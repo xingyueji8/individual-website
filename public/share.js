@@ -4,6 +4,90 @@
   const prefix = `/api/shares/${token}`;
   const node = id => document.getElementById(id);
   const state = { data: null, article: null, folder: "", loading: 0, pdf: false, authenticated: false };
+  const imagePreview = { photos: [], index: 0, generation: 0 };
+  const imageDialog = node("share-image-dialog");
+  function clearImagePreview() {
+    imagePreview.generation++;
+    imagePreview.photos = [];
+    const image = node("share-image-preview");
+    image.onload = image.onerror = null;
+    image.removeAttribute("src");
+    node("share-image-status").hidden = true;
+    node("share-image-stage").classList.remove("is-zoomed");
+    node("share-image-zoom").setAttribute("aria-pressed", "false");
+  }
+  function closeImagePreview() {
+    if (imageDialog.open) imageDialog.close();
+    else clearImagePreview();
+  }
+  function showImagePreview(index) {
+    if (!state.data || index < 0 || index >= imagePreview.photos.length) return;
+    imagePreview.index = index;
+    const generation = ++imagePreview.generation;
+    const photo = imagePreview.photos[index], image = node("share-image-preview");
+    const status = node("share-image-status"), stage = node("share-image-stage");
+    stage.classList.remove("is-zoomed"); stage.scrollTop = stage.scrollLeft = 0;
+    node("share-image-zoom").setAttribute("aria-pressed", "false");
+    node("share-image-zoom").textContent = "放大图片";
+    status.textContent = "正在加载图片…"; status.hidden = false;
+    image.onload = () => { if (generation === imagePreview.generation) status.hidden = true; };
+    image.onerror = () => {
+      if (generation === imagePreview.generation) status.textContent = "图片加载失败，请关闭后重试。";
+    };
+    image.alt = photo.caption || "文章图片";
+    image.src = photo.url;
+    node("share-image-caption").textContent = `${index + 1} / ${imagePreview.photos.length}${photo.caption ? ` · ${photo.caption}` : ""}`;
+    node("share-image-previous").hidden = node("share-image-next").hidden = imagePreview.photos.length < 2;
+    node("share-image-previous").disabled = index === 0;
+    node("share-image-next").disabled = index === imagePreview.photos.length - 1;
+  }
+  function enhanceArticleImages(root) {
+    const photos = [];
+    root.querySelectorAll("img").forEach(image => {
+      const source = image.getAttribute("src");
+      if (!source) return;
+      let url;
+      try { url = new URL(source, location.href); } catch { return; }
+      if (!["http:", "https:"].includes(url.protocol)) return;
+      if (url.origin === location.origin) {
+        // Keep the server-issued share scope; never fall back to /media or originals.
+        if (!url.pathname.startsWith(prefix + "/media/") || !/^[a-zA-Z0-9_-]{1,80}$/.test(url.pathname.slice((prefix + "/media/").length))) return;
+        url.searchParams.delete("download"); url.searchParams.set("preview", "1");
+      }
+      photos.push({ image, url: url.href, caption: (image.alt || image.title || "").trim() });
+    });
+    photos.forEach((photo, index) => {
+      const image = photo.image;
+      image.classList.add("reader-inline-image"); image.tabIndex = 0;
+      image.setAttribute("role", "button");
+      image.setAttribute("aria-label", photo.caption ? `查看图片：${photo.caption}` : "查看文章图片");
+      image.title = "点击放大查看";
+      const open = event => {
+        event.preventDefault(); event.stopPropagation();
+        if (!state.data || !image.isConnected) return;
+        imagePreview.photos = photos; showImagePreview(index);
+        if (!imageDialog.open) imageDialog.showModal();
+      };
+      image.addEventListener("click", open);
+      image.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") open(event); });
+    });
+  }
+  imageDialog.addEventListener("close", clearImagePreview);
+  imageDialog.addEventListener("click", event => { if (event.target === imageDialog) closeImagePreview(); });
+  imageDialog.addEventListener("keydown", event => {
+    if (event.key === "ArrowLeft") { event.preventDefault(); showImagePreview(imagePreview.index - 1); }
+    if (event.key === "ArrowRight") { event.preventDefault(); showImagePreview(imagePreview.index + 1); }
+  });
+  node("share-image-close").addEventListener("click", closeImagePreview);
+  node("share-image-previous").addEventListener("click", () => showImagePreview(imagePreview.index - 1));
+  node("share-image-next").addEventListener("click", () => showImagePreview(imagePreview.index + 1));
+  const toggleImageZoom = () => {
+    const zoomed = node("share-image-stage").classList.toggle("is-zoomed");
+    node("share-image-zoom").setAttribute("aria-pressed", String(zoomed));
+    node("share-image-zoom").textContent = zoomed ? "适应窗口" : "放大图片";
+  };
+  node("share-image-zoom").addEventListener("click", toggleImageZoom);
+  node("share-image-preview").addEventListener("click", toggleImageZoom);
   async function api(path) {
     const response = await fetch(path, { cache: "no-store" });
     const data = await response.json();
@@ -11,6 +95,7 @@
     return data;
   }
   function expire(message) {
+    closeImagePreview();
     document.querySelectorAll("#share-works video,#share-works audio,#share-reader video,#share-reader audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
     node("share-title").textContent = "分享链接已失效";
     node("share-status").textContent = message;
@@ -121,6 +206,7 @@
     }
   }
   function showList() {
+    closeImagePreview();
     state.loading++; state.article = null; node("share-reader").hidden = true; node("share-works").hidden = false;
     node("share-reader").querySelectorAll("video,audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
     node("reader-body").replaceChildren(); node("reader-attachments").replaceChildren();
@@ -132,6 +218,7 @@
     try {
       const article = await api(`${prefix}/content/${encodeURIComponent(id)}`);
       if (generation !== state.loading || !state.data) return;
+      closeImagePreview();
       state.article = article; node("share-reader").hidden = false; node("share-works").hidden = true;
       node("share-pdf").hidden = !state.data.canDownload || !article.canDownload;
       node("share-back").hidden = state.data.kind === "content";
@@ -144,6 +231,7 @@
         if (asset) element.replaceChildren(assetCard(asset));
         else element.textContent = "此附件未包含在分享中";
       });
+      enhanceArticleImages(node("reader-body"));
       const attachments = node("reader-attachments"); attachments.replaceChildren();
       const embedded = new Set([...node("reader-body").querySelectorAll(".resource-embed[data-resource-id]")].map(element => element.dataset.resourceId));
       state.data.assets.filter(asset => asset.contentId === article.id && !embedded.has(asset.id)).forEach(asset => attachments.append(assetCard(asset)));
