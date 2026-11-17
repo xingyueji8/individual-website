@@ -82,15 +82,13 @@ context.api = async path => {
   return { id: "article", title: "新标题", body_html: '<p>最新正文</p><img src="/media/allowed?preview=1"><img src="/media/private?preview=1"><div class="resource-embed">视频占位</div>',
     inlineMedia: [{ id: "allowed", canDownload: true, locked: false }, { id: "private", canDownload: false, locked: false }] };
 };
-context.window.html2pdf = () => {
-  const worker = {
-    set(options) { this.options = options; return this; },
-    from(element) { rendered = element.cloneNode(true); return this; },
-    toPdf() { return this; },
-    get() { return Promise.resolve({}); },
-    save() { saves++; return Promise.resolve(); },
-  };
-  return worker;
+context.window.html2pdf = () => { throw new Error("the reader must use the bounded page renderer"); };
+context.XYJArticlePdf = {
+  prepareImages: prepare,
+  render: async element => {
+    rendered = element.cloneNode(true);
+    return { save: async filename => { assert.equal(filename, "新标题.pdf"); saves++; } };
+  },
 };
 document.getElementById("reader-body").innerHTML = '<img src="/media/stale" loading="lazy">';
 fetches.length = 0;
@@ -133,8 +131,16 @@ const shareContext = vm.createContext({
 });
 shareDom.HTMLElement.prototype.decode = HTMLElement.prototype.decode;
 const shareRun = code => vm.runInContext(code, shareContext);
-shareContext.window.html2pdf = () => ({ set() { return this; }, from(element) { shareRendered = element.cloneNode(true); return this; }, save() { shareSaves++; return Promise.resolve(); } });
-shareRun(helper); shareRun(await readFile("public/share.js", "utf8"));
+shareContext.window.html2pdf = () => { throw new Error("shares must use the bounded page renderer"); };
+shareRun(helper);
+shareContext.XYJArticlePdf = {
+  prepareImages: shareRun("XYJArticlePdf.prepareImages"),
+  render: async element => {
+    shareRendered = element.cloneNode(true);
+    return { save: async () => { shareSaves++; } };
+  },
+};
+shareRun(await readFile("public/share.js", "utf8"));
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
 await settle();
 shareDom.document.getElementById("share-pdf").click(); await settle();

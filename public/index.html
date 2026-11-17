@@ -2000,7 +2000,7 @@
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js?v=20261114-article-images"></script>
   <script src="/entry-auth.js"></script>
-  <script src="/article-pdf.js?v=20261118-pdf-images"></script>
+  <script src="/article-pdf.js?v=20261118-pdf-pages"></script>
   <script src="/video-playback.js?v=20261111-video-compat"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
@@ -3822,19 +3822,18 @@
 
         await waitForPdfImages(exportRoot, { onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
         button.textContent = "生成中…";
-        const pdfWorker = window.html2pdf().set({
+        const pdf = await globalThis.XYJArticlePdf.render(exportRoot, {
           margin: [12, 12, 14, 12],
           filename: pdfFilename(exportContent.title),
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["css", "legacy"], avoid: ["img", "pre", "blockquote", "table"] },
-        }).from(exportRoot).toPdf();
+        }, { onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
 
-        // 先让 html2pdf 完成分页，再逐页叠加水印，最后才触发文件下载。
-        await pdfWorker.get("pdf").then((pdf) => applyPdfWatermark(pdf));
+        applyPdfWatermark(pdf);
         await api(`/api/content/${encodeURIComponent(contentId)}?download=1`);
-        await pdfWorker.save();
+        await pdf.save(pdfFilename(exportContent.title));
       } catch (error) {
         console.error("PDF download failed", error);
         button.dataset.pdfError = error.message || "未知错误";

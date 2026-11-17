@@ -13,7 +13,7 @@
     "test:i18n": "node test/i18n.mjs",
     "test:organize": "node test/content-organize.mjs && node test/organize-ui.mjs",
     "test:photos": "node test/photo-viewer-ui.mjs",
-    "test:pdf": "node test/article-pdf.mjs",
+    "test:pdf": "node test/article-pdf.mjs && node test/article-pdf-render.mjs",
     "test:mobile": "node test/mobile-entry-ui.mjs",
     "test:mobile-media": "node test/mobile-media.mjs && node test/video-playback.mjs",
     "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",

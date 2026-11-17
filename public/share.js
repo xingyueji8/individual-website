@@ -267,9 +267,12 @@
       // Revalidate after image/PDF loading too, so an in-progress withdrawal stops export.
       await api(`${prefix}/content/${id}?download=1`);
       const filename = (article.title || "文章").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").slice(0, 100) + ".pdf";
-      await window.html2pdf().set({ margin: [12, 12, 14, 12], filename, image: { type: "jpeg", quality: .98 },
+      const pdf = await globalThis.XYJArticlePdf.render(root, { margin: [12, 12, 14, 12], filename, image: { type: "jpeg", quality: .98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"], avoid: ["img", "pre", "blockquote"] } }).from(root).save();
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"], avoid: ["img", "pre", "blockquote"] } },
+        { onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
+      await api(`${prefix}/content/${id}?download=1`);
+      await pdf.save(filename);
     } catch (error) { if (error.status === 410) expire(error.message); else node("share-status").textContent = `PDF 下载失败：${error.message}`; }
     finally { root?.remove(); state.pdf = false; button.disabled = false; button.textContent = "下载文章 PDF"; }
   });
