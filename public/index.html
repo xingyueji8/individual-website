@@ -947,7 +947,7 @@
     .card-meta { margin-top: auto; padding-top: 19px; display: flex; justify-content: space-between; color: var(--muted); font-size: .76rem; }
     .empty { padding: 38px; border: 1px dashed #b9c7ca; border-radius: var(--radius); color: var(--muted); text-align: center; line-height: 1.8; }
 
-    .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+    .gallery { display: grid; width: 100%; max-width: 1120px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 13px; }
     .photo-card { position: relative; aspect-ratio: 4/3; border-radius: 15px; overflow: hidden; background: var(--sand); cursor: zoom-in; }
     .photo-card img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
     .photo-card:hover img { transform: scale(1.045); }
@@ -1450,7 +1450,6 @@
       .main { height: auto; flex: 1 1 auto; min-height: 0; }
       .content-section { height: 100%; padding: 28px 17px max(55px, env(safe-area-inset-bottom)); }
       .profile-grid, .content-grid { grid-template-columns: 1fr; }
-      .gallery { grid-template-columns: repeat(2, minmax(0,1fr)); }
       .resource-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .timeline-item { grid-template-columns: 1fr; gap: 10px; }
       .updates { width: 100%; }
@@ -1519,7 +1518,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/vnext.css">
   <link rel="stylesheet" href="/material.css">
-  <link rel="stylesheet" href="/personal-space.css?v=20261111-article-covers">
+  <link rel="stylesheet" href="/personal-space.css?v=20261118-responsive-photos">
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/mobile.css">
   <link rel="stylesheet" href="/media-performance.css?v=20261111-video-compat">
@@ -2001,6 +2000,7 @@
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js?v=20261114-article-images"></script>
   <script src="/entry-auth.js"></script>
+  <script src="/article-pdf.js?v=20261118-pdf-images"></script>
   <script src="/video-playback.js?v=20261111-video-compat"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
@@ -3717,17 +3717,8 @@
       return `${safeTitle || "星月集文章"}.pdf`;
     }
 
-    function waitForPdfImages(root) {
-      const images = Array.from(root.querySelectorAll("img"));
-      return Promise.all(images.map((image) => {
-        if (image.complete) return Promise.resolve();
-        return new Promise((resolve) => {
-          const done = () => resolve();
-          image.addEventListener("load", done, { once: true });
-          image.addEventListener("error", done, { once: true });
-          window.setTimeout(done, 5000);
-        });
-      }));
+    function waitForPdfImages(root, options) {
+      return globalThis.XYJArticlePdf.prepareImages(root, options);
     }
 
     /*
@@ -3779,6 +3770,7 @@
       if (!state.currentContent?.canDownload) { showAuthLock("download"); return; }
       if (!state.currentContent || state.pdfDownloading) return;
 
+      const contentId = state.currentContent.id;
       const originalLabel = button.textContent;
       let exportRoot = null;
       state.pdfDownloading = true;
@@ -3787,7 +3779,7 @@
       button.textContent = "生成中…";
 
       try {
-        const exportContent = await api(`/api/content/${encodeURIComponent(state.currentContent.id)}?download=1`);
+        const exportContent = await api(`/api/content/${encodeURIComponent(contentId)}?download=1`);
         button.textContent = "加载组件…";
         await ensurePdfLibrary();
         button.textContent = "生成中…";
@@ -3798,34 +3790,41 @@
 
         const kind = document.createElement("p");
         kind.className = "pdf-kind";
-        kind.textContent = document.getElementById("reader-kind").textContent;
+        kind.textContent = exportContent.section_name || (exportContent.type === "guide" ? "北京旅行指南" : "文章");
 
         const title = document.createElement("h1");
-        title.textContent = state.currentContent.title || "未命名文章";
+        title.textContent = exportContent.title || "未命名文章";
 
         const meta = document.createElement("p");
         meta.className = "pdf-meta";
-        const timeLabels = contentTimeLabels(state.currentContent);
+        const timeLabels = contentTimeLabels(exportContent);
         meta.textContent = `${timeLabels.published}\n${timeLabels.updated}`;
 
-        const body = document.getElementById("reader-body").cloneNode(true);
-        body.removeAttribute("id");
-        body.classList.add("pdf-body");
+        // Use the freshly authorised body, not a lazy/partially loaded reader copy.
+        const body = document.createElement("div");
+        body.className = "reader-body pdf-body";
+        body.innerHTML = exportContent.body_html || "<p>暂无正文。</p>";
+        enhanceArticleLinks(body);
         // PDF permission does not silently export separately protected images.
         body.querySelectorAll("img").forEach(image => {
           const mediaId = image.dataset.mediaId || mediaIdFromUrl(image.getAttribute("src"));
           if (mediaId && !(exportContent.inlineMedia || []).some(item => item.id === mediaId && item.canDownload && !item.locked)) {
             const placeholder = document.createElement("p"); placeholder.textContent = "此图片未开放下载"; image.replaceWith(placeholder);
+          } else if (mediaId) {
+            const source = new URL(image.getAttribute("src"), location.href);
+            source.searchParams.delete("download"); source.searchParams.set("preview", "1");
+            image.src = protectedMediaUrl(`${source.pathname}${source.search}`);
           }
         });
-        body.querySelectorAll("video,audio,iframe,.resource-card").forEach(item => item.remove());
+        body.querySelectorAll("video,audio,iframe,.resource-card,.resource-embed").forEach(item => item.remove());
         exportRoot.append(kind, title, meta, body);
         document.body.append(exportRoot);
 
-        await waitForPdfImages(exportRoot);
+        await waitForPdfImages(exportRoot, { onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+        button.textContent = "生成中…";
         const pdfWorker = window.html2pdf().set({
           margin: [12, 12, 14, 12],
-          filename: pdfFilename(state.currentContent.title),
+          filename: pdfFilename(exportContent.title),
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
@@ -3834,6 +3833,7 @@
 
         // 先让 html2pdf 完成分页，再逐页叠加水印，最后才触发文件下载。
         await pdfWorker.get("pdf").then((pdf) => applyPdfWatermark(pdf));
+        await api(`/api/content/${encodeURIComponent(contentId)}?download=1`);
         await pdfWorker.save();
       } catch (error) {
         console.error("PDF download failed", error);

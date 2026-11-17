@@ -48,12 +48,13 @@
 .reader-body :is(img,video,audio,iframe), .editor-preview-body :is(img,video,audio,iframe) { max-width: 100%; }
 .reader-body img { height: auto; }
 #portfolio .ps-feed-actions { display: flex; gap: 10px; padding-top: 24px; }
-#portfolio .ps-gallery-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-#portfolio .ps-gallery-masonry { display: block; column-count: 3; column-gap: 18px; }
+#portfolio .ps-gallery { width: 100%; max-width: 1120px; }
+#portfolio .ps-gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 18px; }
+#portfolio .ps-gallery-masonry { display: block; columns: 240px 4; column-gap: 18px; }
 #portfolio .ps-gallery-masonry .photo-card { display: block; break-inside: avoid; aspect-ratio: auto; margin-bottom: 18px; min-height: 0; }
 #portfolio .ps-gallery-masonry .photo-card img { display: block; height: auto; }
 #portfolio .ps-gallery-rows { display: flex; flex-wrap: wrap; gap: 18px; }
-#portfolio .ps-gallery-rows .photo-card { flex: 1 1 340px; height: 240px; aspect-ratio: auto; }
+#portfolio .ps-gallery-rows .photo-card { flex: 1 1 240px; min-width: 0; max-width: 100%; height: 240px; aspect-ratio: auto; }
 #portfolio .ps-gallery-rows .photo-card:last-child { flex-grow: 0; }
 /* Click feedback comes from the same delegated glass motion as every button. */
 #portfolio.ps-entering .ps-title-root { animation: ps-title-arrive .9s cubic-bezier(.22,.7,.2,1) both; }
@@ -73,10 +74,10 @@
   #portfolio .ps-section-row .ps-entry-small { min-height: 80px; font-size: 14px; }
   #portfolio .ps-description { padding: 14px; }
   #portfolio .ps-description p { font-size: 13px; line-height: 1.65; }
-  #portfolio .ps-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  #portfolio .ps-gallery-masonry { column-count: 2; column-gap: 12px; }
+  #portfolio .ps-gallery-grid, #portfolio .ps-gallery-rows { gap: 12px; }
+  #portfolio .ps-gallery-masonry { column-gap: 12px; }
   #portfolio .ps-gallery-masonry .photo-card { margin-bottom: 12px; }
-  #portfolio .ps-gallery-rows .photo-card { flex-basis: 100%; height: auto; min-height: 190px; }
+  #portfolio .ps-gallery-rows .photo-card { height: auto; min-height: 190px; }
   #portfolio .ps-gallery-rows .photo-card img { height: auto; }
 }
 @media(prefers-reduced-motion: reduce) {

@@ -262,10 +262,8 @@
       const body = document.createElement("div"); body.innerHTML = article.body_html;
       body.querySelectorAll(".resource-embed").forEach(element => element.remove());
       root.append(title, body); document.body.append(root);
-      await Promise.all([...body.querySelectorAll("img")].map(image => new Promise(resolve => {
-        if (image.complete) return resolve(); const timer = setTimeout(resolve, 10000);
-        const done = () => { clearTimeout(timer); resolve(); }; image.onload = done; image.onerror = done;
-      })));
+      await globalThis.XYJArticlePdf.prepareImages(root, { onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+      button.textContent = "正在生成 PDF…";
       // Revalidate after image/PDF loading too, so an in-progress withdrawal stops export.
       await api(`${prefix}/content/${id}?download=1`);
       const filename = (article.title || "文章").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").slice(0, 100) + ".pdf";
