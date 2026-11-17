@@ -59,6 +59,11 @@
           image.removeAttribute("srcset");
           image.src = await load(source);
           await decode(image, timeoutMs);
+          // Reserve the decoded aspect ratio before html2pdf clones the image.
+          if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+            image.setAttribute("width", String(image.naturalWidth));
+            image.setAttribute("height", String(image.naturalHeight));
+          }
           onProgress(++completed, images.length);
         } catch (error) {
           controller.abort();
@@ -68,5 +73,75 @@
     }
     await Promise.all(Array.from({ length: Math.min(3, images.length) }, worker));
   }
-  globalThis.XYJArticlePdf = Object.freeze({ prepareImages });
+  function hasInk(canvas) {
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context || !canvas.width || !canvas.height) throw new Error("PDF 页面画布创建失败");
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < pixels.length; i += 16) {
+      if (pixels[i + 3] && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 245) return true;
+    }
+    return false;
+  }
+  async function render(root, options, { onProgress = () => {}, onCanvas = () => {} } = {}) {
+    const engine = globalThis.html2pdf;
+    if (typeof engine !== "function") throw new Error("PDF 组件尚未加载");
+    const layout = engine().set(options);
+    const size = await layout.get("pageSize");
+    const pageHeight = size.inner.px.height;
+    root.style.width = `${size.inner.width}${size.unit}`;
+    root.style.maxWidth = "none"; root.style.boxSizing = "border-box";
+    root.querySelectorAll("img").forEach(image => {
+      image.style.maxWidth = "100%"; image.style.maxHeight = `${Math.max(1, pageHeight - 128)}px`;
+      image.style.width = "auto"; image.style.height = "auto"; image.style.objectFit = "contain";
+    });
+    let overlay, pdf, ink = false;
+    try {
+      const container = await layout.from(root).toContainer().get("container");
+      overlay = await layout.get("overlay");
+      const height = Math.max(container.scrollHeight, Math.ceil(container.getBoundingClientRect().height));
+      const pages = Math.max(1, Math.ceil(height / pageHeight));
+      const bounds = container.getBoundingClientRect(), units = 72 / 96 / size.k;
+      const links = [];
+      if (options.enableLinks !== false) container.querySelectorAll("a[href]").forEach(anchor => {
+        for (const rect of anchor.getClientRects()) links.push({
+          url: anchor.href, page: Math.floor((rect.top - bounds.top) / pageHeight) + 1,
+          x: (rect.left - bounds.left) * units + layout.opt.margin[1],
+          y: ((rect.top - bounds.top) % pageHeight) * units + layout.opt.margin[0],
+          width: rect.width * units, height: rect.height * units,
+        });
+      });
+      for (let page = 0; page < pages; page++) {
+        if (!overlay.isConnected) document.body.append(overlay);
+        const capture = engine().set({
+          ...options, container, overlay,
+          html2canvas: {
+            ...options.html2canvas,
+            // Never allocate one canvas for the complete article: large image
+            // articles exceed browser canvas limits, especially on phones.
+            x: 0, y: page * pageHeight, height: Math.min(pageHeight, height - page * pageHeight),
+            scrollX: 0, scrollY: 0, windowWidth: Math.max(1024, size.inner.px.width),
+          },
+        });
+        const canvas = await capture.toCanvas().get("canvas");
+        try {
+          const visible = hasInk(canvas); ink = visible || ink;
+          onCanvas(canvas, page + 1, pages, visible);
+          if (pdf) pdf.addPage();
+          pdf = await engine().set({ ...options, enableLinks: false, pdf }).from(canvas).toPdf().get("pdf");
+        } finally {
+          canvas.width = canvas.height = 0;
+        }
+        onProgress(page + 1, pages);
+      }
+      if (!ink) throw new Error("PDF 渲染结果为空，已停止下载，请重试或联系站长");
+      for (const link of links) {
+        pdf.setPage(link.page); pdf.link(link.x, link.y, link.width, link.height, { url: link.url });
+      }
+      pdf.setPage(pdf.internal.getNumberOfPages());
+      return pdf;
+    } finally {
+      overlay?.remove();
+    }
+  }
+  globalThis.XYJArticlePdf = Object.freeze({ prepareImages, render });
 })();
