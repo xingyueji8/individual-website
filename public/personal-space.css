@@ -20,7 +20,7 @@
 #portfolio .ps-entry:hover { border-color: var(--blue); background: var(--xyj-glass-surface-strong); }
 #portfolio .ps-entry:focus-visible, #portfolio .ps-breadcrumbs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 #portfolio .ps-entry-arrow { color: var(--muted); font-size: 1.1em; }
-#portfolio .ps-page { display: grid; gap: 20px; }
+#portfolio .ps-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 #portfolio .ps-section-row { display: grid; grid-template-columns: minmax(180px, 32%) minmax(0, 1fr); gap: 18px; align-items: stretch; }
 #portfolio .ps-section-row-small { grid-template-columns: minmax(150px, 26%) minmax(0, 1fr); }
 #portfolio .ps-section-row .ps-entry { width: 100%; min-height: 108px; padding: 22px 24px; font-size: clamp(17px, 1.7vw, 22px); }
@@ -48,7 +48,8 @@
 .reader-body :is(img,video,audio,iframe), .editor-preview-body :is(img,video,audio,iframe) { max-width: 100%; }
 .reader-body img { height: auto; }
 #portfolio .ps-feed-actions { display: flex; gap: 10px; padding-top: 24px; }
-#portfolio .ps-gallery { width: 100%; max-width: 1120px; }
+#portfolio .ps-gallery { width: 100%; min-width: 0; max-width: 1120px; }
+#portfolio .ps-gallery .photo-card { min-width: 0; }
 #portfolio .ps-gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 18px; }
 #portfolio .ps-gallery-masonry { display: block; columns: 240px 4; column-gap: 18px; }
 #portfolio .ps-gallery-masonry .photo-card { display: block; break-inside: avoid; aspect-ratio: auto; margin-bottom: 18px; min-height: 0; }
