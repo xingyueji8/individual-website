@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <meta name="xingyueji-version" content="2.2.0.0">
@@ -488,12 +489,23 @@
        登录与游客入口只存在于网站根页面，避免维护两套外观不同的登录框。
        ======================================================== */
     const params = new URLSearchParams(location.search);
-    const resetToken = params.get("reset") || "";
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    const resetToken = fragment.get("reset") || params.get("reset") || "";
+    if (resetToken) {
+      const clean = new URL(location.href);
+      clean.searchParams.delete("reset");
+      if (fragment.has("reset")) clean.hash = "";
+      history.replaceState(null, "", clean.href);
+    }
     const requestedMode = params.get("mode") || "login";
     const requestedNext = params.get("next") || "/";
 
     /* 只允许跳转到本站内部路径，阻止 next 参数把用户带到外部网站。 */
-    const nextPath = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/";
+    let nextPath = "/";
+    try {
+      const target = new URL(requestedNext, location.origin);
+      if (requestedNext.startsWith("/") && target.origin === location.origin) nextPath = target.href;
+    } catch { /* Invalid return destination: go home. */ }
     const nextHash = new URL(nextPath, location.origin).hash;
     const canonicalLoginPath = `/?login=1${nextHash}`;
     let registerStep = 1;
@@ -820,7 +832,8 @@
       const form = document.getElementById("reset-form");
       const back = document.getElementById("reset-back");
       try {
-        const info = await api(`/api/auth/password-reset-info?token=${encodeURIComponent(resetToken)}`);
+        const info = await api("/api/auth/password-reset-info", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: resetToken }) });
         if (!info.valid) throw new Error("链接无效、已使用或已过期，请重新申请密码重置。");
         description.textContent = `正在为“${info.nickname}”重置密码。本链接将在24小时内失效，且只能使用一次。`;
         form.hidden = false;

@@ -10,6 +10,8 @@ import { ENTRY_BACKGROUND_SETTING, normalizeEntryBackgroundConfig, readEntryBack
 import { AGENT_PLANNER_PROMPT, parseAgentPlan, searchAgentResources, ensureAgentActions,
   issueAgentActions, consumeAgentAction } from "./site-agent.mjs";
 import { initializeShares, adminShares, resolveShare, sharedContent, shareListing } from "./shares.mjs";
+import { verifiedAccessEmail } from "./admin-access.mjs";
+import { qqRecipientBinding } from "./qq-recipient.mjs";
 import { presentationSettings, sanitizeTextStyle } from "./personal-space.mjs";
 
 const APP_VERSION = "2.3.0.0";
@@ -73,7 +75,8 @@ const DEFAULT_USAGE_GUIDE = [
  * - QQ_BOT_APP_ID：机器人 AppID，可以放在 wrangler.jsonc 的 vars 中；
  * - QQ_BOT_SECRET：机器人 AppSecret，只能保存为 Cloudflare Secret；
  * - QQ_TARGET_OPENID：可选，直接指定接收通知的用户 OpenID；
- * - QQ_BIND_CODE：可选，给“绑定网站通知”指令增加一层口令保护。
+ * - QQ_BIND_CODE：未固定 OpenID 时，首次或更换绑定必须提供此口令。
+ * - QQ_WEBHOOK_VALIDATION_TOKEN：验证回调地址时必须匹配独立校验口令。
  *
  * 用户的普通 QQ 号不能代替 OpenID。若未配置 QQ_TARGET_OPENID，站长可先
  * 给机器人发送“绑定网站通知”，Worker 会从 QQ 的签名回调中读取 OpenID，
@@ -1632,7 +1635,7 @@ async function adminSecurity(request, env, kind, id) {
     ]);
     return { downloads: rows(downloads).map(row => ({ ...row, user_ids: JSON.parse(row.user_ids) })), locks: rows(locks) };
   }
-  if (!SECURITY_TABLES[kind] || !validId(id)) throw new HttpError(400, "内容类型或 ID 无效");
+  if (!Object.hasOwn(SECURITY_TABLES, kind) || !validId(id)) throw new HttpError(400, "内容类型或 ID 无效");
   const target = await env.DB.prepare(`SELECT id FROM ${SECURITY_TABLES[kind]} WHERE id = ?`).bind(id).first();
   if (!target) throw new HttpError(404, "内容不存在");
   if (request.method !== "PUT") throw new HttpError(405, "不支持的请求方法");
@@ -1675,7 +1678,7 @@ async function unlockContent(request, env) {
   const security = await contentSecurity(request, env);
   const input = await readJson(request);
   const { kind, id } = input;
-  if (!SECURITY_TABLES[kind] || !validId(id)) throw new HttpError(400, "内容参数无效");
+  if (!Object.hasOwn(SECURITY_TABLES, kind) || !validId(id)) throw new HttpError(400, "内容参数无效");
   // Deliberately before password lookup / rate count: unauthorized users cannot
   // test a password or consume the intended recipient's one-use code.
   security.requireView(kind, id, { allowLocked: true });
@@ -2498,7 +2501,7 @@ async function handleQqWebhook(request, env, ctx) {
     if (!freshQqWebhookTimestamp(eventTs)) throw new HttpError(401, "QQ 回调验证请求已过期");
     const configuredToken = String(env.QQ_WEBHOOK_VALIDATION_TOKEN || "").trim();
     const suppliedToken = new URL(request.url).searchParams.get("validation_token") || "";
-    if (configuredToken && !(await timingSafeEqualText(suppliedToken, configuredToken))) {
+    if (!configuredToken || !suppliedToken || !(await sameSecretText(suppliedToken, configuredToken))) {
       throw new HttpError(403, "QQ 回调验证入口未授权");
     }
     return json({ plain_token: plainToken, signature: await signQqValidation(env, eventTs, plainToken) });
@@ -2527,16 +2530,13 @@ async function handleQqWebhook(request, env, ctx) {
       const codeAccepted = requiredCode ? await sameSecretText(suppliedCode, requiredCode) : false;
       let reply;
 
-      if (fixedOpenid && fixedOpenid !== userOpenid) {
+      const decision = qqRecipientBinding(userOpenid, fixedOpenid, savedOpenid, codeAccepted);
+      if (decision === "fixed-other") {
         reply = "绑定失败：Cloudflare 已通过 QQ_TARGET_OPENID 固定了其他接收账号。";
-      } else if (savedOpenid && savedOpenid !== userOpenid && !codeAccepted) {
-        reply = requiredCode
-          ? `绑定失败。请发送“${QQ_BIND_COMMAND} 绑定口令”。`
-          : "绑定失败：网站已经绑定其他 QQ。请先在 Cloudflare 配置 QQ_BIND_CODE 后再重新绑定。";
-      } else if (!savedOpenid && requiredCode && !codeAccepted) {
-        reply = `绑定口令不正确。请发送“${QQ_BIND_COMMAND} 绑定口令”。`;
+      } else if (decision === "denied") {
+        reply = "绑定失败。请站长配置 QQ_BIND_CODE 后，通过私聊提供绑定口令。";
       } else {
-        if (!fixedOpenid) await saveQqTargetOpenid(env, userOpenid);
+        if (decision === "save") await saveQqTargetOpenid(env, userOpenid);
         reply = "星月集网站通知绑定成功。以后有新留言时，我会通过 QQ 提醒你。";
       }
 
@@ -2741,10 +2741,16 @@ function configuredAdminAccessEmails(env) {
     .filter(Boolean));
 }
 
-function adminAccessEmail(request, env, { required = false } = {}) {
+async function adminAccessEmail(request, env, { required = false } = {}) {
   const allowed = configuredAdminAccessEmails(env);
-  if (!allowed.size) return "";
-  const email = clampText(request.headers.get("Cf-Access-Authenticated-User-Email"), 320).toLowerCase();
+  const issuer = String(env.ADMIN_ACCESS_TEAM_DOMAIN || "").trim();
+  const audience = String(env.ADMIN_ACCESS_AUD || "").trim();
+  if (!allowed.size && !issuer && !audience) return "";
+  if (!allowed.size || !issuer || !audience) {
+    if (required) throw new HttpError(503, "后台 Cloudflare Access 配置不完整，请站长检查邮箱、团队域名和应用 AUD");
+    return null;
+  }
+  const email = await verifiedAccessEmail(request.headers.get("Cf-Access-Jwt-Assertion"), issuer, audience);
   if (!email || !allowed.has(email)) {
     if (required) throw new HttpError(403, "后台身份未通过 Cloudflare Access 验证");
     return null;
@@ -2784,7 +2790,7 @@ async function makeSession(request, env, accessEmail = "") {
 async function isAdmin(request, env) {
   const token = getCookie(request, SESSION_COOKIE);
   if (!env.DB || !/^[a-zA-Z0-9_-]{32,200}$/.test(token)) return false;
-  const accessEmail = adminAccessEmail(request, env);
+  const accessEmail = await adminAccessEmail(request, env);
   if (accessEmail === null) return false;
   const tokenHash = await sha256(token);
   const session = await env.DB.prepare(`
@@ -2828,7 +2834,7 @@ async function timingSafeEqualText(a, b) {
 
 async function adminLogin(request, env) {
   if (!env.ADMIN_PASSWORD) throw new HttpError(503, "请先在 Cloudflare 中配置 ADMIN_PASSWORD");
-  const accessEmail = adminAccessEmail(request, env, { required: true });
+  const accessEmail = await adminAccessEmail(request, env, { required: true });
   await consumeRateLimit(env, await clientRateKey(request, "admin-login"), 8, 15 * 60);
   const body = await readJson(request);
   if (!(await timingSafeEqualText(body.password || "", env.ADMIN_PASSWORD))) {
@@ -3730,6 +3736,8 @@ async function changeUserPassword(request, env) {
     `).bind(record.hash, record.salt, record.iterations, timestamp, timestamp, user.id),
     env.DB.prepare("UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
       .bind(timestamp, user.id),
+    env.DB.prepare(`UPDATE password_reset_requests SET status='expired', token_hash=NULL
+      WHERE user_id=? AND status IN ('pending','approved')`).bind(user.id),
   ]);
   const session = await createUserSession(request, env, user.id, false);
   await recordLoginEvent(env, request, "password_change", user.id, user.username_normalized);
@@ -3766,18 +3774,14 @@ async function requestPasswordReset(request, env, ctx) {
   const id = crypto.randomUUID();
   const timestamp = nowIso();
   const meta = await clientMeta(request);
-  await env.DB.batch([
-    env.DB.prepare(`
-      UPDATE password_reset_requests SET status = 'expired'
-      WHERE user_id = ? AND status IN ('pending', 'approved')
-    `).bind(user.id),
-    env.DB.prepare(`
-      INSERT INTO password_reset_requests
-        (id, user_id, contact_type, contact_value, status, requested_at,
-         ip_hash, ip_hint, user_agent)
-      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
-    `).bind(id, user.id, type, suppliedContact, timestamp, meta.ipHash, meta.ipHint, meta.userAgent),
-  ]);
+  // An unauthenticated request must never cancel a link the owner has already
+  // approved. Coalesce active requests before sending any notification.
+  const inserted = await env.DB.prepare(`INSERT INTO password_reset_requests
+    (id,user_id,contact_type,contact_value,status,requested_at,ip_hash,ip_hint,user_agent)
+    SELECT ?,?,?,?,'pending',?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM password_reset_requests
+      WHERE user_id=? AND (status='pending' OR (status='approved' AND expires_at>?)))`)
+    .bind(id, user.id, type, suppliedContact, timestamp, meta.ipHash, meta.ipHint, meta.userAgent, user.id, timestamp).run();
+  if (!inserted.meta.changes) return genericResult;
   const noticeJob = notifyPasswordResetRequest(env, {
     id, username: user.username, nickname: user.nickname,
     contactType: type, contact: suppliedContact, requestedAt: timestamp,
@@ -3786,13 +3790,13 @@ async function requestPasswordReset(request, env, ctx) {
   return genericResult;
 }
 
-async function passwordResetInfo(request, env, url) {
-  const token = clampText(url.searchParams.get("token"), 200);
+async function passwordResetInfo(request, env) {
+  const token = clampText((await readJson(request)).token, 200);
   if (!token) return { valid: false };
   const requestRow = await env.DB.prepare(`
     SELECT r.id, r.expires_at, u.nickname
     FROM password_reset_requests r JOIN users u ON u.id = r.user_id
-    WHERE r.token_hash = ? AND r.status = 'approved' AND r.expires_at > ?
+    WHERE r.token_hash = ? AND r.status = 'approved' AND r.expires_at > ? AND u.status <> 'disabled'
   `).bind(await sha256(token), nowIso()).first();
   return requestRow ? { valid: true, nickname: requestRow.nickname, expiresAt: requestRow.expires_at } : { valid: false };
 }
@@ -3805,29 +3809,33 @@ async function resetUserPassword(request, env) {
   if (!token) throw new HttpError(400, "重置链接无效或已过期");
   const tokenHash = await sha256(token);
   const reset = await env.DB.prepare(`
-    SELECT r.*, u.username_normalized
+    SELECT r.id, r.user_id, u.username_normalized
     FROM password_reset_requests r JOIN users u ON u.id = r.user_id
-    WHERE r.token_hash = ? AND r.status = 'approved' AND r.expires_at > ?
+    WHERE r.token_hash = ? AND r.status = 'approved' AND r.expires_at > ? AND u.status <> 'disabled'
   `).bind(tokenHash, nowIso()).first();
   if (!reset) throw new HttpError(400, "重置链接无效、已使用或已过期");
 
   const record = await createPasswordRecord(newPassword);
   const timestamp = nowIso();
-  await env.DB.batch([
-    env.DB.prepare(`
-      UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?,
-                       password_changed_at = ?, updated_at = ? WHERE id = ?
-    `).bind(record.hash, record.salt, record.iterations, timestamp, timestamp, reset.user_id),
-    env.DB.prepare("UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
-      .bind(timestamp, reset.user_id),
-    env.DB.prepare(`
-      UPDATE password_reset_requests SET status = 'used', used_at = ?, token_hash = NULL WHERE id = ?
-    `).bind(timestamp, reset.id),
-    env.DB.prepare(`
-      UPDATE password_reset_requests SET status = 'expired'
-      WHERE user_id = ? AND id <> ? AND status IN ('pending', 'approved')
-    `).bind(reset.user_id, reset.id),
+  // D1 runs the batch in one transaction. Recheck the original token inside
+  // every write, and consume it last so a stale request cannot change anything.
+  const valid = `EXISTS (SELECT 1 FROM password_reset_requests r JOIN users u ON u.id=r.user_id
+    WHERE r.id=? AND r.user_id=? AND r.token_hash=? AND r.status='approved'
+      AND r.expires_at > ? AND u.status<>'disabled')`;
+  const proof = [reset.id, reset.user_id, tokenHash, timestamp];
+  const results = await env.DB.batch([
+    env.DB.prepare(`UPDATE users SET password_hash=?, password_salt=?, password_iterations=?,
+      password_changed_at=?, updated_at=? WHERE id=? AND ${valid}`)
+      .bind(record.hash, record.salt, record.iterations, timestamp, timestamp, reset.user_id, ...proof),
+    env.DB.prepare(`UPDATE user_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL AND ${valid}`)
+      .bind(timestamp, reset.user_id, ...proof),
+    env.DB.prepare(`UPDATE password_reset_requests SET status='expired', token_hash=NULL
+      WHERE user_id=? AND id<>? AND status IN ('pending','approved') AND ${valid}`)
+      .bind(reset.user_id, reset.id, ...proof),
+    env.DB.prepare(`UPDATE password_reset_requests SET status='used', used_at=?, token_hash=NULL WHERE id=? AND ${valid}`)
+      .bind(timestamp, reset.id, ...proof),
   ]);
+  if (!results[3].meta.changes) throw new HttpError(400, "重置链接无效、已使用或已过期");
   await recordLoginEvent(env, request, "password_reset", reset.user_id, reset.username_normalized);
   await createNotification(env, reset.user_id, {
     type: "account", title: "账号密码已通过重置流程更新",
@@ -4186,11 +4194,22 @@ async function askAiStream(request, env, sessionUser) {
   return streamBufferedText(answer);
 }
 
+// Reuse the identity that the byte-level permission graph will read, including
+// on video Range requests; share links and curated entry backgrounds have their own gates.
+async function requireMediaVisitor(request, env) {
+  await requireShareNavigationLogin(request, env);
+  const context = await websiteAccessContext(request, env);
+  if (!context.guestMode && !context.user && !context.adminAccess) {
+    throw new HttpError(401, "请先完成游客验证，或登录账号后继续访问");
+  }
+}
+
 async function serveMedia(request, env, id, share = null) {
   if (!env.BUCKET) throw new HttpError(503, "R2 存储桶尚未绑定");
   const security = share ? { requireView: (kind, target, options) => share.require(kind, target, options), canDownload: () => share.allowDownload }
     : await contentSecurity(request, env, { targets: [{ kind: "media", id }] });
   const requestParams = new URL(request.url).searchParams;
+  if (requestParams.get("background") === "1" && requestParams.get("mosaic") === "1") throw new HttpError(404, "背景图片不存在");
   security.requireView("media", id, { allowLocked: requestParams.get("mosaic") === "1" });
   if (requestParams.get("mosaic") === "1") {
     const row = await env.DB.prepare("SELECT mosaic_object_key FROM media WHERE id=?").bind(id).first();
@@ -4294,8 +4313,7 @@ async function assetAccessContext(request, env, asset) {
     || asset.kind === "archive" || asset.kind === "file";
   security.requireView("asset", asset.id, { download: wantsDownload });
   return {
-    inheritedVisibility: "protected", downloadPolicy: security.canDownload("asset", asset.id) ? "public" : "member",
-    adminAccess: (await websiteAccessContext(request, env)).adminAccess, wantsDownload,
+    wantsDownload, requireAttachment: () => security.requireView("asset", asset.id, { download: true }),
   };
 }
 
@@ -4336,13 +4354,13 @@ async function serveAsset(request, env, id, share = null) {
     filename = `${asset.display_name || asset.filename}-${variantLabel}${extension}`;
   }
 
-  const access = share ? { inheritedVisibility: "protected", downloadPolicy: "public", wantsDownload: params.get("download") === "1" || asset.kind === "archive" || asset.kind === "file" }
+  const access = share ? { requireAttachment: () => share.require("asset", id, { download: true }), wantsDownload: params.get("download") === "1" || asset.kind === "archive" || asset.kind === "file" }
     : await assetAccessContext(request, env, asset);
   const head = await env.BUCKET.head(objectKey);
   if (!head) throw new HttpError(404, "R2 中的文件对象不存在");
   if (wantsPoster && head.httpMetadata?.contentType) mimeType = head.httpMetadata.contentType;
   const rendersInline = !access.wantsDownload && assetCanRenderInline(asset, mimeType, { variantLabel, wantsPoster });
-  if (share) share.require("asset", id, { download: !rendersInline });
+  if (!rendersInline) access.requireAttachment();
   const rangeHeader = request.headers.get("Range");
   const range = rangeHeader ? parseByteRange(rangeHeader, head.size) : null;
   if (rangeHeader && !range) {
@@ -4364,12 +4382,7 @@ async function serveAsset(request, env, id, share = null) {
   headers.set("Accept-Ranges", "bytes");
   headers.set("Content-Length", String(range ? range.length : head.size));
   if (range) headers.set("Content-Range", `bytes ${range.start}-${range.end}/${head.size}`);
-  headers.set(
-    "Cache-Control",
-    access.inheritedVisibility === "public" && access.downloadPolicy === "public"
-      ? "public, max-age=3600"
-      : "private, no-store",
-  );
+  headers.set("Cache-Control", "private, no-store");
   const disposition = rendersInline ? "inline" : "attachment";
   headers.set("Content-Disposition", `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`);
   if (rendersInline && normalizedMimeType(mimeType) === "application/pdf") {
@@ -6346,10 +6359,11 @@ async function adminPasswordResets(request, env, id) {
     if (!reset) throw new HttpError(404, "重置申请不存在");
 
     if (action === "reject") {
-      await env.DB.prepare(`
+      const result = await env.DB.prepare(`
         UPDATE password_reset_requests
-        SET status = 'rejected', token_hash = NULL, expires_at = NULL WHERE id = ?
+        SET status = 'rejected', token_hash = NULL, expires_at = NULL WHERE id = ? AND status <> 'used'
       `).bind(id).run();
+      if (!result.meta.changes) throw new HttpError(409, "申请已使用");
       return { id, status: "rejected" };
     }
 
@@ -6359,17 +6373,18 @@ async function adminPasswordResets(request, env, id) {
       const token = randomToken();
       const timestamp = nowIso();
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000).toISOString();
-      await env.DB.prepare(`
+      const result = await env.DB.prepare(`
         UPDATE password_reset_requests
         SET token_hash = ?, status = 'approved', approved_at = ?, expires_at = ?, used_at = NULL
-        WHERE id = ?
+        WHERE id = ? AND status <> 'used' AND EXISTS (SELECT 1 FROM users WHERE id=password_reset_requests.user_id AND status<>'disabled')
       `).bind(await sha256(token), timestamp, expiresAt, id).run();
+      if (!result.meta.changes) throw new HttpError(409, "申请已使用或账号已停用");
       const origin = new URL(request.url).origin;
       return {
         id,
         status: "approved",
         expiresAt,
-        resetUrl: `${origin}/login?reset=${encodeURIComponent(token)}`,
+        resetUrl: `${origin}/login#reset=${encodeURIComponent(token)}`,
       };
     }
     throw new HttpError(400, "未知的重置操作");
@@ -6719,8 +6734,8 @@ async function handleApi(request, env, url, ctx) {
   if (url.pathname === "/api/auth/forgot-password" && request.method === "POST") {
     return json(await requestPasswordReset(request, env, ctx));
   }
-  if (url.pathname === "/api/auth/password-reset-info" && request.method === "GET") {
-    return json(await passwordResetInfo(request, env, url));
+  if (url.pathname === "/api/auth/password-reset-info" && request.method === "POST") {
+    return json(await passwordResetInfo(request, env));
   }
   if (url.pathname === "/api/auth/reset-password" && request.method === "POST") {
     return json(await resetUserPassword(request, env));
@@ -6779,7 +6794,7 @@ async function handleApi(request, env, url, ctx) {
   if (url.pathname.startsWith("/api/content-access/") && request.method === "GET") {
     await requireWebsiteVisitor(request, env);
     const [, , , kind, id] = url.pathname.split("/");
-    if (!SECURITY_TABLES[kind] || !validId(id)) throw new HttpError(400, "内容参数无效");
+    if (!Object.hasOwn(SECURITY_TABLES, kind) || !validId(id)) throw new HttpError(400, "内容参数无效");
     const security = await contentSecurity(request, env, { targets: [{ kind, id }] });
     security.requireView(kind, id, { allowLocked: true });
     const access = security.decorate(kind, { id });
@@ -6844,18 +6859,27 @@ export default {
       }
       if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url, ctx);
       if (url.pathname.startsWith("/media/")) {
+        if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "不支持的请求方法");
         await ensureSchema(env);
+        if (url.searchParams.get("background") !== "1") await requireMediaVisitor(request, env);
         const id = url.pathname.split("/").filter(Boolean)[1];
         if (!validId(id)) throw new HttpError(404, "图片不存在");
         return await serveMedia(request, env, id);
       }
       if (url.pathname.startsWith("/files/")) {
         await ensureSchema(env);
+        await requireMediaVisitor(request, env);
         const id = url.pathname.split("/").filter(Boolean)[1];
         if (!validId(id)) throw new HttpError(404, "文件不存在");
         return await serveAsset(request, env, id);
       }
-      return responseWithSecurityHeaders(await env.ASSETS.fetch(request));
+      const response = responseWithSecurityHeaders(await env.ASSETS.fetch(request));
+      if (["/document-viewer", "/document-viewer/", "/document-viewer.html"].includes(url.pathname)) {
+        response.headers.set("X-Frame-Options", "SAMEORIGIN");
+        response.headers.set("Referrer-Policy", "no-referrer");
+        response.headers.set("Content-Security-Policy", "base-uri 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'self'; form-action 'none'; img-src 'self' data:");
+      }
+      return response;
     } catch (error) {
       if (error instanceof HttpError) {
         return json({ error: error.message, ...(error.code ? { errorCode: error.code } : {}) }, error.status);

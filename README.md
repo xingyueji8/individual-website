@@ -61,7 +61,7 @@ picture/
 - 可选 Secret：`WECOM_WEBHOOK_URL`（企业微信群机器人通知地址）
 - QQ 普通变量：`QQ_BOT_APP_ID`（当前已在 `wrangler.jsonc` 中填写）
 - QQ 必需 Secret：`QQ_BOT_SECRET`（QQ 机器人 AppSecret，严禁提交到 GitHub）
-- QQ 可选 Secret：`QQ_BIND_CODE`（防止其他人抢先绑定网站通知）
+- QQ 回调地址验证：`QQ_WEBHOOK_VALIDATION_TOKEN`；首次绑定或更换通知接收人：`QQ_BIND_CODE` 或固定 `QQ_TARGET_OPENID`。口令须独立，详见 DEPLOY.md。
 - 可选 Secret：`FEEDBACK_WEBHOOK_URL`（其他通用 HTTPS Webhook 中转）
 
 数据库表会在首次 API 请求时自动创建，无需手动执行 SQL。

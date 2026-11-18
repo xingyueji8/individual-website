@@ -2000,7 +2000,7 @@
        ======================================================== -->
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js?v=20261114-article-images"></script>
-  <script src="/entry-auth.js"></script>
+  <script src="/entry-auth.js?v=20261118-privacy"></script>
   <script src="/article-pdf.js?v=20261118-pdf-quality"></script>
   <script src="/video-playback.js?v=20261111-video-compat"></script>
   <script>
@@ -2880,8 +2880,13 @@
         downloads.append(resourceDownloadButton("下载 PDF 原件", asset.downloadUrl));
       } else if (asset.kind === "word") {
         const preview = variants.find((item) => item.label === "preview");
-        const frame = document.createElement("iframe"); frame.title = asset.display_name;
-        frame.src = preview?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}${contentGrantTokens() ? `&grants=${encodeURIComponent(contentGrantTokens())}` : ""}`; viewer.append(frame);
+        if (preview || asset.canDownload) {
+          const frame = document.createElement("iframe"); frame.title = asset.display_name;
+          frame.src = preview?.url || `/document-viewer.html?asset=${encodeURIComponent(asset.id)}${contentGrantTokens() ? `&grants=${encodeURIComponent(contentGrantTokens())}` : ""}`; viewer.append(frame);
+        } else {
+          const message = document.createElement("div"); message.className = "resource-viewer-message";
+          message.textContent = "此文档未开放原件下载，站长上传 PDF 预览版后即可在线阅读。"; viewer.append(message);
+        }
         downloads.append(resourceDownloadButton("下载 Word 原件", asset.downloadUrl));
         if (preview) downloads.append(resourceDownloadButton("下载 PDF 预览", preview.downloadUrl));
       } else {

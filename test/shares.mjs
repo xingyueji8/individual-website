@@ -98,7 +98,7 @@ try {
   const head = await request(`${prefix}/asset/article-video`, { cookie: "", method: "HEAD" }); assert.equal(head.status, 200); assert.equal(head.headers.get("Content-Length"), "10");
   for (const [kind, id] of [["content", outsideArticle.id], ["content", draft.id], ["media", "outside-photo"], ["asset", "outside-asset"]]) await status(404, `${prefix}/${kind}/${id}`, { cookie: "" });
   await status(404, `${prefix}/asset/outside-asset?variant=invalid`, { cookie: "" });
-  await status(404, "/media/article-image?download=1", { cookie: "" }); // No ordinary ancestor bypass.
+  await status(401, "/media/article-image?download=1", { cookie: "" }); // Ordinary bytes require site entry.
   await status(401, "/api/bootstrap", { cookie: "" }); // A share never issues full guest access.
   await status(405, prefix, { cookie: "", method: "POST", body: {} });
   await status(410, `/api/shares/${"0".repeat(64)}`, { cookie: "" });
@@ -109,6 +109,7 @@ try {
   const scopedCookie = cookie(page, "xyj_share"); assert.equal(scopedCookie, "xyj_share=1");
   const guest = await request("/api/guest/enter", { cookie: "", method: "POST", body: { visitorId: "share-guest-visitor-123456" } });
   assert.equal(guest.status, 200); const guestCookie = cookie(guest, "xyj_guest");
+  await status(404, "/media/article-image?download=1", { cookie: guestCookie }); // Normal ancestor permissions still apply.
   for (const path of ["/api/bootstrap", "/api/guest/entry-background", "/media/outside-photo?preview=1", "/files/outside-asset"])
     await status(401, path, { cookie: `${scopedCookie}; ${guestCookie}` });
   await status(401, "/api/guest/enter", { cookie: scopedCookie, method: "POST", body: { visitorId: "share-guest-visitor-123456" } });

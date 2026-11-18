@@ -43,7 +43,8 @@ first.node("entry-password").dispatchEvent(new first.window.Event("input", { bub
 const refreshed = environment(stored);
 const refreshedDraft = refreshed.api.installFormDraft(refreshed.node("entry-login-form"));
 assert.equal(refreshed.node("entry-username").value, "mobile-user");
-assert.equal(refreshed.node("entry-password").value, "test-only-draft-password");
+assert.equal(refreshed.node("entry-password").value, "");
+assert.ok(!stored.get(draftKey).includes("test-only-draft-password"));
 assert.equal(refreshed.node("entry-remember").checked, false);
 refreshed.node("entry-remember").checked = true;
 refreshed.node("entry-remember").dispatchEvent(new refreshed.window.Event("change", { bubbles: true }));
@@ -52,12 +53,13 @@ checkedRefresh.api.installFormDraft(checkedRefresh.node("entry-login-form"));
 assert.equal(checkedRefresh.node("entry-remember").checked, true);
 refreshedDraft.clearPassword();
 assert.equal(refreshed.node("entry-password").value, "");
-assert.equal(JSON.parse(stored.get(draftKey)).password, "");
+assert.equal("password" in JSON.parse(stored.get(draftKey)), false);
 
 const autofilled = environment(new Map([[draftKey, JSON.stringify({ version: 1, username: "draft-user", password: "draft-secret", remember: false, expiresAt: Date.now() + 60_000 })]]));
 autofilled.node("entry-username").value = "password-manager-user";
 autofilled.node("entry-password").value = "password-manager-secret";
 autofilled.api.installFormDraft(autofilled.node("entry-login-form"));
+assert.ok(!autofilled.stored.get(draftKey).includes("draft-secret"));
 assert.equal(autofilled.node("entry-username").value, "password-manager-user");
 assert.equal(autofilled.node("entry-password").value, "password-manager-secret");
 const expired = environment(new Map([[draftKey, JSON.stringify({ version: 1, username: "old-user", password: "expired-secret", expiresAt: Date.now() - 1 })]]));
@@ -152,7 +154,7 @@ loading.node("entry-verification-retry").click();
 await flush();
 assert.equal(loadedWidgets.widgets.length, 2);
 assert.equal(loading.node("entry-password").value, "keep-during-retry");
-assert.equal(JSON.parse(loading.stored.get(draftKey)).password, "keep-during-retry");
+assert.equal("password" in JSON.parse(loading.stored.get(draftKey)), false);
 
 const configStall = environment();
 const stalled = challenge(configStall, signal => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))));

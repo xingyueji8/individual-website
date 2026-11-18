@@ -219,6 +219,42 @@ try {
 
   const directRead = await request("/api/content/selected-article", { headers: { Cookie: mixedCookies } });
   assert.equal(directRead.status, 404);
+  // Public entry, scoped sharing and safe inline previews are separate policies.
+  assert.equal((await request("/files/subsection-viewable-pdf")).status, 401);
+  await db.prepare("UPDATE assets SET kind='word',mime_type=? WHERE id='subsection-protected-file'")
+    .bind("application/vnd.openxmlformats-officedocument.wordprocessingml.document").run();
+  for (const method of ["GET","HEAD"]) {
+    const denied = await request("/files/subsection-protected-file", { method, headers: { Cookie: guestCookie, Range: "bytes=0-0" } });
+    assert.equal(denied.status, 401);
+  }
+  assert.match((await request("/files/subsection-protected-file", { headers: { Cookie: userCookie } })).headers.get("Content-Disposition"), /^attachment/);
+  assert.equal((await request("/files/subsection-viewable-pdf", { headers: { Cookie: guestCookie, Range: "bytes=0-0" } })).status, 206);
+
+  const send = (path, body, cookie = "", method = "POST") => request(path, { method,
+    headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify(body) });
+  const forgotten = { username: "access_user", contactType: "email", contact: "access@example.com" };
+  assert.equal((await send("/api/auth/forgot-password", forgotten)).status, 200);
+  const ticket = await db.prepare("SELECT id FROM password_reset_requests WHERE user_id=?").bind(registeredUser.id).first();
+  const review = "/api/admin/password-resets/" + ticket.id;
+  const issued = await send(review, { action: "approve" }, adminCookie, "PUT");
+  assert.equal(issued.status, 200);
+  const link = new URL((await issued.json()).resetUrl);
+  assert.equal(link.search, "");
+  const token = new URLSearchParams(link.hash.slice(1)).get("reset");
+  const info = async () => (await (await send("/api/auth/password-reset-info", { token })).json()).valid;
+  assert.ok(token && await info());
+  assert.equal((await send("/api/auth/forgot-password", forgotten)).status, 200);
+  assert.equal(await info(), true, "a duplicate request leaves the issued link intact");
+  const newPassword = "FreshPassword741";
+  const submissions = await Promise.all([1,2].map(() => send("/api/auth/reset-password", { token, newPassword })));
+  assert.deepEqual(submissions.map(r => r.status).sort(), [200, 400], "one logical reset commits exactly once");
+  assert.equal(await info(), false);
+  assert.equal((await send(review, { action: "regenerate" }, adminCookie, "PUT")).ok, false);
+  const oldSession = await request("/api/auth/session", { headers: { Cookie: userCookie } });
+  assert.equal((await oldSession.json()).user, null);
+  assert.equal((await send("/api/auth/login", { username: "access_user", password: newPassword })).status, 200);
+  assert.equal((await db.prepare("SELECT COUNT(*) n FROM notifications WHERE user_id=? AND title=?")
+    .bind(registeredUser.id, "账号密码已通过重置流程更新").first()).n, 1);
   console.log("guest access regression passed");
 } finally {
   await miniflare.dispose();

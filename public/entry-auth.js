@@ -1,5 +1,4 @@
-/* Login drafts belong only to this tab. Never persist a password in localStorage
- * or a URL; discard it after successful entry and expire abandoned drafts. */
+/* Store only the username and checkbox; leave passwords to browser autofill. */
 (() => {
   "use strict";
   const DRAFT_KEY = "xyj_entry_form_draft";
@@ -11,22 +10,25 @@
     const username = form.querySelector('[name="username"]');
     const password = form.querySelector('[name="password"]');
     const remember = form.querySelector('[name="remember"]');
-    try {
-      const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null");
-      if (draft?.version === 1 && draft.expiresAt > Date.now()) {
-        // Browser/password-manager autofill takes precedence over a draft.
-        if (!username.value) username.value = String(draft.username || "");
-        if (!password.value) password.value = String(draft.password || "");
-        remember.checked = Boolean(draft.remember);
-      } else sessionStorage.removeItem(DRAFT_KEY);
-    } catch { /* Native autocomplete remains usable when storage is blocked. */ }
     const save = () => {
       try {
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ version: 1,
-          username: username.value, password: password.value, remember: remember.checked,
-          expiresAt: Date.now() + DRAFT_TTL }));
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ version: 2,
+          username: username.value, remember: remember.checked, expiresAt: Date.now() + DRAFT_TTL }));
       } catch { /* Storage restrictions must never prevent login. */ }
     };
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        // Remove old records before migration: v1 stored a plaintext password.
+        sessionStorage.removeItem(DRAFT_KEY);
+        if ([1, 2].includes(draft?.version) && draft.expiresAt > Date.now()) {
+          if (!username.value) username.value = String(draft.username || "");
+          remember.checked = Boolean(draft.remember);
+          save();
+        }
+      }
+    } catch { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ } }
     form.addEventListener("input", save);
     form.addEventListener("change", save);
     form.addEventListener("submit", save);

@@ -105,7 +105,8 @@ try {
   for (const mode of ["photos", "sections", "off"]) {
     await save({ mode }); assert.deepEqual(await photoIds(), [], "empty ranges never fall back to every photo");
     await status(404, "/media/old-photo?background=1", { cookie: admin });
-    const ordinary = await request("/media/old-photo?preview=1", { cookie: "" });
+    await status(401, "/media/old-photo?preview=1", { cookie: "" });
+    const ordinary = await request("/media/old-photo?preview=1", { cookie: admin });
     assert.equal(ordinary.status, 200, "carousel settings do not change ordinary photo access");
   }
 

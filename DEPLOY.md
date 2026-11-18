@@ -81,13 +81,13 @@ HTML、`worker.js`、`wrangler.jsonc` 或 GitHub。
 
 1. 打开 Cloudflare Worker → Settings → Variables and Secrets。
 2. 新增加密 Secret `QQ_BOT_SECRET`，值填写 QQ 开放平台显示的 AppSecret。
-3. 推荐再新增加密 Secret `QQ_BIND_CODE`，值由站长自己设置，例如一串不少于 12 位的随机字符。
+3. 设置两个独立的随机 Secret（建议各 32 位字母数字）：`QQ_WEBHOOK_VALIDATION_TOKEN` 用于新建或重新验证回调；`QQ_BIND_CODE` 用于首次或更换接收人。如果已固定 `QQ_TARGET_OPENID`，无需绑定口令。
 4. 保存并重新部署，访问 `https://xingyueji.com.cn/api/qq/events`；看到
-   `configured: true` 说明 AppID 和 AppSecret 已被 Worker 读取。
+   `Webhook endpoint ready` 仅表示路由可访问。
 5. 打开 QQ 开放平台机器人的 Webhook 设置，回调地址填写：
 
 ```text
-https://xingyueji.com.cn/api/qq/events
+https://xingyueji.com.cn/api/qq/events?validation_token=替换成QQ_WEBHOOK_VALIDATION_TOKEN的值
 ```
 
 6. 监听事件选择 `C2C_MESSAGE_CREATE`（单聊消息事件），然后保存并让平台完成回调验证。
@@ -97,10 +97,9 @@ https://xingyueji.com.cn/api/qq/events
 绑定网站通知 你在QQ_BIND_CODE中设置的口令
 ```
 
-如果没有配置 `QQ_BIND_CODE`，第一次绑定也可以只发送 `绑定网站通知`；但必须在机器人公开前完成，
-否则可能被其他人抢先绑定。收到“星月集网站通知绑定成功”后，新留言就会直接发到该 QQ 会话。
+已有正确绑定继续接收已签名的消息；未设置口令时不能首次绑定或更换接收人。收到“星月集网站通知绑定成功”后，新留言就会直接发到该 QQ 会话。
 
-最后访问 `/api/health`，正常时会看到：
+最后以 Studio 管理员身份访问 `/api/health`，正常时会看到：
 
 ```json
 {
@@ -150,3 +149,17 @@ https://xingyueji.com.cn/api/qq/events
 
 统计日默认按 `Asia/Shanghai` 汇总。如需修改，在 Variables 中添加普通变量 `ANALYTICS_TIMEZONE`，
 值填写 IANA 时区名称。
+
+## Studio 的 Cloudflare Access（可选）
+
+未使用 Access 时保留现有后台密码登录即可。使用邮箱白名单时，在 Cloudflare Zero Trust 为 Studio 页面和 `/api/admin/*` 配置同一 Access 应用和允许策略。在 Worker 的 Variables and Secrets 中一起填写：
+
+- `ADMIN_ACCESS_EMAILS`：允许的管理员邮箱，多个用英文逗号分隔。
+- `ADMIN_ACCESS_TEAM_DOMAIN`：该账户的团队域名，例如 `https://你的团队名.cloudflareaccess.com`（使用控制台中的实际值）。
+- `ADMIN_ACCESS_AUD`：上述 Access 应用详情中的 **Application Audience (AUD) Tag**。
+
+仅设置其中一部分时，Studio 将拒绝管理员登录，直到配置补齐；普通访问和分享不受影响。Worker 会验证 Cloudflare 签名、签发域、目标应用、有效期和邮箱，再验证 Studio 密码。
+
+## 私有文件的存储入口
+
+在 R2 → `xingyueji-media` → Settings 分别检查公共开发地址（r2.dev）和自定义域名。保存会员或私密原件的桶应只通过本站 Worker 读取，不应经另一个公开桶地址直接访问。
