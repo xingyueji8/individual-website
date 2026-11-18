@@ -1,0 +1,20 @@
+dialog.pdf-options-dialog {
+  width: min(420px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  padding: clamp(18px, 5vw, 26px);
+  color: var(--ink, #17262c);
+  background: var(--cream, #fff);
+  border: 1px solid var(--line, #c5d2d6);
+  border-radius: 18px;
+}
+.pdf-options-form h2 { margin: 0 0 16px; font-size: 1.25rem; }
+.pdf-options-form label { display: block; margin-bottom: 6px; font-weight: 650; }
+.pdf-options-form select {
+  width: 100%; min-height: 44px; padding: 8px 12px;
+  font: inherit; color: inherit; background: var(--paper, #fff);
+  border: 1px solid var(--line, #c5d2d6); border-radius: 8px;
+}
+.pdf-options-form p { margin: 12px 0 18px; color: var(--muted, #4f6369); line-height: 1.6; font-size: .9rem; }
+.pdf-options-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.pdf-options-actions button { min-height: 44px; }

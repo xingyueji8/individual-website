@@ -1,31 +1,69 @@
-// Build an unlinked, synthetic-only browser fixture for the deployed HTTPS site.
+// Build a synthetic browser fixture using the actual article download handler.
 // Remove public/pdf-render-check.html after visual/download verification.
 import { readFile, writeFile } from "node:fs/promises";
 const index = await readFile("public/index.html", "utf8");
 const css = index.match(/<style>([\s\S]*?)<\/style>/)[1];
-const watermark = index.slice(index.indexOf("    function createPdfWatermarkDataUrl("), index.indexOf("    async function downloadCurrentContentPdf("));
-const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>PDF 渲染核验</title>
-<style>${css}</style><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/vnext.css"><link rel="stylesheet" href="/material.css"><link rel="stylesheet" href="/personal-space.css">
-<style>body{overflow:auto;padding:24px}.check-controls{position:relative;z-index:2;background:white;color:#17262c;padding:24px;border:1px solid #bcc;max-width:900px;margin:auto}.check-controls label{display:inline-block;margin:12px}.check-controls select,.check-controls button{font:inherit;padding:10px}#result{white-space:pre-wrap}#reader-dialog .reader-wrap{padding:24px}#reader-dialog img{max-width:100%;height:auto}</style>
-<script src="/pdf-engine.js"></script><script src="/article-pdf.js?v=20261118-paginated-check"></script></head><body>
-<section class="check-controls"><h1>PDF 渲染核验</h1><p>仅生成合成测试图片，不读取账号或网站作品。</p><label>测试内容 <select id="case"><option value="short">短文：2 张图片</option><option value="long">长文：36 张竖图</option></select></label><label>渲染方式 <select id="mode"><option value="paged">逐页渲染</option><option value="legacy">原整篇画布</option></select></label><label><input type="checkbox" id="modal" checked>保留文章阅读弹窗</label><button id="run" type="button">生成并下载核验 PDF</button><p id="result" role="status">等待开始</p></section>
-<dialog id="reader-dialog" class="reader-dialog"><div class="reader-wrap"><button id="close-reader">关闭阅读器</button><h2>合成文章阅读弹窗</h2><p>导出副本放在正文之外，与主站导出方式一致。</p></div></dialog>
+const exportScript = index.slice(index.indexOf("    function pdfFilename("), index.indexOf("    /* ---------- 09."));
+const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>PDF 导出核验</title>
+<style>${css}</style><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/vnext.css"><link rel="stylesheet" href="/material.css"><link rel="stylesheet" href="/article-pdf.css?v=20261118-pdf-quality">
+<style>body{overflow:auto;padding:24px}.check-controls{background:white;color:#17262c;padding:24px;border:1px solid #bcc;max-width:900px;margin:auto}.check-controls label{display:inline-block;margin:12px}.check-controls select,.check-controls button{font:inherit;padding:10px}#reader-dialog .reader-wrap{padding:24px}#result{white-space:pre-wrap}</style>
+<script src="/pdf-engine.js"></script><script src="/article-pdf.js?v=20261118-pdf-quality"></script></head><body>
+<section class="check-controls"><h1>PDF 导出核验</h1><p>仅使用合成测试图片，不读取账号或网站作品。</p><label>测试内容 <select id="case"><option value="2">短文：2 张图片</option><option value="18" selected>长文：18 张竖图</option></select></label><button id="open" type="button">打开测试文章</button><p id="result" role="status">等待开始</p></section>
+<dialog id="reader-dialog" class="reader-dialog"><div class="reader-wrap"><button id="close-reader" class="btn ghost" type="button">关闭阅读器</button><h2>合成图文测试文章</h2><p>导出副本放在正文之外，与主站导出方式一致。</p><button class="btn" id="content-pdf" type="button">下载 PDF</button></div></dialog>
 <script>
-${watermark}
-const node=id=>document.getElementById(id);let running=false;
-node('close-reader').onclick=()=>node('reader-dialog').close();
-function image(){const c=document.createElement('canvas');c.width=600;c.height=1500;const x=c.getContext('2d');const g=x.createLinearGradient(0,0,600,1500);g.addColorStop(0,'#09a7d2');g.addColorStop(.5,'#f6ae34');g.addColorStop(1,'#ce2867');x.fillStyle=g;x.fillRect(0,0,600,1500);x.fillStyle='#112f42';x.fillRect(60,100,480,160);x.fillStyle='white';x.font='bold 68px sans-serif';x.fillText('PHOTO',180,210);return c.toDataURL('image/jpeg',.85)}
-node('run').onclick=async()=>{if(running)return;running=true;node('run').disabled=true;let root;const stats=[];try{
-const count=node('case').value==='long'?36:2;const mode=node('mode').value;
-root=document.createElement('article');root.className='pdf-export';const title=document.createElement('h1');title.textContent='合成图文 PDF 核验 '+count+' 张';root.append(title);
-const body=document.createElement('div');body.className='reader-body pdf-body';const src=image();for(let i=0;i<count;i++){const p=document.createElement('p');p.textContent='第 '+(i+1)+' 张测试图片，下方应显示蓝、黄、红渐变。';const img=document.createElement('img');img.src=src;img.alt='PHOTO '+(i+1);body.append(p,img)}root.append(body);document.body.append(root);
-if(node('modal').checked&&!node('reader-dialog').open)node('reader-dialog').showModal();
-node('result').textContent='正在准备图片';await XYJArticlePdf.prepareImages(root);
-const record=(canvas,page,total,ink)=>{let color=0;try{const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;for(let i=0;i<pixels.length;i+=64)if(Math.max(pixels[i],pixels[i+1],pixels[i+2])-Math.min(pixels[i],pixels[i+1],pixels[i+2])>40)color++}catch(error){stats.push({error:error.message})}stats.push({page,total,width:canvas.width,height:canvas.height,colored:color,ink});node('result').textContent=JSON.stringify(stats)};
-const options={margin:[12,12,14,12],filename:'pdf-'+mode+'-'+count+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['img','pre','blockquote','table']}};
-let pdf;if(mode==='paged')pdf=await XYJArticlePdf.render(root,options,{onCanvas:record});else{options.html2canvas.onrendered=c=>record(c,1,1,true);pdf=await html2pdf().set(options).from(root).toPdf().get('pdf')}
-applyPdfWatermark(pdf);await pdf.save(options.filename);node('result').textContent='完成 '+pdf.internal.getNumberOfPages()+' 页\u005cn'+JSON.stringify(stats);node('result').dataset.done='1';
-}catch(error){node('result').textContent='失败：'+error.stack;node('result').dataset.error='1';}finally{root?.remove();if(node('reader-dialog').open)node('reader-dialog').close();running=false;node('run').disabled=false;}};
+const node=id=>document.getElementById(id);
+const state={currentContent:{id:"synthetic-test",canDownload:true}};
+const ensurePdfLibrary=async()=>{};
+const enhanceArticleLinks=()=>{};
+const mediaIdFromUrl=()=>null;
+const contentTimeLabels=()=>({published:"发布时间：测试文章",updated:"更新时间：测试文章"});
+const showAuthLock=()=>{throw new Error("意外的权限提示");};
+let article, ratio, startedAt, result;
+const api=async()=>article;
+const real=globalThis.XYJArticlePdf;
+globalThis.XYJArticlePdf={
+  ...real,
+  chooseImageRatio:async root=>{
+    ratio=await real.chooseImageRatio(root);
+    startedAt=performance.now();
+    return ratio;
+  },
+  render:async(...args)=>{
+    const pdf=await real.render(...args),save=pdf.save.bind(pdf);
+    pdf.save=()=>{
+      const saved=save("xyj-pdf-"+Math.round(ratio*100)+"-"+node("case").value+".pdf");
+      result={ratio,pages:pdf.internal.getNumberOfPages(),seconds:Number(((performance.now()-startedAt)/1000).toFixed(2))};
+      return saved;
+    };
+    return pdf;
+  },
+};
+${exportScript}
+function photo(index){
+  const canvas=document.createElement("canvas");canvas.width=900;canvas.height=1600;
+  const ctx=canvas.getContext("2d"),g=ctx.createLinearGradient(0,0,900,1600);
+  g.addColorStop(0,"#098dc2");g.addColorStop(.5,"#f6ae34");g.addColorStop(1,"#ce2867");
+  ctx.fillStyle=g;ctx.fillRect(0,0,900,1600);
+  for(let y=0;y<32;y++){for(let x=0;x<18;x++){ctx.fillStyle="hsla("+((27*x+19*y+8*index)%360)+",70%,45%,0.15)";ctx.fillRect(x*50,y*50,50,50);}}
+  ctx.fillStyle="#142d3b";ctx.fillRect(100,128,700,170);ctx.fillStyle="white";ctx.font="bold 90px sans-serif";ctx.fillText("PHOTO "+(index+1),190,242);
+  const url=canvas.toDataURL("image/jpeg",.9);canvas.width=canvas.height=0;return url;
+}
+node("open").onclick=()=>{
+  const count=Number(node("case").value);
+  if(article?.count!==count){
+    const body=Array.from({length:count},(_,i)=>'<p>第 '+(i+1)+' 张测试照片。请确认图像完整、编号顺序正确。</p><img alt="PHOTO '+(i+1)+'" src="'+photo(i)+'">').join("");
+    article={...state.currentContent,count,title:"合成图文核验 "+count+" 张",body_html:body,inlineMedia:[]};
+  }
+  node("reader-dialog").showModal();
+};
+node("close-reader").onclick=()=>node("reader-dialog").close();
+node("content-pdf").onclick=async event=>{
+  const button=event.currentTarget;
+  result=null;
+  const ok=await downloadCurrentContentPdf(button);
+  node("result").textContent=ok?"已完成 "+JSON.stringify(result):"未下载";
+  if(ok)node("reader-dialog").close();
+};
 </script></body></html>`;
 await writeFile("public/pdf-render-check.html", html);
 console.log("Prepared public/pdf-render-check.html (synthetic content only)");

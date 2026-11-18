@@ -917,7 +917,10 @@
       await openContent(result.id);
       const pdfButton = document.getElementById("reader-print");
       if (!pdfButton || pdfButton.hidden) throw new Error("此文章当前不可下载");
-      await downloadCurrentContentPdf(pdfButton);
+      if (!(await downloadCurrentContentPdf(pdfButton))) {
+        button.textContent = "未下载";
+        return false;
+      }
     } else if (result.action === "download" && ["media", "asset"].includes(result.kind)) {
       const href = result.kind === "media"
         ? `/media/${encodeURIComponent(result.id)}?download=1`
@@ -933,6 +936,7 @@
     }
     button.textContent = "已请求下载";
     infoBubble("已请求浏览器下载，请查看下载列表。", target);
+    return true;
   }
 
   function showConfirm(card, item, token, selectButton, target, statusNode) {
@@ -982,8 +986,8 @@
           body: JSON.stringify({ token, confirm: true }),
         });
         pending.delete(token);
-        await performDownload(result, item, yes, target, statusNode);
-        row.querySelector("span").textContent = "操作已确认";
+        const downloaded = await performDownload(result, item, yes, target, statusNode);
+        row.querySelector("span").textContent = downloaded ? "操作已确认" : "未下载 PDF";
         selectButton.disabled = true;
       } catch (error) {
         row.querySelector("span").textContent = error.message || "确认已失效，请重新查找资源";

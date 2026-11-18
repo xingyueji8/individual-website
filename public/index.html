@@ -25,7 +25,7 @@
   <script src="/theme.js"></script>
   <link rel="preconnect" href="https://challenges.cloudflare.com">
   <link rel="dns-prefetch" href="//challenges.cloudflare.com">
-  <script src="/i18n.js" defer></script>
+  <script src="/i18n.js?v=20261118-pdf-quality" defer></script>
   <!-- 给登录卡片补充可随背景照片变化的放大折射层；不读取或暴露照片原片。 -->
   <script src="/liquid-glass.js"></script>
   <!--
@@ -1522,6 +1522,7 @@
   <link rel="stylesheet" href="/organize.css">
   <link rel="stylesheet" href="/mobile.css">
   <link rel="stylesheet" href="/media-performance.css?v=20261111-video-compat">
+  <link rel="stylesheet" href="/article-pdf.css?v=20261118-pdf-quality">
 </head>
 <body>
   <!-- ========================================================
@@ -2000,7 +2001,7 @@
   <script src="/portfolio-organize.js"></script>
   <script src="/personal-space.js?v=20261114-article-images"></script>
   <script src="/entry-auth.js"></script>
-  <script src="/article-pdf.js?v=20261118-pdf-pages"></script>
+  <script src="/article-pdf.js?v=20261118-pdf-quality"></script>
   <script src="/video-playback.js?v=20261111-video-compat"></script>
   <script>
     /* ---------- 01. 页面状态：保存从服务器读取的数据和当前打开的内容。 ---------- */
@@ -3717,10 +3718,6 @@
       return `${safeTitle || "星月集文章"}.pdf`;
     }
 
-    function waitForPdfImages(root, options) {
-      return globalThis.XYJArticlePdf.prepareImages(root, options);
-    }
-
     /*
      * jsPDF 自带字体通常不包含中文，直接调用 pdf.text("星月集") 会出现空白或乱码。
      * 因此先用浏览器 Canvas 把中文绘制成透明 PNG，再盖到 PDF 的每一页中央。
@@ -3776,14 +3773,10 @@
       state.pdfDownloading = true;
       document.querySelectorAll("#reader-print, #content-pdf").forEach((item) => { item.disabled = true; });
       button.dataset.pdfError = "";
-      button.textContent = "生成中…";
+      button.textContent = "确认下载权限…";
 
       try {
         const exportContent = await api(`/api/content/${encodeURIComponent(contentId)}?download=1`);
-        button.textContent = "加载组件…";
-        await ensurePdfLibrary();
-        button.textContent = "生成中…";
-
         // 只复制文章信息和正文；评论、点赞按钮及弹窗工具栏不会进入下载文件。
         exportRoot = document.createElement("article");
         exportRoot.className = "pdf-export";
@@ -3818,22 +3811,29 @@
         });
         body.querySelectorAll("video,audio,iframe,.resource-card,.resource-embed").forEach(item => item.remove());
         exportRoot.append(kind, title, meta, body);
-        document.body.append(exportRoot);
+        const { chooseImageRatio, prepareImages, render } = globalThis.XYJArticlePdf;
+        if (state.currentContent?.id !== contentId || !state.currentContent.canDownload) return;
+        const imageRatio = await chooseImageRatio(exportRoot);
+        if (imageRatio === null || state.currentContent?.id !== contentId || !state.currentContent.canDownload) return;
+        button.textContent = "加载组件…";
+        await ensurePdfLibrary();
 
-        await waitForPdfImages(exportRoot, { onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+        await prepareImages(exportRoot, { imageRatio, onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+        document.body.append(exportRoot);
         button.textContent = "生成中…";
-        const pdf = await globalThis.XYJArticlePdf.render(exportRoot, {
+        const pdf = await render(exportRoot, {
           margin: [12, 12, 14, 12],
           filename: pdfFilename(exportContent.title),
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["css", "legacy"], avoid: ["img", "pre", "blockquote", "table"] },
-        }, { onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
+        }, { imageRatio, onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
 
         applyPdfWatermark(pdf);
         await api(`/api/content/${encodeURIComponent(contentId)}?download=1`);
         await pdf.save(pdfFilename(exportContent.title));
+        return true;
       } catch (error) {
         console.error("PDF download failed", error);
         button.dataset.pdfError = error.message || "未知错误";
@@ -4667,6 +4667,6 @@
   <script src="/experience.js"></script>
   <script src="/community.js"></script>
   <link rel="stylesheet" href="/site-agent.css">
-  <script src="/site-agent.js"></script>
+  <script src="/site-agent.js?v=20261118-pdf-quality"></script>
 </body>
 </html>

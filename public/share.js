@@ -96,6 +96,7 @@
   }
   function expire(message) {
     closeImagePreview();
+    document.querySelector(".pdf-options-dialog[open]")?.close();
     document.querySelectorAll("#share-works video,#share-works audio,#share-reader video,#share-reader audio").forEach(media => globalThis.XYJVideo?.disposeMedia(media));
     node("share-title").textContent = "分享链接已失效";
     node("share-status").textContent = message;
@@ -253,24 +254,31 @@
   }
   node("share-pdf").addEventListener("click", async () => {
     if (!state.article?.canDownload || !state.data?.canDownload || state.pdf) return;
-    const id = state.article.id, button = node("share-pdf"); state.pdf = true; button.disabled = true; button.textContent = "正在生成 PDF…";
+    const id = state.article.id, button = node("share-pdf"); state.pdf = true; button.disabled = true; button.textContent = "确认下载权限…";
     let root;
     try {
-      const article = await api(`${prefix}/content/${id}?download=1`); await loadPdf();
+      const article = await api(`${prefix}/content/${id}?download=1`);
       root = document.createElement("article"); root.className = "share-pdf-export";
       const title = document.createElement("h1"); title.textContent = article.title;
       const body = document.createElement("div"); body.innerHTML = article.body_html;
       body.querySelectorAll(".resource-embed").forEach(element => element.remove());
-      root.append(title, body); document.body.append(root);
-      await globalThis.XYJArticlePdf.prepareImages(root, { onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+      root.append(title, body);
+      const { chooseImageRatio, prepareImages, render } = globalThis.XYJArticlePdf;
+      if (state.article?.id !== id || !state.data?.canDownload) return;
+      const imageRatio = await chooseImageRatio(root);
+      if (imageRatio === null || state.article?.id !== id || !state.data?.canDownload) return;
+      button.textContent = "加载组件…";
+      await loadPdf();
+      await prepareImages(root, { imageRatio, onProgress: (done, total) => { button.textContent = `准备图片 ${done}/${total}…`; } });
+      document.body.append(root);
       button.textContent = "正在生成 PDF…";
       // Revalidate after image/PDF loading too, so an in-progress withdrawal stops export.
       await api(`${prefix}/content/${id}?download=1`);
       const filename = (article.title || "文章").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").slice(0, 100) + ".pdf";
-      const pdf = await globalThis.XYJArticlePdf.render(root, { margin: [12, 12, 14, 12], filename, image: { type: "jpeg", quality: .98 },
+      const pdf = await render(root, { margin: [12, 12, 14, 12], filename, image: { type: "jpeg", quality: .98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"], avoid: ["img", "pre", "blockquote"] } },
-        { onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
+        { imageRatio, onProgress: (page, total) => { button.textContent = `生成第 ${page}/${total} 页…`; } });
       await api(`${prefix}/content/${id}?download=1`);
       await pdf.save(filename);
     } catch (error) { if (error.status === 410) expire(error.message); else node("share-status").textContent = `PDF 下载失败：${error.message}`; }
