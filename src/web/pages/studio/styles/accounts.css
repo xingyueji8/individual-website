@@ -1,0 +1,29 @@
+
+    /* =========================================================
+       07. 用户审核、在线状态与密码重置
+       ---------------------------------------------------------
+       绿色圆点表示两分钟内有页面心跳；“最近在线”只是近实时状态。
+       Studio 不显示密码或密码哈希，只允许审核、停用和生成重置链接。
+       ========================================================= */
+    .user-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .user-card,.reset-card { padding:17px; border:1px solid var(--line); border-radius:13px; background:#fff; }
+    .user-card.pending,.reset-card.pending { border-color:#e6be65; box-shadow:inset 4px 0 0 #e6be65; }
+    .user-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .user-admin-note { display:grid; gap:8px; margin-top:12px; padding:11px; border:1px solid var(--line); border-radius:11px; background:rgba(239,248,248,.72); }
+    .user-admin-note label { color:var(--muted); font-size:.78rem; font-weight:800; }
+    .user-admin-note textarea { min-height:74px; margin:0; resize:vertical; }
+    .user-head h3 { margin:0; font-size:1rem; }
+    .user-state { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px; background:#edf1f2; color:var(--muted); font-size:.72rem; font-weight:800; }
+    .user-state.approved { color:#2e7158; background:#e5f5ed; }
+    .user-state.pending { color:#805e16; background:#fff0c8; }
+    .user-state.rejected,.user-state.disabled { color:#984642; background:#fde9e8; }
+    .online-dot { width:8px; height:8px; border-radius:50%; background:#a8b1b3; }
+    .online-dot.online { background:#35ad70; box-shadow:0 0 0 4px rgba(53,173,112,.14); }
+    .user-data { display:grid; gap:6px; margin-top:13px; color:var(--muted); font-size:.78rem; line-height:1.6; }
+    .user-data strong { color:var(--ink); }
+    .user-note { margin:10px 0 0; padding:10px; border-radius:9px; background:#f6f9f8; white-space:pre-wrap; line-height:1.6; font-size:.82rem; }
+    .event-list { display:grid; gap:7px; max-height:420px; overflow-y:auto; }
+    .event-row { padding:10px 12px; border:1px solid var(--line); border-radius:9px; font-size:.8rem; }
+    .event-row small { display:block; margin-top:5px; color:var(--muted); overflow-wrap:anywhere; }
+    .reset-link { margin-top:12px; padding:12px; border:1px solid #acd8c4; border-radius:10px; background:#eff9f4; }
+    .reset-link input { margin-bottom:8px; font-family:var(--font-code); font-size:.76rem; }

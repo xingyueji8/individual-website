@@ -1,0 +1,60 @@
+
+    /* =========================================================
+       06A. 文件资源库、文档预览与视频清晰度
+       ---------------------------------------------------------
+       卡片只展示 D1 元数据；文件正文始终从受权限保护的 /files/:id 读取。
+       清晰度按钮只显示后台确实上传完成的版本，不会伪造不存在的画质。
+       ========================================================= */
+    .resource-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:24px 0; }
+    .resource-path { color:var(--muted); font-size:.84rem; overflow-wrap:anywhere; }
+    .resource-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
+    .resource-card {
+      min-height:155px; padding:19px; border:1px solid var(--line); border-radius:17px;
+      background:var(--paper); box-shadow:inset 0 1px 0 rgba(255,255,255,.72);
+      display:flex; flex-direction:column; cursor:pointer; transition:transform .18s ease,box-shadow .18s ease;
+    }
+    .resource-card:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+    .resource-card-icon { font-size:1.85rem; line-height:1; }
+    .resource-card h3 { margin:14px 0 7px; font-family:var(--font-display); font-size:1.05rem; overflow-wrap:anywhere; }
+    .resource-card p { margin:0; color:var(--muted); font-size:.78rem; line-height:1.65; }
+    .resource-card .resource-badges { display:flex; gap:6px; flex-wrap:wrap; margin-top:auto; padding-top:14px; }
+    .resource-badge { padding:4px 8px; border-radius:999px; background:rgba(90,163,184,.15); color:#336e78; font-size:.7rem; font-weight:800; }
+    .reader-body .resource-embed { margin:20px 0; }
+    .reader-body .resource-card { min-height:0; padding:17px; }
+    .resource-dialog { width:min(1080px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); border:0; padding:0; border-radius:23px; background:transparent; }
+    .resource-view { max-height:calc(100dvh - 24px); overflow:auto; padding:clamp(18px,4vw,34px); border:1px solid rgba(255,255,255,.78); border-radius:23px; background:var(--paper); box-shadow:0 28px 80px rgba(12,36,44,.28); }
+    .resource-view-header { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:18px; }
+    .resource-view-header h2 { margin:0; font-family:var(--font-display); overflow-wrap:anywhere; }
+    .resource-viewer { min-height:180px; display:grid; place-items:center; border:1px solid var(--line); border-radius:15px; overflow:hidden; background:#101719; }
+    .resource-viewer video { display:block; width:100%; max-height:70dvh; background:#000; }
+    .resource-viewer iframe { width:100%; height:min(72dvh,760px); border:0; background:white; }
+    .resource-viewer-message { padding:34px; color:var(--muted); text-align:center; line-height:1.8; background:var(--paper); width:100%; }
+    .resource-options { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    .resource-options .active { background:rgba(75,166,185,.44); }
+
+    /* 留言与反馈：公开留言卡片和游客提交表单。 */
+    .feedback-layout { margin-top: 30px; display: grid; grid-template-columns: minmax(260px,.8fr) minmax(0,1.2fr); gap: 18px; }
+    .feedback-form, .feedback-board { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+    .feedback-form { display: grid; gap: 13px; align-content: start; }
+    .feedback-form label { display: grid; gap: 7px; color: var(--muted); font-size: .8rem; font-weight: 700; }
+    .feedback-form input, .feedback-form textarea, .feedback-form select { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; background: white; }
+    .feedback-form textarea { min-height: 150px; resize: vertical; }
+    .feedback-public { display: flex !important; grid-template-columns: none; align-items: center; gap: 8px !important; color: var(--ink) !important; }
+    .feedback-public input { width: auto; }
+    .feedback-list { display: grid; gap: 11px; }
+    .feedback-item { padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: #f9fbfa; }
+    .feedback-item header { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .78rem; }
+    .feedback-item strong { color: var(--ink); }
+    .feedback-item p { margin: 10px 0 0; white-space: pre-wrap; line-height: 1.7; }
+    /*
+       公开留言下方只显示由 Studio 写入的站长回复。普通网站没有回复表单，
+       即使手工调用公开 API 也没有写入 admin_reply 的路由。
+    */
+    .feedback-owner-reply {
+      margin: 14px 0 0 18px; padding: 13px 15px;
+      border: 1px solid rgba(49,191,200,.28); border-radius: 12px;
+      background: rgba(226,247,248,.42); box-shadow: inset 3px 0 0 rgba(49,191,200,.66);
+    }
+    .feedback-owner-reply header { color: #43818a; }
+    .feedback-owner-reply strong { color: #267784; }
+    .feedback-board-note { margin: 4px 0 18px; color: var(--muted); font-size: .82rem; line-height: 1.6; }

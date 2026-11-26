@@ -1,0 +1,82 @@
+/* Native device typography also covers old Kai/Song overrides through their
+ * shared variables. Explicit rich-text font choices remain authored content. */
+:root[data-platform-font="apple"] {
+  --xyj-native-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "PingFang TC", system-ui, sans-serif;
+}
+:root[data-platform-font="harmony"] {
+  --xyj-native-font: "HarmonyOS Sans SC", "HarmonyOS Sans", system-ui, sans-serif;
+}
+:root:is([data-platform-font="apple"], [data-platform-font="harmony"]) {
+  --font-ui: var(--xyj-native-font);
+  --font-display: var(--xyj-native-font);
+  --font-reading: var(--xyj-native-font);
+  --font-hei: var(--xyj-native-font);
+  --font-song: var(--xyj-native-font);
+  --font-kai: var(--xyj-native-font);
+  --xyj-button-font: var(--xyj-native-font);
+  --xyj-chatgpt-reading-font: var(--xyj-native-font);
+}
+:root:is([data-platform-font="apple"], [data-platform-font="harmony"]) :is(#portfolio .ps-feed-date,.editor-preview-body .ps-feed-date) {
+  font-family: var(--xyj-native-font);
+}
+
+/*
+ * 星月集白天 / 夜览主题补丁
+ * ------------------------------------------------------------------
+ * 原页面仍保留自己的布局与毛玻璃细节；本文件只统一主题变量和需要覆盖的
+ * 固定浅色值。夜览使用深蓝灰而不是纯黑，避免长时间阅读时对比过硬。
+ */
+:root {
+  color-scheme: light;
+  --theme-transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --cream: #0d171c;
+  --paper: #142229;
+  --paper-deep: #0f1c22;
+  --ink: #edf4f5;
+  --muted: #a8b8bd;
+  --line: #2c4149;
+  --soft: #142b31;
+  --sand: #223238;
+  --cyan-soft: #16383d;
+  --white: #17272e;
+  --danger: #ff9b91;
+  --success: #86d5b3;
+  --shadow: 0 18px 52px rgba(0, 0, 0, .34);
+  --glass-fill: rgba(21, 39, 47, .50);
+  --glass-fill-hover: rgba(40, 67, 77, .58);
+  --glass-line: rgba(170, 219, 226, .24);
+  --glass-shadow: 0 10px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(215,249,252,.18), inset 0 -1px 0 rgba(0,0,0,.28);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme-ready="true"] body,
+  :root[data-theme-ready="true"] .panel,
+  :root[data-theme-ready="true"] .content-card,
+  :root[data-theme-ready="true"] .reader-wrap,
+  :root[data-theme-ready="true"] input,
+  :root[data-theme-ready="true"] textarea,
+  :root[data-theme-ready="true"] select {
+    transition: var(--theme-transition);
+  }
+
+  /*
+   * 侧边栏同时承担主题换色与展开/收起。不能复用上面的 transition 简写，
+   * 否则会把 index.html 中的 width/max-height 动画覆盖掉，造成瞬间跳变。
+   * 桌面端使用 width/flex-basis，手机端使用 max-height；统一为 0.46 秒。
+   */
+  :root[data-theme-ready="true"] .sidebar {
+    transition:
+      width .46s cubic-bezier(.22,.72,.18,1),
+      flex-basis .46s cubic-bezier(.22,.72,.18,1),
+      max-height .46s cubic-bezier(.22,.72,.18,1),
+      padding .46s cubic-bezier(.22,.72,.18,1),
+      background-color .18s ease,
+      color .18s ease,
+      border-color .18s ease,
+      box-shadow .18s ease;
+  }
+}

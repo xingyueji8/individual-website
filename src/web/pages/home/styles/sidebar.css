@@ -1,0 +1,79 @@
+
+    /* =========================================================
+       02. 页面总体布局
+       ---------------------------------------------------------
+       .app-shell：包住侧边栏与主内容区。
+       .sidebar：电脑端左侧栏；手机端会在媒体查询中变成顶部栏。
+       ========================================================= */
+    .app-shell { display: flex; min-height: 100dvh; height: 100dvh; }
+    .sidebar {
+      width: 250px;
+      flex: 0 0 250px;
+      height: 100dvh;
+      padding: 34px 22px 24px;
+      position: relative;
+      z-index: 20;
+      border-right: 1px solid rgba(255, 255, 255, .76);
+      /*
+         侧边栏是半透明的毛玻璃底板：透明底色保留页面环境光，较大的 blur
+         负责柔化背后内容，细白边和内高光模拟 iOS 液态玻璃的折射边缘。
+      */
+      background:
+        radial-gradient(circle at 4% 0%, rgba(255,255,255,.78), transparent 38%),
+        linear-gradient(155deg, rgba(245,251,251,.48), rgba(224,239,241,.30));
+      box-shadow: inset -1px 0 0 rgba(255,255,255,.62), 10px 0 34px rgba(49,86,98,.07);
+      -webkit-backdrop-filter: blur(30px) saturate(1.32);
+      backdrop-filter: blur(30px) saturate(1.32);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-gutter: stable;
+      /*
+         宽度、内边距和玻璃阴影使用同一条缓动曲线。此前内部文字直接
+         display:none，导致侧栏虽然在变宽/变窄，内容却会瞬间消失；下面
+         brand/nav-label/sidebar-note 的过渡会与本段保持同步。
+      */
+      transition:
+        width .46s cubic-bezier(.22,.72,.18,1),
+        flex-basis .46s cubic-bezier(.22,.72,.18,1),
+        padding .46s cubic-bezier(.22,.72,.18,1),
+        border-color .24s ease,
+        box-shadow .24s ease;
+    }
+    /*
+       浏览器放大后可视高度会明显变小。flex 子项默认允许收缩，会把头像区和
+       底部版本信息压扁到看不见，却不会增加 scrollHeight。禁止侧栏直属子项
+       收缩后，头像、全部导航、外观和后台入口会共同进入同一个纵向滚动范围。
+    */
+    .sidebar > * { flex-shrink: 0; }
+    .sidebar-toggle {
+      width: 40px; height: 40px; flex: 0 0 40px; margin: -11px 0 16px -7px;
+      border: 1px solid var(--glass-line); border-radius: 13px; cursor: pointer;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.018) 48%, rgba(119,161,205,.055));
+      box-shadow: var(--glass-shadow);
+      -webkit-backdrop-filter: blur(2px) saturate(1.12) contrast(1.04);
+      backdrop-filter: blur(2px) saturate(1.12) contrast(1.04);
+      display: grid; place-items: center; color: var(--muted); font-size: 1.2rem;
+      transition: color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+    .sidebar-toggle:hover {
+      color: var(--ink); background: rgba(255,255,255,.15);
+      transform: translateY(-1px); box-shadow: 0 13px 30px rgba(32,48,55,.14), inset 0 1px 0 white;
+    }
+    .sidebar-toggle:active { transform: translateY(1px) scale(.95); }
+    .sidebar-toggle:focus-visible { outline: 3px solid rgba(119,161,205,.28); }
+    .brand {
+      display: flex; align-items: center; gap: 13px; margin-bottom: 28px;
+      max-height: 82px; opacity: 1; transform: translateX(0) scale(1);
+      overflow: hidden; visibility: visible;
+      transition:
+        max-height .42s cubic-bezier(.22,.72,.18,1),
+        margin .42s cubic-bezier(.22,.72,.18,1),
+        opacity .26s ease,
+        transform .42s cubic-bezier(.22,.72,.18,1),
+        visibility 0s linear 0s;
+    }

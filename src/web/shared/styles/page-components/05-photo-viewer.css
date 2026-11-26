@@ -1,0 +1,136 @@
+
+/* 照片可通过滚轮、双击、双指和拖拽在查看器内局部缩放。 */
+.image-view { position: relative; }
+.image-stage {
+  overflow: hidden;
+  border-radius: 16px;
+  touch-action: none;
+  user-select: none;
+  cursor: zoom-in;
+}
+.image-stage.is-zoomed { cursor: grab; }
+.image-stage.is-zoomed:active { cursor: grabbing; }
+#image-preview {
+  transform-origin: center;
+  will-change: transform;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.image-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#image-caption { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.image-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+.image-zoom-controls .btn { min-width: 38px; color: #fff; padding-inline: 10px; }
+#image-zoom-level { min-width: 52px; color: rgba(255,255,255,.86); text-align: center; font-variant-numeric: tabular-nums; }
+.image-boundary-notice {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 50%;
+  width: min(330px, calc(100% - 36px));
+  padding: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 13px;
+  border: 1px solid rgba(255,255,255,.48);
+  border-radius: 19px;
+  color: #fff;
+  background: rgba(18,38,46,.68);
+  box-shadow: 0 18px 48px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.30);
+  -webkit-backdrop-filter: blur(18px) saturate(1.30);
+  backdrop-filter: blur(18px) saturate(1.30);
+  transform: translate(-50%, -50%);
+}
+.image-boundary-notice[hidden] { display: none; }
+.image-boundary-notice.is-arriving { animation: image-boundary-arrive .24s cubic-bezier(.18,.82,.22,1); }
+.image-boundary-notice .btn { color: #fff; min-width: 86px; }
+@keyframes image-boundary-arrive {
+  from { opacity: 0; transform: translate(-50%, -44%) scale(.94); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+:root[data-theme="dark"] {
+  --xyj-login-frost: rgba(71,124,143,.38);
+  --xyj-login-frost-hover: rgba(75,143,164,.48);
+  --xyj-login-frost-active: rgba(35,151,171,.62);
+  --xyj-login-frost-line: rgba(190,232,237,.30);
+  --xyj-login-frost-text: #edf8f9;
+  --xyj-liquid-text: #eaf6f7;
+}
+:root[data-theme="dark"] .sidebar .nav button.active { color: #f3fbfc; }
+:root[data-theme="dark"] :is(
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .theme-toggle,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn
+) { color: #eaf6f7; border-color: transparent; }
+:root[data-theme="dark"] :is(
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .theme-toggle,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn
+)::before {
+  background:
+    radial-gradient(ellipse 98% 94% at 50% 48%, transparent 0 58%, rgba(188,232,239,.06) 74%, rgba(205,244,248,.22) 100%),
+    linear-gradient(108deg, rgba(181,231,238,.10), transparent 12% 84%, rgba(133,112,192,.08));
+}
+:root[data-theme="dark"] .comment-composer .comment-submit {
+  color: #effafb;
+  border-color: rgba(184,231,236,.30);
+  background: rgba(35,151,171,.62);
+}
+
+/* 查看器始终位于黑底上，所有操作文字（包括禁用态）固定为高对比白色。 */
+.image-dialog .image-toolbar .btn,
+.image-dialog .image-toolbar #image-download,
+.image-dialog .image-boundary-notice .btn {
+  color: #fff !important;
+  border-color: transparent !important;
+  background: rgba(255,255,255,.075) !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,.86) !important;
+  box-shadow:
+    0 9px 24px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.64),
+    inset 1px 0 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(0,0,0,.40),
+    inset -1px 0 0 rgba(255,255,255,.14) !important;
+}
+.image-dialog .image-toolbar .btn:hover,
+.image-dialog .image-toolbar #image-download:hover,
+.image-dialog .image-boundary-notice .btn:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,.13) !important;
+}
+.image-dialog .image-toolbar .btn:disabled {
+  color: rgba(255,255,255,.78) !important;
+  opacity: .72;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.42),
+    inset 0 -1px 0 rgba(0,0,0,.30) !important;
+}
+.image-dialog #image-zoom-level {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.86);
+}
+
+@media (max-width: 760px) {
+  .comment-form .comment-composer textarea { height: 144px; min-height: 144px; max-height: 144px; }
+  .image-zoom-controls { order: -1; width: 100%; }
+  #image-caption { flex-basis: 100%; text-align: center; }
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .sidebar :is(.nav button, .sidebar-toggle, .notification-bell, .studio-link) { background: rgba(213,231,237,.94); }
+  :is(.app-shell .main .btn, .app-shell .main .tab-button, .app-shell .main .theme-toggle, dialog .btn) { background: rgba(232,244,246,.90); }
+}

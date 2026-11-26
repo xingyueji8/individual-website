@@ -1,94 +1,27 @@
-# 星月集（xingyueji）
+# 星月集
 
-个人网站与 Cloudflare 全栈内容管理系统。
+[个人网站](https://xingyueji.com.cn/) · [Studio 内容后台](https://xingyueji.com.cn/studio)
 
-## 功能
+网站采用 HTML、CSS 和 JavaScript，Cloudflare Worker 负责 API，D1 存文章和账号等记录，R2 存图片和文件。刚接触代码时，先从[代码地图](docs/code-map.md)里找你想改的功能。
 
-- 首页最新版本卡片、可回溯的完整版本历史与页脚版本自动同步
-- 可在后台增删、改名和排序的个人空间大板块与图片相册子板块
-- 个人空间逐层进入文章、图片、文件/视频，支持面包屑、浏览器返回与层级网址
-- Studio 可编辑每层说明，并选择文章/随笔与网格/瀑布流/横向图片排列；小板块可继承上级或单独设置
-- 正文支持选中文字调整加粗、下划线、颜色、字号和字体，以及不保存草稿即可预览插图、文档和视频
-- 文章/评论点赞与点踩、游客评论和回复
-- 文章在浏览器内生成 PDF 并直接下载（不打开打印窗口）
-- R2 原图存储、网页预览和原片下载
-- R2 大文件/整个文件夹分片上传，PDF/Word 在线预览，ZIP 等压缩包直接下载
-- 视频网页播放、手动清晰度版本与 Cloudflare Stream 自动画质入口
-- 文件、文件夹、文档和视频可作为资源卡片插入文章正文
-- 白天、夜览、跟随系统三种全站主题，并在当前浏览器记住选择
-- `/studio` 内容发布后台（草稿、发布、插图、板块、相册、评论、留言管理）
-- 独立登录页、游客入口、三步注册申请与站长审核
-- 审核通过后开放 AI 和会员内容；前端与 Worker 后端双重鉴权
-- 用户可修改昵称和密码，Studio 可查看近实时在线状态与最近90天登录痕迹
-- 忘记密码采用站长核实后生成的24小时一次性重置链接
-- D1 内容数据库与 R2 对象存储
-- 可读取已发布网站内容的 AI 助手
-- AI 回答支持逐字流式显示；配置 DeepSeek Secret 后支持模型原生流式转发
-- AI 数学内容支持安全的 LaTeX/MathJax 排版
-- 游客留言与问题反馈、公开留言板、后台未读/解决状态与可选消息通知
-- 流式连接被浏览器或网络拦截时，自动切换到非流式兼容模式
-- 桌面端与手机端独立纵向滚动适配
+| 在哪 | 放什么 |
+| --- | --- |
+| [src/web/pages](src/web/pages) | 首页、Studio、账户、分享和文档预览的页面、样式和交互 |
+| [src/web/features](src/web/features) | PDF 导出、视频、个人空间、上传、分享和桌面助手 |
+| [src/web/shared](src/web/shared) | 共用的主题、语言和按钮动效 |
+| [src/server](src/server) | 登录、权限、数据、上传和其他 Worker 接口 |
+| [tests](tests) | 网站回归测试，以及使用合成数据的本地预览 |
+| [docs](docs) | 如何改代码、如何发布、站点功能和安全复核 |
 
-## 必须保留的目录结构
-
-```text
-picture/
-├─ src/
-│  └─ worker.js       # Cloudflare 后端
-├─ wrangler.jsonc     # Cloudflare 配置，main 指向 src/worker.js
-├─ public/
-│  ├─ index.html      # 公开网站
-│  ├─ login.html      # 登录、注册和密码重置
-│  ├─ studio.html     # 内容发布后台
-│  ├─ document-viewer.html # Word 在线阅读器
-│  ├─ theme.js        # 全站主题选择和系统主题监听
-│  └─ theme.css       # 全站夜览覆盖样式
-├─ package.json
-└─ package-lock.json
-```
-
-不要把 `src` 目录误写成 `scr`，也不要只上传文件而漏掉 `public` 文件夹。
-部署后访问 `/api/health`，看到 `version: "2.3.0.0"` 即表示最新 Worker 已生效。
-
-个人空间的展示设置位于 Studio 对应大板块或小板块的设置面板。文章选择“随笔”后，正文按发布时间从新到旧直接展开；选择“文章”则使用卡片列表和全文阅读器。旧数据默认保留文章列表与整齐网格，小板块默认继承上级。内容锁、分享隔离和下载权限继续由 Worker 校验。`npm run test:space` 检查样式保存、继承、富文本与预览权限；安装了 ffmpeg 的开发环境可运行 `node test/personal-space-preview.mjs`，在本地隔离数据中检查前台和 Studio。
-
-## Cloudflare 绑定
-
-- D1：`DB` → `xingyueji-db`
-- R2：`BUCKET` → `xingyueji-media`
-- Secret：`ADMIN_PASSWORD`（必须在 Cloudflare Settings → Variables and Secrets 中设置）
-- 可选 Secret：`DEEPSEEK_API_KEY`（未设置时复用现有 `qwen-ai` Worker）
-- 可选 Secret：`WECOM_WEBHOOK_URL`（企业微信群机器人通知地址）
-- QQ 普通变量：`QQ_BOT_APP_ID`（当前已在 `wrangler.jsonc` 中填写）
-- QQ 必需 Secret：`QQ_BOT_SECRET`（QQ 机器人 AppSecret，严禁提交到 GitHub）
-- QQ 回调地址验证：`QQ_WEBHOOK_VALIDATION_TOKEN`；首次绑定或更换通知接收人：`QQ_BIND_CODE` 或固定 `QQ_TARGET_OPENID`。口令须独立，详见 DEPLOY.md。
-- 可选 Secret：`FEEDBACK_WEBHOOK_URL`（其他通用 HTTPS Webhook 中转）
-
-数据库表会在首次 API 请求时自动创建，无需手动执行 SQL。
-
-## 大文件与视频的使用方法
-
-1. 打开 `/studio` →“文件与视频”，先选择当前文件夹、可见范围和下载权限。
-2. “上传文件/视频”可多选；“上传整个文件夹”会保留浏览器提供的目录层级。
-3. 浏览器把每个文件切成 32MiB 分片，逐片写入 R2。请等进度显示“上传完成”再关闭页面。
-4. Word 文档可直接使用浏览器阅读器；若版式复杂，可点“上传 PDF 预览”补充一份 PDF。
-5. 视频可以点“上传清晰度”分别补充 360p、480p、720p、1080p 文件。若已开通
-   Cloudflare Stream，也可点“接入自动画质”粘贴 `.m3u8` 地址。
-6. 文件夹若需要一个按钮整包下载，先上传 ZIP/7z/RAR，再在文件夹卡片点“设置整包下载”。
-7. 编辑文章时点“插入文件/视频”，即可插入资源卡片；文章只保存资源 ID，不复制大文件。
-
-R2 单对象上限约 4.995TiB。实际能否顺利上传还取决于浏览器、设备磁盘、网络稳定性和
-Cloudflare 套餐；中断的 multipart 会话保留24小时，并在下次打开 Studio 后清理过期分片。
-
-普通用户的原始密码不会保存到 D1。数据库仅保存带随机盐的 PBKDF2 哈希；Studio
-只能查看密码最后修改时间、停用账号或处理重置申请，不能查看用户密码。
-
-## 本地开发
+在仓库根目录运行：
 
 ```bash
-npm install
-cp .dev.vars.example .dev.vars
+npm ci
 npm run dev
 ```
 
-不要将 `.dev.vars`、API Key 或后台密码提交到 GitHub。
+打开 [本地网站](http://localhost:8787)。如需登录本地 Studio，先把 `.dev.vars.example` 复制为 `.dev.vars`，用文件中的本地密码。开发模式使用本地 D1 和 R2，Wrangler 会在前端源码变动后重新构建。
+
+`npm test` 运行回归测试；`npm run check` 检查正式构建，但不发布。源码应修改在 `src/`，`dist/public/` 是每次构建生成的文件。
+
+[代码地图与修改示例](docs/code-map.md) · [部署与配置](docs/deploy.md) · [功能说明](docs/features.md) · [安全复核](docs/security-review.md)

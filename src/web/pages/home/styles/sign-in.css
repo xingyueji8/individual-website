@@ -1,0 +1,171 @@
+
+    /* =========================================================
+       05. 网站第一层：全屏登录 / 游客入口
+       ---------------------------------------------------------
+       这是访问根网址后首先显示的界面。账号登录成功或主动选择
+       “游客浏览”以后，JavaScript 才会隐藏本层并显示 .app-shell。
+       ========================================================= */
+    .entry-screen {
+      position: relative;
+      isolation: isolate;
+      height: 100dvh;
+      min-height: 100dvh;
+      padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #f3f2ed;
+    }
+
+    /*
+     * 登录背景在电脑和手机上都使用清晰 cover 铺满。之前手机端额外叠加了
+     * 一张模糊 fill 图，即使主体照片没有滤镜，视觉上仍会像蒙了一层雾。
+     * 现在只保留清晰主图；必要的裁切由 object-fit: cover 自然完成。
+     */
+    .entry-photo-background {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      background: #15191b;
+    }
+    .entry-photo-background::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background: transparent;
+    }
+    .entry-photo-frame {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 1.15s ease;
+    }
+    .entry-photo-frame img {
+      position: absolute;
+      display: block;
+      user-select: none;
+      image-rendering: auto;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+    }
+    .entry-photo-frame .photo-complete {
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center center;
+      filter: none;
+    }
+    .entry-photo-frame.active { opacity: 1; animation: entry-bg-fade 1.25s ease both; }
+    .entry-photo-frame.active.effect-wipe-left { animation-name: entry-bg-wipe-left; }
+    .entry-photo-frame.active.effect-wipe-right { animation-name: entry-bg-wipe-right; }
+    .entry-photo-frame.active.effect-reveal-center { animation-name: entry-bg-reveal-center; }
+    @keyframes entry-bg-fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes entry-bg-wipe-left { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+    @keyframes entry-bg-wipe-right { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0); } }
+    @keyframes entry-bg-reveal-center { from { clip-path: inset(0 50%); } to { clip-path: inset(0); } }
+    @media (prefers-reduced-motion: reduce) {
+      .entry-photo-frame { transition: opacity .25s ease; animation: none !important; }
+    }
+    .entry-card {
+      position: relative;
+      z-index: 3;
+      flex: 0 0 auto;
+      margin-block: auto;
+      /*
+         入口登录框由原来的 430px 加宽到 520px；上下仅保留 28px，左右使用
+         更宽的自适应留白，从而形成“更宽、更矮”的横向比例。
+      */
+      width: min(520px, 100%);
+      padding: 28px clamp(30px, 5vw, 50px);
+      overflow: hidden;
+      border: 0;
+      border-radius: 30px;
+      /*
+         中心只有轻微磨砂感，向四周逐渐减弱为近乎透明的玻璃。真正的边缘
+         放大与模糊由 .liquid-glass-refraction 中同步的背景副本完成，因此这里
+         不再使用一条白色 border 假装玻璃轮廓。
+      */
+      background:
+        radial-gradient(ellipse 88% 82% at 50% 47%, rgba(247,252,252,.22) 0%, rgba(239,249,250,.13) 44%, rgba(223,244,247,.045) 72%, transparent 100%);
+      box-shadow:
+        0 30px 84px rgba(17,38,45,.25),
+        inset 0 0 34px rgba(255,255,255,.08),
+        inset 0 -12px 30px rgba(56,105,119,.055);
+      -webkit-backdrop-filter: blur(3.5px) saturate(1.10) contrast(1.025);
+      backdrop-filter: blur(3.5px) saturate(1.10) contrast(1.025);
+      animation: entry-rise .38s ease both;
+      /* 浅色照片上不使用白色文字光晕，避免字形边缘发虚。 */
+      text-shadow: none;
+    }
+    .entry-card::before {
+      content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 76% 72% at 50% 46%, rgba(255,255,255,.16), rgba(255,255,255,.07) 46%, transparent 86%);
+      -webkit-backdrop-filter: blur(7px) saturate(1.08);
+      backdrop-filter: blur(7px) saturate(1.08);
+      -webkit-mask-image: radial-gradient(ellipse 84% 80% at 50% 48%, #000 0 43%, rgba(0,0,0,.72) 61%, rgba(0,0,0,.16) 82%, transparent 100%);
+      mask-image: radial-gradient(ellipse 84% 80% at 50% 48%, #000 0 43%, rgba(0,0,0,.72) 61%, rgba(0,0,0,.16) 82%, transparent 100%);
+    }
+    .entry-card > * { position: relative; z-index: 2; }
+    .entry-card > .liquid-glass-refraction { position: absolute; z-index: 0; }
+    @keyframes entry-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+    /* 七个汉字在电脑和手机卡片中都保持同一行，避免最后一个“集”单独换行。 */
+    .entry-card h1 { margin: 0; text-align: center; font-size: clamp(1.85rem, 6vw, 2.45rem); white-space: nowrap; }
+    .entry-subtitle { margin: 7px auto 18px; text-align: center; color: var(--muted); line-height: 1.6; }
+    .entry-form { display: grid; gap: 12px; }
+    .entry-field { display: grid; gap: 7px; color: var(--ink); font-size: .88rem; font-weight: 700; }
+    .entry-field input {
+      width: 100%; border: 1px solid rgba(255,255,255,.78); border-radius: 15px;
+      padding: 12px 14px; background: rgba(255,255,255,.075); color: var(--ink); outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.91), inset 0 -1px 0 rgba(44,85,99,.12), 0 7px 18px rgba(31,62,72,.07);
+      -webkit-backdrop-filter: blur(2px) saturate(1.08); backdrop-filter: blur(2px) saturate(1.08);
+      text-shadow: none;
+    }
+    .entry-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(49,191,200,.12); }
+    .entry-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .82rem; }
+    .entry-options label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+    .entry-options input { accent-color: var(--cyan); }
+    .entry-link { color: #258e99; text-decoration: none; font-weight: 700; }
+    .entry-link:hover { text-decoration: underline; }
+    .entry-primary {
+      width: 100%; min-height: 46px; border: 1px solid rgba(255,255,255,.72);
+      color: #12343c;
+      background: rgba(49,169,184,.56);
+      box-shadow: 0 12px 27px rgba(26,112,127,.22), inset 0 1px 0 rgba(255,255,255,.90), inset 0 -1px 0 rgba(17,91,105,.20);
+      -webkit-backdrop-filter: blur(15px) saturate(1.16); backdrop-filter: blur(15px) saturate(1.16);
+    }
+    .entry-actions .btn.ghost {
+      color: #17343d; border-color: rgba(255,255,255,.78); background: rgba(105,158,195,.32);
+      box-shadow: 0 9px 22px rgba(31,62,72,.09), inset 0 1px 0 rgba(255,255,255,.90);
+      -webkit-backdrop-filter: blur(15px) saturate(1.14); backdrop-filter: blur(15px) saturate(1.14);
+    }
+    .entry-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font-size: .78rem; }
+    .entry-divider::before, .entry-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+    .entry-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .entry-actions .btn,
+    .entry-primary {
+      width: 100%; min-height: 44px;
+      font-family: var(--font-hei);
+      font-weight: 800;
+      text-shadow: none;
+    }
+    .entry-note { margin: 14px 0 0; color: var(--muted); text-align: center; font-size: .78rem; line-height: 1.55; }
+    .guest-turnstile-wrap {
+      display: grid; place-items: center; width: 100%; min-height: 65px; margin: -3px 0 13px;
+      min-width: 0; overflow: visible; border-radius: 12px;
+    }
+    .guest-turnstile-wrap[hidden] { display: none; }
+    .guest-turnstile-wrap.is-compact { min-height: 145px; }
+    /* flexible 模式下限制 Cloudflare 外层节点与 iframe 不超过卡片实际宽度。 */
+    .guest-turnstile-wrap > div,
+    .guest-turnstile-wrap iframe { max-width: 100% !important; }
+    .guest-privacy-note { margin-top: 8px; font-size: .72rem; }

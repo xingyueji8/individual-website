@@ -1,0 +1,90 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const [html, js, css, worker, sprite] = await Promise.all([
+  readFile(new URL("../../dist/public/index.html", import.meta.url), "utf8"),
+  readFile(new URL("../../dist/public/site-agent.js", import.meta.url), "utf8"),
+  readFile(new URL("../../dist/public/site-agent.css", import.meta.url), "utf8"),
+  readFile(new URL("../../src/server/http/api.js", import.meta.url), "utf8"),
+  readFile(new URL("../../dist/public/assets/agent-companion-sprites-v3.png", import.meta.url)),
+]);
+
+assert.match(html, /site-agent\.css/);
+assert.match(html, /site-agent\.js/);
+assert.match(html, /window\.SiteAgent\?\.close/);
+assert.match(html, /SiteAgent\.submit\(document\.getElementById\("chat-input"\)\)/);
+assert.match(html, /streamAiAnswer\(question, bubble, signal\)/);
+assert.match(js, /\/api\/agent\/confirm/);
+assert.match(js, /confirm: true/);
+assert.match(js, /选择下载/);
+assert.match(js, /确认下载/);
+assert.match(js, /\/api\/agent\/cancel/);
+assert.match(js, /controller\?\.abort\(\)/);
+assert.match(js, /pending\.has\(token\)/);
+assert.match(js, /name\.textContent = item\.title/);
+assert.match(css, /agent-companion-sprites-v3\.png/);
+assert.doesNotMatch(css, /agent-companion-sprites-v2\.png/);
+assert.deepEqual([...sprite.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+assert.match(js, /pet\.dataset\.state = "idle"/);
+for (const state of ["walk", "run", "wave", "jump", "sit"]) assert.match(css, new RegExp(`data-state="${state}"`));
+for (const cycle of ["walk", "run", "wave", "jump", "sit"]) assert.match(css, new RegExp(`@keyframes agent-${cycle}-cycle`));
+assert.match(js, /function freezePetMotion\(\)/);
+assert.match(js, /pet\.addEventListener\("pointerenter", greetPet\)/);
+assert.match(js, /pet\.addEventListener\("pointerleave", finishGreeting\)/);
+assert.match(js, /pet\.id = "agent-pet-control"/);
+assert.match(js, /pet\.addEventListener\("pointerdown", beginPetDrag\)/);
+assert.match(js, /pet\.addEventListener\("transitionend", finishMovementFromTransition\)/);
+assert.doesNotMatch(js, /agent-pet-hint/);
+assert.match(css, /\.agent-pet-stage::before,[\s\S]*content:none !important/);
+assert.match(html, /ignore:\s*":disabled, \.image-nav, \.agent-pet"/);
+assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar > \.agent-pet-stage/);
+assert.doesNotMatch(css, /\.app-shell\.sidebar-collapsed \.agent-pet-stage \{ opacity: 0/);
+assert.match(js, /navRect\.bottom - sidebarRect\.top \+ 20/);
+assert.match(js, /const canShow = !appShell\.hidden/);
+assert.doesNotMatch(js, /canShow[^;]*(?:clientWidth|clientHeight)/);
+assert.match(js, /if \(!petPositioned\)[\s\S]*petX = maxX \/ 2;[\s\S]*petY = maxY/);
+assert.match(js, /pet\.dataset\.moving = "true"/);
+assert.match(js, /if \(!target\)[\s\S]*pet\.dataset\.state = "idle"/);
+assert.match(js, /if \(roomRight < minimumTravel\) direction = -1/);
+assert.match(js, /else if \(roomLeft < minimumTravel\) direction = 1/);
+assert.match(js, /if \(horizontalSpan < minimumTravel\) return null/);
+assert.match(js, /const speed = action === "run" \? 58 : 28/);
+assert.match(js, /target\.distance \/ speed/);
+assert.match(js, /function finishPetAction\(action, token\)/);
+assert.match(js, /lastPetAction === "run" \|\| lastPetAction === "walk"/);
+assert.match(js, /new MutationObserver/);
+assert.match(js, /attributeFilter: \["class", "hidden"\]/);
+assert.match(js, /sidebar\.addEventListener\("transitionend"/);
+assert.match(css, /data-state="walk"\]\[data-moving="true"\]/);
+assert.match(css, /data-state="run"\]\[data-moving="true"\]/);
+assert.match(css, /--pet-easing: linear/);
+assert.match(css, /agent-sit-cycle var\(--pet-action-duration\)[^;]*1 both/);
+assert.match(css, /\.agent-pet \{[\s\S]*background: transparent !important;[\s\S]*box-shadow: none !important/);
+assert.match(css, /\.agent-pet \{[\s\S]*filter: none !important/);
+assert.match(css, /#agent-pet-control#agent-pet-control\.agent-pet \{[\s\S]*background: transparent !important;[\s\S]*box-shadow: none !important;[\s\S]*backdrop-filter: none !important/);
+assert.match(css, /#agent-pet-control#agent-pet-control\.agent-pet \{[\s\S]*transform: translate3d\(var\(--pet-x\),var\(--pet-y\),0\) !important/);
+assert.match(js, /function detachPetAt\(left, top\)/);
+assert.match(js, /document\.body\.append\(pet\)/);
+assert.match(js, /function dockPetAt\(left, top\)/);
+assert.match(js, /function isOverSidebarBlank\(left, top\)/);
+assert.match(js, /pet\.dataset\.state = isOverSidebarBlank\(petX, petY\) \? "idle" : "sit"/);
+assert.match(css, /\.agent-pet\.is-detached\[data-state="sit"\][\s\S]*animation:none !important;[\s\S]*background-position:100% 100%/);
+assert.match(js, /const resizeDirections = \["n", "ne", "e", "se", "s", "sw", "w", "nw"\]/);
+assert.match(js, /function beginDialogResize\(event\)/);
+assert.match(js, /function resizeDialog\(event\)/);
+assert.match(css, /\.agent-resize-handle\.is-ne[\s\S]*cursor:nesw-resize/);
+assert.match(css, /\.agent-resize-handle\.is-se[\s\S]*cursor:nwse-resize/);
+assert.doesNotMatch(js, /oldShell\.replaceWith/);
+assert.doesNotMatch(js, /data-section="ai-helper"[\s\S]*stopImmediatePropagation/);
+assert.match(css, /\.agent-pet-stage/);
+assert.match(css, /\.sidebar > \.agent-pet-stage \{[\s\S]*position: absolute/);
+assert.doesNotMatch(css, /flex:\s*1\s+1\s+150px/);
+assert.match(css, /width: min\(286px/);
+assert.match(css, /backdrop-filter/);
+assert.match(css, /prefers-reduced-motion/);
+assert.match(css, /hover:none/);
+assert.match(worker, /requireApprovedUser\(request, env\)/);
+assert.match(worker, /consumeAgentAction/);
+assert.match(worker, /contentSecurity\(request, env\)/);
+
+console.log("site agent UI integration tests passed");
