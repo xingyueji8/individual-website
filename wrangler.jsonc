@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "xingyueji",
-  "main": "src/worker.js",
+  "main": "src/release-check.js",
   "compatibility_date": "2026-08-06",
   "build": { "command": "npm run build:assets" },
 
