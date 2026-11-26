@@ -1,0 +1,71 @@
+    /* =========================================================
+       01. 全局基础与主题颜色
+       ---------------------------------------------------------
+       想统一修改网站配色时，优先改 :root 中的颜色变量。
+       例如 --blue 是主蓝色，--cyan 是强调色，--cream 是背景色。
+       ========================================================= */
+    * { box-sizing: border-box; }
+    :root {
+      --cream: #ffffff;
+      --paper: #ffffff;
+      --ink: #203037;
+      --muted: #718087;
+      --line: #e4e7e4;
+      --blue: #77a1cd;
+      --cyan: #31bfc8;
+      --cyan-soft: #e2f7f8;
+      --sand: #eee8dd;
+      --accent: #c4735a;
+      --shadow: 0 18px 50px rgba(28, 52, 60, .10);
+      --radius: 18px;
+
+      /*
+         全站只使用三套正文风格和一套代码字体：
+         1. --font-ui：普通正文与表单，圆润、稍粗；
+         2. --font-display：标题与重点信息，更粗、更有层级；
+         3. --font-reading：文章和长段落，保持舒适行距；
+         4. --font-code：只供代码与链接编号使用。
+         ui-rounded / SF Pro Rounded 在苹果设备优先生效，Windows 会回退到
+         微软雅黑 UI，鸿蒙设备会优先使用 HarmonyOS Sans SC。
+      */
+      --font-ui: ui-rounded, "SF Pro Rounded", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-display: "Yuanti SC", "YouYuan", ui-rounded, "Arial Rounded MT Bold", "SF Pro Rounded", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-reading: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-code: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      /* 登录、注册和需要明确状态的按钮使用黑体，避免浅色照片上出现细字发虚。 */
+      --font-hei: "Heiti SC", "SimHei", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+
+      /*
+         纯玻璃控件的统一参数
+         ------------------------------------------------------
+         “纯玻璃”不再依靠大面积半透明白色和强模糊，而是依靠：
+         1. 极低透明度的环境色；2. 清晰的高光边缘；3. 上亮下暗的内折射。
+         --glass-fill / --glass-fill-hover 控制玻璃本体，保持较低数值才能
+         让背景真正透出来；--glass-line 与 --glass-shadow 负责晶体轮廓。
+      */
+      --glass-fill: rgba(255, 255, 255, .065);
+      --glass-fill-hover: rgba(255, 255, 255, .14);
+      --glass-line: rgba(255, 255, 255, .70);
+      --glass-shadow:
+        0 9px 24px rgba(32, 48, 55, .11),
+        inset 0 1px 0 rgba(255, 255, 255, .88),
+        inset 1px 0 0 rgba(255, 255, 255, .25),
+        inset 0 -1px 0 rgba(64, 94, 108, .16);
+    }
+
+    html, body { margin: 0; min-height: 100%; }
+    /* hidden 属性用于在“入口界面”和“网站主体”之间切换，必须高于普通布局样式。 */
+    [hidden] { display: none !important; }
+    body {
+      font-family: var(--font-ui);
+      font-weight: 520;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 80% 5%, rgba(49,191,200,.12), transparent 32%),
+        var(--cream);
+      overflow: hidden;
+    }
+    button, input, textarea, select { font: inherit; }
+    button, .btn, .tab-button { font-weight: 760; }
+    button { color: inherit; }
+    a { color: var(--blue); }

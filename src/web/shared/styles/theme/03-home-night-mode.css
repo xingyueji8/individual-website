@@ -1,0 +1,126 @@
+
+/* ============================== 夜览：首页 ============================== */
+:root[data-theme="dark"] body {
+  background: radial-gradient(circle at 80% 5%, rgba(49,191,200,.10), transparent 34%), var(--cream);
+}
+:root[data-theme="dark"] .sidebar {
+  border-color: rgba(143,207,216,.16);
+  background: radial-gradient(circle at 4% 0%, rgba(99,164,176,.13), transparent 38%), linear-gradient(155deg, rgba(18,36,44,.91), rgba(12,25,31,.84));
+  box-shadow: inset -1px 0 0 rgba(196,239,244,.09), 10px 0 34px rgba(0,0,0,.22);
+}
+:root[data-theme="dark"] :is(.nav button, .sidebar-toggle, .sidebar-install-button, .studio-link, .tab-button, .updates, .theme-toggle) {
+  color: var(--ink);
+  border-color: rgba(174,221,227,.20);
+  background: rgba(72,126,143,.18);
+  box-shadow: var(--glass-shadow);
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] :is(.nav button.active, .tab-button.active) {
+  color: #ecfbfd;
+  border-color: rgba(103,207,219,.38);
+  background: rgba(31,137,153,.46);
+}
+:root[data-theme="dark"] :is(.content-card, .info-card, .feedback-form, .feedback-board, .feedback-item, .account-card, .reader-wrap, .usage-guide, .resource-card, .resource-view) {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--paper);
+}
+/*
+ * “本站使用说明”的正文原本在主页样式中固定为深蓝灰色，夜览时不会继承
+ * --ink，因而形成深底深字。这里显式覆盖正文和标题，并去掉文字阴影。
+ */
+:root[data-theme="dark"] .usage-guide {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(91,157,170,.15), transparent 42%),
+    linear-gradient(145deg, rgba(22,43,51,.94), rgba(13,29,36,.90));
+  box-shadow: 0 18px 48px rgba(0,0,0,.28), inset 0 1px 0 rgba(210,245,249,.10);
+}
+:root[data-theme="dark"] .usage-guide h2 {
+  color: #f2f8f9; text-shadow: none; -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] .usage-guide p {
+  color: #d9e8eb; text-shadow: none; -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * 更新预览及历史记录的内层卡片在原样式中使用固定白色；夜览必须逐层覆盖，
+ * 仅修改外层 .updates 不足以消除里面每一条日志的白色底板。
+ */
+:root[data-theme="dark"] .updates {
+  color: var(--ink);
+  border-color: rgba(166,218,225,.20);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(82,151,165,.16), transparent 40%),
+    linear-gradient(145deg, rgba(21,42,50,.92), rgba(12,28,34,.88));
+  box-shadow: 0 16px 42px rgba(0,0,0,.27), inset 0 1px 0 rgba(207,244,248,.10);
+}
+:root[data-theme="dark"] .timeline-item,
+:root[data-theme="dark"] .updates .timeline-item {
+  color: var(--ink);
+  border-color: rgba(157,210,217,.17);
+  background: rgba(20,39,47,.88);
+  box-shadow: inset 0 1px 0 rgba(207,244,248,.07);
+}
+:root[data-theme="dark"] .timeline-item h3 { color: #edf6f7; text-shadow: none; }
+:root[data-theme="dark"] .timeline-item p { color: var(--muted); text-shadow: none; }
+:root[data-theme="dark"] .updates-more {
+  color: #c7edf1;
+  border-color: rgba(157,215,222,.22);
+  background: rgba(48,104,118,.32);
+  box-shadow: inset 0 1px 0 rgba(211,246,250,.10);
+}
+
+/* 蓝青主按钮在夜览中使用高对比浅色文字，避免深色字与半透明蓝底混在一起。 */
+:root[data-theme="dark"] :is(.app-shell .btn, dialog .btn, .entry-primary) {
+  color: #f2fbfc;
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] :is(.app-shell .btn.ghost, dialog .btn.ghost) { color: var(--ink); }
+:root[data-theme="dark"] :is(.app-shell .btn.light, dialog .btn.light) { color: #c7edf1; }
+:root[data-theme="dark"] :is(.auth-card .btn, .login-card .btn, .workspace .btn, .resource-picker .btn) {
+  color: #f2fbfc;
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] :is(.auth-card .btn.ghost, .login-card .btn.ghost, .workspace .btn.ghost, .workspace .btn.secondary, .resource-picker .btn.ghost) {
+  color: var(--ink);
+}
+:root[data-theme="dark"] :is(.login-card .btn.danger, .workspace .btn.danger) { color: #ffe0dc; }
+:root[data-theme="dark"] :is(.step.active .step-number, .step.done .step-number) { color: #effbfc; }
+:root[data-theme="dark"] :is(.feedback-form input, .feedback-form textarea, .feedback-form select, .account-form input, .comment-form input, .comment-form textarea, .reply-form input) {
+  color: var(--ink);
+  border-color: var(--line);
+  background: #0f1d23;
+}
+:root[data-theme="dark"] .feedback-item { background: #112127; }
+:root[data-theme="dark"] .feedback-owner-reply { background: rgba(31,111,122,.20); }
+:root[data-theme="dark"] .chat-shell {
+  border-color: rgba(155,214,221,.18);
+  background: radial-gradient(circle at 10% 0%, rgba(76,139,151,.13), transparent 38%), linear-gradient(145deg, rgba(18,39,47,.88), rgba(12,27,33,.78));
+  box-shadow: 0 22px 58px rgba(0,0,0,.30), inset 0 1px 0 rgba(213,247,250,.09);
+}
+:root[data-theme="dark"] .chat-messages { background: linear-gradient(155deg, rgba(16,34,41,.62), rgba(9,21,27,.40)); }
+:root[data-theme="dark"] .bubble.ai { color: var(--ink); border-color: rgba(164,216,222,.18); background: rgba(30,53,62,.72); box-shadow: 0 8px 22px rgba(0,0,0,.19); }
+:root[data-theme="dark"] .chat-form input { color: var(--ink); border-color: rgba(162,216,223,.20); background: rgba(12,28,34,.72); }
+:root[data-theme="dark"] .auth-lock-card { color: var(--ink); background: radial-gradient(circle at 12% 0%, rgba(76,139,151,.18), transparent 40%), linear-gradient(145deg, rgba(20,41,49,.92), rgba(12,28,34,.88)); }
+:root[data-theme="dark"] .external-link-summary {
+  border-color: rgba(165,216,223,.18); background: rgba(13,35,42,.72);
+  box-shadow: inset 0 1px 0 rgba(207,242,246,.08);
+}
+:root[data-theme="dark"] .external-link-address { color: #b7e8ec; background: rgba(5,19,25,.70); }
+:root[data-theme="dark"] .reader-body a.article-smart-link:not(.article-link-card) { color: #8edfe7; text-decoration-color: rgba(142,223,231,.42); }
+:root[data-theme="dark"] .reader-body a.article-smart-link:not(.article-link-card):hover { color: #c1f2f5; }
+:root[data-theme="dark"] .reader-body .article-link-card {
+  color: var(--ink); border-color: rgba(167,218,225,.20);
+  background: linear-gradient(145deg, rgba(25,52,61,.82), rgba(12,32,39,.72));
+  box-shadow: 0 14px 34px rgba(0,0,0,.24), inset 0 1px 0 rgba(208,244,248,.10);
+}
+:root[data-theme="dark"] .article-link-action { color: #8edfe7; }
+:root[data-theme="dark"] dialog::backdrop { background: rgba(1,8,12,.78); }
+:root[data-theme="dark"] .empty { border-color: #3a5058; }
+:root[data-theme="dark"] .resource-viewer-message { color: var(--muted); background: var(--paper); }
+:root[data-theme="dark"] .resource-badge { color: #b7e5ea; background: rgba(61,151,169,.22); }
+:root[data-theme="dark"] pre,
+:root[data-theme="dark"] code { background: #0b171c; color: #d9f3f5; }

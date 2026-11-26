@@ -1,0 +1,14 @@
+
+    /* =========================================================
+       05. 富文本文章编辑器
+       ---------------------------------------------------------
+       .toolbar 是格式按钮；.editor 是可直接输入正文的区域。
+       编辑器最小高度可通过 min-height 修改。
+       ========================================================= */
+    .toolbar { display:flex; flex-wrap:wrap; gap:5px; padding:8px; border:1px solid var(--line); border-bottom:0; border-radius:10px 10px 0 0; background:#f7faf9; }
+    .toolbar button { min-width:34px; border:1px solid var(--line); border-radius:7px; padding:6px 8px; background:white; }
+    .editor { height:420px; min-height:420px; max-height:420px; overflow:auto; padding:18px; border:1px solid var(--line); border-radius:0 0 10px 10px; line-height:1.9; outline:none; overflow-wrap:anywhere; }
+    .editor:focus { border-color:var(--cyan); }
+    .editor img { max-width:100%; height:auto; border-radius:9px; }
+    .actions { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-top:16px; }
+    .status { color:var(--muted); font-size:.82rem; }

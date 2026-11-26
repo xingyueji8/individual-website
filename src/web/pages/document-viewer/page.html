@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>文档预览 · 星月集</title>
+  <!-- 在首帧绘制前应用用户的白天/夜览选择，避免 iframe 先白后黑。 -->
+  <script src="/theme.js"></script>
+  <script src="/i18n.js" defer></script>
+  <style>
+<!-- @include styles/base.css -->
+  </style>
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/vnext.css">
+  <link rel="stylesheet" href="/material.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><h1 id="title">正在读取文档…</h1><p id="meta"></p></div>
+      <a id="download" class="download" download>下载原文件</a>
+    </header>
+    <div id="status">正在加载 Word 文档组件和文件内容…</div>
+    <article id="document"></article>
+  </main>
+  <script>
+<!-- @include scripts/viewer.js -->
+  </script>
+</body>
+</html>

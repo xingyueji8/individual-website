@@ -1,0 +1,51 @@
+
+    /* =========================================================
+       06A. 大文件、文件夹与视频版本管理
+       ---------------------------------------------------------
+       原件保存在 R2，下面的进度条显示浏览器分片上传进度。文件卡片只
+       保存展示名称和权限等元数据，不会把大文件内容写入 HTML 或 D1。
+       ========================================================= */
+    .asset-toolbar { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; align-items:end; }
+    .asset-browser { display:grid; gap:9px; margin-top:16px; }
+    /* 信息和操作各占整行，避免视频操作较多时把文件名和元数据挤成竖列。 */
+    .asset-row { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; align-items:start; min-width:0; padding:14px; border:1px solid var(--line); border-radius:13px; background:var(--paper); }
+    .asset-row > * { min-width:0; }
+    .asset-row.folder { border-color:#cce3e7; background:#f5fbfb; }
+    .asset-row-title { display:flex; align-items:center; gap:9px; min-width:0; }
+    .asset-row-title strong { min-width:0; overflow-wrap:anywhere; line-height:1.5; }
+    .asset-row-title img { flex:0 0 auto; }
+    .asset-row-meta { margin-top:6px; color:var(--muted); font-size:.76rem; line-height:1.55; overflow-wrap:anywhere; }
+    .asset-row-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:7px; }
+    .asset-row-controls > .btn { flex:0 0 auto; white-space:nowrap; }
+    .asset-row-controls select { width:auto; min-width:118px; max-width:100%; padding:7px 9px; font-size:.76rem; }
+    .upload-queue { display:grid; gap:8px; margin-top:14px; }
+    .upload-job { padding:11px 13px; border:1px solid #cfe4e7; border-radius:11px; background:#f7fbfb; }
+    .upload-job-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; font-size:.78rem; }
+    .upload-job-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; text-align:right; }
+    .upload-job-controls > span { min-width:0; overflow-wrap:anywhere; }
+    .upload-job-rate { min-width:104px !important; color:var(--muted); font-variant-numeric:tabular-nums; }
+    .upload-job-controls .btn { min-width:58px; padding:5px 9px; }
+    .upload-job.is-failed { border-color:#e4aaa5; }
+    .upload-job.is-cancelled { opacity:.72; }
+    .upload-progress { height:7px; margin-top:8px; border-radius:999px; overflow:hidden; background:#dce8e9; }
+    .upload-progress > span { display:block; width:0; height:100%; background:var(--cyan); transition:width .18s ease; }
+    .resource-picker { width:min(720px,calc(100% - 28px)); max-height:min(720px,86dvh); border:1px solid rgba(255,255,255,.72); border-radius:22px; padding:0; color:var(--ink); background:rgba(248,252,252,.94); box-shadow:0 28px 80px rgba(17,45,55,.25); }
+    .resource-picker::backdrop { background:rgba(12,29,35,.38); backdrop-filter:blur(5px); }
+    .resource-picker-inner { padding:22px; }
+    .studio-share-dialog { padding:22px; }
+    .studio-rename-dialog form { padding:22px; }
+    .studio-share-dialog .check-row { display:flex; align-items:center; gap:10px; margin:18px 0; line-height:1.6; cursor:pointer; }
+    .studio-share-dialog .check-row input { width:20px; height:20px; flex:0 0 20px; margin:0; padding:0; }
+    .resource-picker-list { display:grid; gap:8px; max-height:55dvh; overflow:auto; margin:14px 0; }
+    .resource-picker-item { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:11px; background:var(--paper); }
+    .editor .resource-embed { margin:14px 0; padding:14px; border:1px dashed var(--cyan); border-radius:12px; background:#eefafa; color:#286a74; font-weight:800; }
+    .editor .resource-embed.is-selected { outline:3px solid rgba(49,191,200,.28); }
+    .cover-preview { min-height:150px; margin-top:8px; display:grid; place-items:center; overflow:hidden; border:1px solid var(--line); border-radius:14px; color:var(--muted); background:rgba(236,244,244,.72); }
+    .cover-preview img { width:100%; height:190px; object-fit:cover; display:block; }
+    .article-linked-panel { margin-top:18px; }
+    .article-linked-panel textarea { min-height:90px; }
+    .asset-help { margin:0 0 16px; padding:12px 14px; border:1px solid var(--line); border-radius:13px; background:rgba(239,248,248,.78); }
+    .asset-help summary { cursor:pointer; font-weight:800; }
+    .asset-help p { margin:10px 0 0; line-height:1.75; }
+    .video-poster-preview { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#e9eeee; }
+    .feedback-tabs .active { border-color:rgba(255,255,255,.54); background:rgba(49,175,191,.54); }

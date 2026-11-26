@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="xingyueji-version" content="2.2.0.0">
+  <title>注册与账户帮助 - 星月集</title>
+  <!-- 仅统一浏览器标签页/添加到主屏幕的站点图标；注册卡片正文不增加头像。 -->
+  <link rel="icon" href="/assets/avatar-glass.png?v=312c1e75" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/avatar-glass.png?v=312c1e75">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- 从手机主屏幕启动时保持与网站主页一致的独立应用外观。 -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="星月集">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111b21" media="(prefers-color-scheme: dark)">
+  <script src="/pwa.js"></script>
+  <script src="/theme.js"></script>
+  <script src="/i18n.js" defer></script>
+  <!-- 注册与找回密码卡片使用和主页入口相同的动态背景折射层。 -->
+  <script src="/liquid-glass.js"></script>
+  <style>
+<!-- @include styles/base.css -->
+<!-- @include styles/entry-layout.css -->
+<!-- @include styles/forms.css -->
+  </style>
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/vnext.css">
+  <link rel="stylesheet" href="/material.css">
+  <link rel="stylesheet" href="/mobile.css">
+</head>
+<body class="auth-document">
+  <!-- 仅由公开图片专栏生成；不会把会员照片放到未登录页面。 -->
+  <div id="auth-photo-background" class="auth-photo-background" aria-hidden="true"></div>
+  <!-- 注册、找回密码与重置密码页面共用右上角夜览开关。 -->
+  <div class="night-mode-control floating-night-mode-control" data-theme-switch>
+    <span id="auth-night-mode-label" class="night-mode-label">夜览模式</span>
+    <button class="night-mode-switch" type="button" role="switch" aria-checked="false" aria-labelledby="auth-night-mode-label" data-theme-switch-button>
+      <span class="night-mode-fill" aria-hidden="true"></span>
+      <span class="night-mode-knob" aria-hidden="true"></span>
+    </button>
+  </div>
+  <main class="auth-page">
+    <!-- 页面左下角只保留返回入口，登录与注册表单自身位于屏幕正中。 -->
+    <a class="home-link" href="/">← 返回网站首页</a>
+    <section class="card-side">
+      <div class="auth-card">
+        <!-- 三步注册面板 -->
+        <section id="panel-register" class="panel" hidden>
+          <header class="card-head"><p class="eyebrow">CREATE ACCOUNT</p><h2>申请注册</h2></header>
+          <div class="steps" aria-label="注册进度">
+            <div class="step active" data-step-indicator="1"><span class="step-number">1</span><span>创建账号</span></div>
+            <div class="step" data-step-indicator="2"><span class="step-number">2</span><span>验证信息</span></div>
+            <div class="step" data-step-indicator="3"><span class="step-number">3</span><span>确认提交</span></div>
+          </div>
+          <form id="register-form">
+            <!-- 第一步没有用户协议或隐私勾选项。 -->
+            <div class="register-step" data-register-step="1">
+              <div class="field"><label for="register-username">登录用户名</label><input id="register-username" required minlength="4" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.-]{3,31}" autocomplete="username" placeholder="4—32位字母、数字或 _ . -"></div>
+              <div class="field"><label for="register-nickname">昵称</label><input id="register-nickname" required maxlength="30" autocomplete="nickname" placeholder="在网站中显示的名称"></div>
+              <div class="field"><label for="register-password">设置密码</label><input id="register-password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="至少8位，包含字母和数字"></div>
+              <div class="field"><label for="register-password-confirm">确认密码</label><input id="register-password-confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="再次输入密码"></div>
+              <div class="button-row"><a class="btn ghost" href="/?login=1" data-canonical-login>返回登录</a><button class="btn" type="button" data-register-next>下一步</button></div>
+            </div>
+
+            <div class="register-step" data-register-step="2" hidden>
+              <div class="field"><label for="register-display-name">真实姓名或常用昵称（写社交平台昵称亦可）</label><input id="register-display-name" required maxlength="60" placeholder="便于站长确认你的身份"></div>
+              <div class="two-fields">
+                <div class="field"><label for="register-contact-type">联系方式类型（选填）</label><select id="register-contact-type"><option value="other">不填写</option><option value="qq">QQ</option><option value="wechat">微信</option><option value="email">邮箱</option><option value="phone">手机号</option></select></div>
+                <div class="field"><label for="register-contact">联系方式（选填）</label><input id="register-contact" maxlength="160" placeholder="可以留空"></div>
+              </div>
+              <div class="field"><label for="register-note">备注（选填）</label><textarea id="register-note" maxlength="800" placeholder="主要面向与站长不认识的申请人，可简单说明身份、认识途径或注册原因"></textarea></div>
+              <div class="field"><label for="register-invite">邀请码（选填）</label><input id="register-invite" maxlength="80" placeholder="没有邀请码可以留空"></div>
+              <div class="button-row"><button class="btn ghost" type="button" data-register-back>上一步</button><button class="btn" type="button" data-register-next>下一步</button></div>
+            </div>
+
+            <div class="register-step" data-register-step="3" hidden>
+              <dl id="register-summary" class="summary-list"></dl>
+              <div class="button-row"><button class="btn ghost" type="button" data-register-back>上一步</button><button id="register-submit" class="btn" type="submit">提交注册申请</button></div>
+              <p id="register-notice" class="notice" aria-live="polite"></p>
+            </div>
+          </form>
+        </section>
+
+        <!-- 忘记密码：提交后由站长通过预留联系方式核实。 -->
+        <section id="panel-forgot" class="panel" hidden>
+          <header class="card-head"><p class="eyebrow">PASSWORD HELP</p><h2>申请重置密码</h2></header>
+          <form id="forgot-form">
+            <div class="field"><label for="forgot-username">登录用户名</label><input id="forgot-username" required maxlength="32" autocomplete="username"></div>
+            <div class="two-fields">
+              <div class="field"><label for="forgot-contact-type">联系方式类型</label><select id="forgot-contact-type"><option value="qq">QQ</option><option value="wechat">微信</option><option value="email">邮箱</option><option value="phone">手机号</option><option value="other">其他</option></select></div>
+              <div class="field"><label for="forgot-contact">注册时的联系方式</label><input id="forgot-contact" required maxlength="160"></div>
+            </div>
+            <button class="btn block" type="submit">提交重置申请</button>
+            <p id="forgot-notice" class="notice" aria-live="polite"></p>
+          </form>
+          <div class="divider">返回</div>
+          <a class="btn ghost block" href="/?login=1" data-canonical-login>返回登录</a>
+        </section>
+
+        <!-- 一次性重置链接会直接打开此面板，链接有效期为24小时。 -->
+        <section id="panel-reset" class="panel" hidden>
+          <header class="card-head"><p class="eyebrow">NEW PASSWORD</p><h2>设置新密码</h2><p id="reset-description">正在验证一次性重置链接…</p></header>
+          <form id="reset-form" hidden>
+            <div class="field"><label for="reset-password">新密码</label><input id="reset-password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="至少8位，包含字母和数字"></div>
+            <div class="field"><label for="reset-password-confirm">确认新密码</label><input id="reset-password-confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></div>
+            <button class="btn block" type="submit">确认重置密码</button>
+            <p id="reset-notice" class="notice" aria-live="polite"></p>
+          </form>
+          <a id="reset-back" class="btn ghost block" href="/?login=1" data-canonical-login hidden>返回登录</a>
+        </section>
+
+        <!-- 浏览器已有有效账号会话时显示，避免重复登录。 -->
+        <section id="panel-signed" class="panel" hidden>
+          <header class="card-head"><p class="eyebrow">ACCOUNT STATUS</p><h2>你已经登录</h2></header>
+          <div class="success-box">
+            <strong id="signed-nickname"></strong>
+            <p>登录用户名：<span id="signed-username"></span></p>
+            <p>账户状态：<span id="signed-status" class="status-badge"></span></p>
+          </div>
+          <div class="button-row" style="margin-top:20px"><a id="signed-enter" class="btn" href="/">进入网站</a><button id="signed-logout" class="btn ghost" type="button">退出账号</button></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+<!-- @include scripts/state.js -->
+<!-- @include scripts/background.js -->
+<!-- @include scripts/panels.js -->
+<!-- @include shared:button-motion.js -->
+<!-- @include scripts/control-motion.js -->
+<!-- @include scripts/register.js -->
+<!-- @include scripts/password-reset.js -->
+<!-- @include scripts/start.js -->
+  </script>
+</body>
+</html>

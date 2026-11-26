@@ -1,0 +1,12 @@
+    *{box-sizing:border-box}
+    :root{--ink:#1d3037;--muted:#6e7d83;--line:#dfe7e8;--paper:#fff;--cyan:#31bfc8;--font-ui:ui-rounded,"SF Pro Rounded","HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+    html,body{margin:0;min-height:100%;font-family:var(--font-ui);color:var(--ink);background:#ffffff}
+    body{padding:clamp(12px,3vw,34px)}
+    .shell{width:min(920px,100%);margin:auto;border:1px solid var(--line);border-radius:20px;background:var(--paper);box-shadow:0 18px 55px rgba(28,59,68,.12);overflow:hidden}
+    header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px clamp(18px,4vw,38px);border-bottom:1px solid var(--line)}
+    h1{margin:0;font-size:clamp(1.25rem,4vw,2rem);overflow-wrap:anywhere}header p{margin:7px 0 0;color:var(--muted);font-size:.8rem}
+    .download{display:none;flex:0 0 auto;padding:9px 13px;border:1px solid rgba(255,255,255,.75);border-radius:12px;color:#183940;background:rgba(49,159,179,.45);text-decoration:none;font-weight:800}
+    #status{padding:36px;color:var(--muted);text-align:center;line-height:1.8}
+    #document{padding:clamp(24px,6vw,64px);font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif;font-size:1rem;line-height:1.9;overflow-wrap:anywhere}
+    #document:empty{display:none}#document img{display:block;max-width:100%;height:auto;margin:20px auto}#document table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}#document td,#document th{border:1px solid var(--line);padding:8px}#document pre{overflow:auto;padding:14px;border-radius:10px;background:#edf3f2}#document a{color:#217fba}
+    @media(max-width:560px){body{padding:0}.shell{border:0;border-radius:0;min-height:100dvh}header{position:sticky;top:0;z-index:2;background:var(--paper)}}

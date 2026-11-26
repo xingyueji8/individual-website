@@ -1,0 +1,33 @@
+
+    /* =========================================================
+       09. 平板与手机适配
+       ---------------------------------------------------------
+       980px 以下减少图片列数；720px 以下把左栏改为顶部导航。
+       ========================================================= */
+    @media(max-width:980px) { .cards{grid-template-columns:repeat(2,1fr)} .split{grid-template-columns:1fr} .media-grid{grid-template-columns:repeat(3,1fr)} }
+    @media(max-width:720px) {
+      .studio { display:flex; flex-direction:column; min-height:100dvh; height:auto; }
+      .side { position:sticky; top:0; z-index:100; width:100%; height:auto; max-height:112px; padding:7px 9px 9px; overflow:hidden; flex:0 0 auto; }
+      .side-brand { position:absolute; top:7px; left:8px; z-index:2; margin:0; pointer-events:none; }
+      .side-brand .studio-avatar { width:34px; height:34px; flex-basis:34px; }
+      .side-brand-copy,.side-footer,.side-nav-group-title { display:none; }
+      .side-nav { display:flex; flex-flow:row nowrap; overflow-x:auto; overflow-y:hidden; gap:7px; padding:41px 2px 1px; scrollbar-width:none; overscroll-behavior-x:contain; }
+      .side-nav::-webkit-scrollbar { display:none; }
+      .side-nav-group { display:contents; }
+      .side-nav button { flex:0 0 auto; width:auto; min-height:36px; padding:7px 11px; white-space:nowrap; }
+      .workspace { height:auto; min-height:calc(100dvh - 96px); overflow:visible; padding:18px 12px 55px; }
+      .topbar { align-items:flex-start; }
+      .cards,.form-grid { grid-template-columns:1fr; }
+      .form-grid .wide { grid-column:auto; }
+      .media-grid { grid-template-columns:repeat(2,1fr); }
+      .asset-toolbar { grid-template-columns:1fr; }
+      .user-grid { grid-template-columns:1fr; }
+      .editor { height:340px; min-height:340px; max-height:340px; }
+      .login-shell { overflow:hidden; padding:12px; }
+      .login-card { max-height:calc(100dvh - 24px); overflow:hidden; }
+    }
+    @media(prefers-reduced-motion:reduce) {
+      .view.active,.control-bounce-release { animation:none !important; }
+      .harmony-light-bloom { display:none !important; }
+      button,.btn,.side-footer a,.list-item { transition:none !important; }
+    }

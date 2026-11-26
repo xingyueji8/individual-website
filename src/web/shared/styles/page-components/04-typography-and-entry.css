@@ -1,0 +1,269 @@
+
+/* 商务型系统字体：优先使用当前设备原生的 Apple / HarmonyOS 字体。 */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "PingFang TC", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "PingFang TC", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-hei: -apple-system, BlinkMacSystemFont, "SF Pro Text", "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "PingFang TC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-song: "Songti SC", "STSong", "SimSun", "宋体", "Noto Serif CJK SC", "Noto Serif SC", serif;
+  --font-kai: "Kaiti SC", "STKaiti", "KaiTi", "KaiTi_GB2312", "楷体", "Noto Serif CJK SC", "Noto Serif SC", serif;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select,
+option,
+label,
+a,
+p,
+span,
+small,
+li,
+td,
+th {
+  font-family: var(--font-ui) !important;
+  font-synthesis: none;
+  font-kerning: normal;
+  font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.card-head h2,
+.entry-card h1,
+.side-brand h1 {
+  font-family: var(--font-display) !important;
+  letter-spacing: -.018em;
+}
+
+/* 访客登录、账户注册/找回与 Studio 登录统一使用宋体。 */
+:is(.entry-screen, .auth-document, .login-shell),
+:is(.entry-screen, .auth-document, .login-shell) * {
+  font-family: var(--font-song) !important;
+  font-synthesis: weight;
+}
+
+/* 进入网站后的内容区只让标题使用楷体，正文继续保留清晰的系统无衬线字体。 */
+.app-shell .main :is(h1, h2, h3, h4, h5, h6, .section-title) {
+  font-family: var(--font-kai) !important;
+  font-synthesis: weight;
+  letter-spacing: normal;
+}
+
+/* 注册页夜览与登录入口使用同一层次的环境色，卡片中部不再形成黑色实心块。 */
+:root[data-theme="dark"] :is(.entry-photo-background, .auth-photo-background) {
+  background:
+    radial-gradient(circle at 14% 12%, rgba(48, 153, 166, .24), transparent 38%),
+    radial-gradient(circle at 86% 82%, rgba(111, 83, 166, .19), transparent 40%),
+    linear-gradient(145deg, #10242c, #09171d 56%, #141728) !important;
+}
+
+:root[data-theme="dark"] :is(.auth-page, .card-side, .auth-card, .auth-card .panel, #register-form, .register-step) {
+  background: transparent !important;
+}
+
+:root[data-theme="dark"] .auth-card::before {
+  background:
+    radial-gradient(ellipse 98% 94% at 50% 48%, transparent 0 72%, rgba(171, 224, 233, .055) 82%, rgba(205, 244, 248, .23) 100%),
+    linear-gradient(108deg, rgba(181, 231, 238, .10), transparent 12% 84%, rgba(133, 112, 192, .08)) !important;
+}
+
+/*
+   材质基准直接取自登录界面：
+   - 侧栏按钮复用登录按钮的 3px 低模糊磨砂与顶部光条；
+   - 正文按钮复用登录框的透明中心、0.45px 低模糊与边缘折射。
+*/
+:root {
+  --xyj-login-frost: rgba(104,158,194,.32);
+  --xyj-login-frost-hover: rgba(88,158,190,.43);
+  --xyj-login-frost-active: rgba(43,166,185,.56);
+  --xyj-login-frost-line: rgba(255,255,255,.72);
+  --xyj-login-frost-text: #17343d;
+  --xyj-liquid-text: #183740;
+}
+
+.sidebar :is(.nav button, .sidebar-toggle, .notification-bell, .studio-link) {
+  color: var(--xyj-login-frost-text);
+  border-color: var(--xyj-login-frost-line);
+  background:
+    linear-gradient(90deg, transparent, rgba(255,255,255,.96), transparent) 50% 0 / 76% 2px no-repeat,
+    var(--xyj-login-frost);
+  box-shadow:
+    0 9px 24px rgba(23,60,74,.18),
+    inset 0 1px 0 rgba(255,255,255,.92),
+    inset 0 -1px 0 rgba(37,82,99,.20);
+  -webkit-backdrop-filter: blur(3px) saturate(1.12);
+  backdrop-filter: blur(3px) saturate(1.12);
+}
+
+.sidebar :is(.nav button, .sidebar-toggle, .notification-bell, .studio-link):hover {
+  border-color: rgba(255,255,255,.96);
+  background:
+    linear-gradient(90deg, transparent, #fff, transparent) 50% 0 / 76% 2px no-repeat,
+    var(--xyj-login-frost-hover);
+  box-shadow:
+    0 13px 28px rgba(23,60,74,.22),
+    inset 0 1px 0 rgba(255,255,255,.96),
+    inset 0 -1px 0 rgba(37,82,99,.20);
+}
+
+.sidebar .nav button.active {
+  color: #12343c;
+  border-color: rgba(255,255,255,.86);
+  background:
+    linear-gradient(90deg, transparent, #fff, transparent) 50% 0 / 76% 2px no-repeat,
+    var(--xyj-login-frost-active);
+  box-shadow:
+    0 12px 28px rgba(16,105,122,.23),
+    inset 0 1px 0 rgba(255,255,255,.91),
+    inset 0 -1px 0 rgba(11,83,97,.22),
+    0 0 0 2px rgba(43,166,185,.18);
+}
+
+:is(
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .theme-toggle,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn
+) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--xyj-liquid-text);
+  border-color: transparent;
+  background: transparent;
+  box-shadow:
+    0 9px 24px rgba(9,28,36,.14),
+    inset 0 1px 0 rgba(255,255,255,.82),
+    inset 1px 0 0 rgba(255,255,255,.42),
+    inset 0 -1px 0 rgba(30,63,76,.26),
+    inset -1px 0 0 rgba(255,255,255,.22);
+  -webkit-backdrop-filter: blur(.45px) saturate(1.08) contrast(1.025);
+  backdrop-filter: blur(.45px) saturate(1.08) contrast(1.025);
+}
+
+:is(
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .theme-toggle,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn
+)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 98% 94% at 50% 48%, transparent 0 58%, rgba(255,255,255,.07) 72%, rgba(255,255,255,.34) 94%, rgba(255,255,255,.58) 100%),
+    linear-gradient(108deg, rgba(255,255,255,.28), transparent 12% 82%, rgba(174,222,232,.17));
+}
+
+:is(
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .theme-toggle,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn
+):hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow:
+    0 13px 30px rgba(9,28,36,.20),
+    inset 0 1px 0 rgba(255,255,255,.94),
+    inset 1px 0 0 rgba(255,255,255,.50),
+    inset 0 -1px 0 rgba(30,63,76,.28),
+    inset -1px 0 0 rgba(255,255,255,.28);
+}
+
+:is(
+  .app-shell .main .btn:not(.ghost):not(.light):not(.danger),
+  dialog .btn:not(.ghost):not(.light):not(.danger)
+) {
+  color: #12343c;
+  border-color: transparent;
+  background: transparent;
+  box-shadow:
+    0 9px 24px rgba(21,99,113,.16),
+    inset 0 1px 0 rgba(255,255,255,.88),
+    inset 1px 0 0 rgba(255,255,255,.42),
+    inset 0 -1px 0 rgba(27,143,160,.40),
+    inset -1px 0 0 rgba(255,255,255,.22);
+}
+
+:is(.app-shell .main .btn.ghost, dialog .btn.ghost, .app-shell .main .btn.light, dialog .btn.light) {
+  color: var(--ink);
+  background: transparent;
+}
+
+:is(.app-shell .main .btn.danger, dialog .btn.danger) {
+  color: #8c342f;
+  border-color: transparent;
+  background: rgba(223,91,80,.035);
+  box-shadow:
+    0 9px 24px rgba(110,45,40,.12),
+    inset 0 1px 0 rgba(255,255,255,.82),
+    inset 0 -1px 0 rgba(190,72,64,.34);
+}
+
+.app-shell .main :is(.tab-button, .theme-toggle).active {
+  color: #164a55;
+  background: rgba(43,166,185,.14);
+  border-color: transparent;
+  box-shadow:
+    0 10px 25px rgba(40,111,149,.18),
+    inset 0 1px 0 rgba(255,255,255,.90),
+    inset 0 -2px 0 rgba(27,143,160,.52),
+    0 0 0 2px rgba(43,166,185,.15);
+}
+
+/* 评论输入区固定高度，提交按钮固定在输入框右下角。 */
+.comment-form {
+  display: block;
+  width: 100%;
+  margin: 16px 0 24px;
+}
+.comment-composer {
+  position: relative;
+  width: 100%;
+}
+.comment-form .comment-composer textarea {
+  display: block;
+  width: 100%;
+  height: 156px;
+  min-height: 156px;
+  max-height: 156px;
+  padding: 14px 16px 58px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  resize: none;
+}
+.comment-composer .comment-submit {
+  position: absolute;
+  right: 11px;
+  bottom: 11px;
+  z-index: 2;
+  min-width: 76px;
+  color: #12343c;
+  border-color: rgba(255,255,255,.72);
+  background: rgba(43,166,185,.56);
+  box-shadow: 0 9px 24px rgba(23,60,74,.18), inset 0 1px 0 rgba(255,255,255,.92), inset 0 -1px 0 rgba(37,82,99,.20);
+  -webkit-backdrop-filter: blur(3px) saturate(1.12);
+  backdrop-filter: blur(3px) saturate(1.12);
+}
+.app-shell .main .comment-composer .comment-submit::before {
+  inset: -1px 12% auto;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.96), transparent);
+  filter: blur(.4px);
+  box-shadow: 0 -2px 8px rgba(255,255,255,.40);
+}

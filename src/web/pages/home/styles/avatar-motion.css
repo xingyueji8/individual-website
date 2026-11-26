@@ -1,0 +1,215 @@
+
+    /* =========================================================
+       03. 头像按钮与完整果冻刷新动画
+       ---------------------------------------------------------
+       尺寸：修改 .avatar-refresh 的 width/height。
+       动画强度：修改 @keyframes avatar-jelly-refresh 中的 scale。
+       点击后的刷新逻辑在文件底部搜索“头像点击刷新”。
+       ========================================================= */
+    .avatar-refresh {
+      width: 66px; height: 66px; flex: 0 0 66px; padding: 0;
+      border: 0; border-radius: 50%; overflow: visible;
+      /*
+         渐变毛玻璃环已经写入 /assets/avatar-glass.png，并且图片外侧是真实
+         透明区域。因此按钮本身不再叠加第二层 CSS 圆环，只保留轻微悬浮阴影。
+      */
+      background: transparent;
+      box-shadow:
+        0 10px 24px rgba(44,88,104,.16),
+        0 2px 7px rgba(119,161,205,.10);
+      cursor: pointer;
+      transition: transform .1s cubic-bezier(.175,.885,.32,1.275), box-shadow .1s ease;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .avatar-refresh:hover {
+      transform: scale(1.09) rotate(-4deg);
+      box-shadow: 0 14px 30px rgba(44,88,104,.22), 0 3px 9px rgba(119,161,205,.14);
+    }
+    .avatar-refresh:focus-visible { outline: 3px solid rgba(33,127,186,.28); outline-offset: 4px; }
+    /*
+       恢复上一版 1.18 秒头像果冻：压扁、拉长并逐级收束。头像是刷新入口，
+       因而保留完整果冻过程；普通按钮仍只进行一次快速回弹，两者互不影响。
+    */
+    .avatar-refresh.jelly { animation: avatar-jelly-refresh 1.18s cubic-bezier(.22,.72,.22,1) both; }
+    .avatar {
+      width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none;
+      border: 0; border-radius: 50%;
+    }
+    @keyframes avatar-jelly-refresh {
+      0%   { transform: translateY(0) scale(1,1) rotate(0); }
+      11%  { transform: translateY(7px) scale(1.25,.75) rotate(-6deg); }
+      24%  { transform: translateY(-11px) scale(.82,1.25) rotate(7deg); }
+      38%  { transform: translateY(3px) scale(1.17,.86) rotate(-5deg); }
+      52%  { transform: translateY(-5px) scale(.90,1.14) rotate(4deg); }
+      66%  { transform: translateY(2px) scale(1.09,.93) rotate(-2.5deg); }
+      79%  { transform: translateY(-2px) scale(.965,1.06) rotate(1.5deg); }
+      90%  { transform: translateY(1px) scale(1.025,.985) rotate(-.6deg); }
+      100% { transform: translateY(0) scale(1,1) rotate(0); }
+    }
+
+    /*
+       侧边栏名称、导航按钮和后台入口
+       --------------------------------------------------------
+       导航采用透明晶体玻璃：背景几乎完全透出，只用边缘高光、微弱折射
+       与内阴影表现厚度；当前页面额外加入少量蓝青环境色。
+    */
+    .brand h2 { margin: 0; font-family: Georgia, "Songti SC", serif; font-size: 1.28rem; font-weight: 700; }
+    .brand small { color: var(--muted); letter-spacing: .12em; }
+    .nav { display: grid; gap: 7px; }
+    .nav button {
+      width: 100%; border: 1px solid rgba(255,255,255,.72); border-radius: 15px;
+      /* 默认也带一层极淡蓝色，不再使用容易和背景融为一体的白色渐变。 */
+      background: rgba(112,164,188,.12);
+      padding: 11px 13px; text-align: left; cursor: pointer; color: var(--ink);
+      display: flex; align-items: center; gap: 11px; white-space: nowrap;
+      box-shadow: var(--glass-shadow);
+      -webkit-backdrop-filter: blur(2px) saturate(1.12) contrast(1.04);
+      backdrop-filter: blur(2px) saturate(1.12) contrast(1.04);
+      transition: color .18s ease, background .18s ease, border-color .18s ease,
+                  transform .18s ease, box-shadow .18s ease, gap .36s ease,
+                  padding .42s cubic-bezier(.22,.72,.18,1);
+    }
+    .nav button[hidden] { display: none; }
+    .nav-icon { width: 22px; flex: 0 0 22px; text-align: center; font-size: 1.05rem; }
+    .nav-label {
+      min-width: 0; max-width: 166px; opacity: 1; overflow: hidden;
+      transform: translateX(0); visibility: visible;
+      transition:
+        max-width .40s cubic-bezier(.22,.72,.18,1),
+        opacity .24s ease,
+        transform .40s cubic-bezier(.22,.72,.18,1),
+        visibility 0s linear 0s;
+    }
+    .nav button:hover {
+      color: var(--ink); border-color: rgba(255,255,255,.88);
+      background: rgba(98,171,190,.23);
+      box-shadow: var(--glass-shadow); transform: translateY(-1px);
+    }
+    .nav button:active { transform: translateY(1px) scale(.975); }
+    .nav button:focus-visible,
+    .studio-link:focus-visible,
+    .tab-button:focus-visible {
+      outline: 3px solid rgba(49,191,200,.28);
+      outline-offset: 2px;
+    }
+    .nav button.active {
+      color: #17343d; border-color: rgba(255,255,255,.82);
+      /* 当前板块保持清晰的蓝青色，导航完成后不会重新变回透明白色。 */
+      background: rgba(75,166,185,.40);
+      box-shadow: 0 11px 25px rgba(74,129,146,.17), inset 0 1px 0 rgba(255,255,255,.94), inset 0 -1px 0 rgba(45,110,126,.17);
+    }
+    /*
+       “安装桌面应用”是浏览器工具，不属于主页、个人空间等内容专栏。
+       因此它不再放进 .nav，而是作为独立工具行固定在“外观”选择器下方。
+       按钮仍沿用全站的蓝色玻璃层次，避免被误认为普通文字链接。
+    */
+    .sidebar-install-slot {
+      width: 100%; padding-top: 8px; max-height: 64px;
+      opacity: 1; visibility: visible; transform: translateY(0);
+      transition:
+        max-height .34s cubic-bezier(.22,.72,.18,1),
+        padding .34s ease,
+        opacity .20s ease,
+        transform .34s cubic-bezier(.22,.72,.18,1),
+        visibility 0s linear 0s;
+    }
+    .sidebar-install-button {
+      width: 100%; min-height: 44px; padding: 9px 12px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      border: 1px solid var(--glass-line); border-radius: 15px; cursor: pointer;
+      color: var(--ink); background: rgba(70, 166, 184, .24);
+      box-shadow: var(--glass-shadow);
+      -webkit-backdrop-filter: blur(15px) saturate(1.18);
+      backdrop-filter: blur(15px) saturate(1.18);
+      transition: color .16s ease, background .16s ease, border-color .16s ease,
+                  transform .16s ease, box-shadow .16s ease, padding .34s ease;
+    }
+    .sidebar-install-button:hover {
+      color: var(--ink); border-color: rgba(255,255,255,.88);
+      background: rgba(57, 173, 190, .34); transform: translateY(-1px);
+    }
+    .sidebar-install-button:active { transform: translateY(1px) scale(.975); }
+    .sidebar-install-button:focus-visible {
+      outline: 3px solid rgba(49,191,200,.28); outline-offset: 2px;
+    }
+    .sidebar-install-icon { width: 22px; flex: 0 0 22px; text-align: center; font-size: 1.05rem; }
+    .sidebar-install-label {
+      min-width: 0; max-width: 156px; overflow: hidden; opacity: 1;
+      white-space: nowrap; transform: translateX(0); visibility: visible;
+      font-size: .80rem; font-weight: 800;
+      transition: max-width .34s cubic-bezier(.22,.72,.18,1), opacity .20s ease,
+                  transform .34s cubic-bezier(.22,.72,.18,1), visibility 0s linear 0s;
+    }
+    .sidebar-note {
+      margin-top: 10px; padding: 10px 0 max(10px, env(safe-area-inset-bottom)); max-height: 140px;
+      font-size: .76rem; line-height: 1.65; color: var(--muted);
+      opacity: 1; overflow: hidden; visibility: visible; transform: translateY(0);
+      transition:
+        max-height .42s cubic-bezier(.22,.72,.18,1),
+        margin .42s ease,
+        padding .42s ease,
+        opacity .24s ease,
+        transform .42s cubic-bezier(.22,.72,.18,1),
+        visibility 0s linear 0s;
+    }
+    .studio-link {
+      display: inline-flex; align-items: center; margin-top: 9px; padding: 7px 11px;
+      border: 1px solid rgba(255,255,255,.58); border-radius: 999px;
+      color: var(--muted); text-decoration: none; background: var(--glass-fill);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.74);
+      -webkit-backdrop-filter: blur(2px) saturate(1.1); backdrop-filter: blur(2px) saturate(1.1);
+      transition: color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .studio-link:hover { color: var(--ink); background: var(--glass-fill-hover); transform: translateY(-1px); }
+
+    /*
+       侧边栏收起后保留 76px 图标轨道和展开按钮。站名、文字与页脚隐藏，
+       data-title 仍通过浏览器 title 提示各图标含义。
+    */
+    .app-shell.sidebar-collapsed .sidebar { width: 76px; flex-basis: 76px; padding-inline: 13px; }
+    .app-shell.sidebar-collapsed .sidebar-toggle { margin-left: 5px; }
+    .app-shell.sidebar-collapsed .brand {
+      max-height: 0; margin-bottom: 0; opacity: 0;
+      transform: translateX(-9px) scale(.92); visibility: hidden; pointer-events: none;
+      transition-delay: 0s, 0s, 0s, 0s, .42s;
+    }
+    .app-shell.sidebar-collapsed .nav button { justify-content: center; gap: 0; padding-inline: 10px; }
+    .app-shell.sidebar-collapsed .nav-label {
+      max-width: 0; opacity: 0; transform: translateX(-7px); visibility: hidden;
+      transition-delay: 0s, 0s, 0s, .40s;
+    }
+    /* 电脑端收起侧栏后仍保留安装图标，但隐藏文字，行为与外观按钮一致。 */
+    .app-shell.sidebar-collapsed .sidebar-install-slot { display: grid; justify-items: center; }
+    .app-shell.sidebar-collapsed .sidebar-install-button { width: 44px; padding-inline: 0; gap: 0; }
+    .app-shell.sidebar-collapsed .sidebar-install-label {
+      max-width: 0; opacity: 0; transform: translateX(-7px);
+      visibility: hidden; pointer-events: none;
+      transition-delay: 0s, 0s, 0s, .34s;
+    }
+    .app-shell.sidebar-collapsed .sidebar-note {
+      max-height: 0; margin: 0; padding: 0; opacity: 0;
+      transform: translateY(7px); visibility: hidden; pointer-events: none;
+      transition-delay: 0s, 0s, 0s, 0s, 0s, .42s;
+    }
+
+    /*
+       原生橡皮筋只在部分触控浏览器提供。JavaScript 在侧栏已经到顶/到底后
+       继续滚动时添加下面两个类，让侧栏内容产生很短的边界回弹；不阻止原生
+       滚动，因此支持 iOS 橡皮筋的设备仍优先使用系统手感。
+    */
+    .sidebar.sidebar-edge-bounce-top > *,
+    .sidebar.sidebar-edge-bounce-bottom > * { will-change: transform; }
+    .sidebar.sidebar-edge-bounce-top > * {
+      animation: sidebar-edge-bounce-top .30s cubic-bezier(.2,.78,.22,1);
+    }
+    .sidebar.sidebar-edge-bounce-bottom > * {
+      animation: sidebar-edge-bounce-bottom .30s cubic-bezier(.2,.78,.22,1);
+    }
+    @keyframes sidebar-edge-bounce-top {
+      0%, 100% { transform: translateY(0); }
+      45% { transform: translateY(5px); }
+    }
+    @keyframes sidebar-edge-bounce-bottom {
+      0%, 100% { transform: translateY(0); }
+      45% { transform: translateY(-5px); }
+    }

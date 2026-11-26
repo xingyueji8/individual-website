@@ -1,0 +1,142 @@
+
+    /* =========================================================
+       09. 手机端适配（屏幕宽度不超过 760px）
+       ---------------------------------------------------------
+       侧边栏会变成顶部横向导航，主内容仍保持独立纵向滚动。
+       ========================================================= */
+    @media (max-width: 760px) {
+      body { overflow: hidden; }
+      /*
+         右上角新增主题按钮后，手机登录框从按钮下方开始。margin-block:auto
+         会在空间充足时居中；内容过高时自动贴顶并允许完整纵向滚动。
+      */
+      .entry-screen {
+        padding: max(76px, calc(env(safe-area-inset-top) + 62px)) 14px max(24px, env(safe-area-inset-bottom));
+      }
+      /* 手机端不能强行追求横向比例，恢复紧凑左右留白以保证输入区域宽度。 */
+      .entry-card { padding: 25px 20px; border-radius: 22px; }
+      .entry-actions { grid-template-columns: 1fr; }
+      .app-shell { flex-direction: column; }
+      .sidebar {
+        width: 100%; height: auto; max-height: calc(230px + env(safe-area-inset-top)); flex: 0 0 auto;
+        min-height: calc(64px + env(safe-area-inset-top));
+        padding: max(12px, env(safe-area-inset-top)) 13px 10px;
+        border-right: 0; border-bottom: 1px solid var(--line); overflow: visible;
+        transition:
+          max-height .46s cubic-bezier(.22,.72,.18,1),
+          padding .46s cubic-bezier(.22,.72,.18,1),
+          border-color .24s ease,
+          box-shadow .24s ease;
+      }
+      /* 展开键固定左上、主题键固定右上，两者不再依赖内容流定位。 */
+      .sidebar-toggle {
+        position: absolute; z-index: 3;
+        top: max(12px, env(safe-area-inset-top)); left: 13px; margin: 0;
+      }
+      .brand { margin: 52px 0 10px; gap: 9px; }
+      .avatar-refresh { width: 39px; height: 39px; flex-basis: 39px; padding: 0; }
+      .brand h2 { font-size: 1rem; }
+      .brand small, .sidebar-note { display: none; }
+      .nav {
+        display: flex; gap: 6px; max-height: 52px; opacity: 1;
+        overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; scrollbar-width: none;
+        transform: translateY(0); visibility: visible;
+        transition:
+          max-height .42s cubic-bezier(.22,.72,.18,1),
+          opacity .24s ease,
+          padding .42s ease,
+          transform .42s cubic-bezier(.22,.72,.18,1),
+          visibility 0s linear 0s;
+      }
+      .nav::-webkit-scrollbar { display: none; }
+      .nav button { flex: 0 0 auto; width: auto; padding: 8px 12px; text-align: center; font-size: .82rem; }
+      .nav-icon { width: auto; flex-basis: auto; }
+      /*
+         手机上安装入口单独占据导航下方的一行，既不参与横向专栏滚动，
+         也不会被误认为第八个内容板块。外观按钮仍固定在顶部右侧。
+      */
+      .sidebar-install-slot { width: 100%; padding: 8px 52px 0 0; }
+      .sidebar-install-button { min-height: 40px; padding-block: 7px; }
+      .app-shell.sidebar-collapsed .sidebar {
+        width: 100%; max-height: calc(64px + env(safe-area-inset-top)); flex-basis: auto;
+        padding: max(12px, env(safe-area-inset-top)) 13px 10px;
+      }
+      .app-shell.sidebar-collapsed .sidebar-toggle { margin: 0; }
+      .app-shell.sidebar-collapsed .brand { margin-top: 0; }
+      .app-shell.sidebar-collapsed .nav {
+        max-height: 0; padding-bottom: 0; opacity: 0;
+        transform: translateY(-6px); visibility: hidden; pointer-events: none;
+        transition-delay: 0s, 0s, 0s, 0s, .42s;
+      }
+      /* 顶栏收起时不让第二行安装按钮溢出到正文上方，只保留折叠与主题按钮。 */
+      .app-shell.sidebar-collapsed .sidebar-install-slot {
+        display: block; max-height: 0; padding: 0; opacity: 0;
+        transform: translateY(-6px); visibility: hidden; pointer-events: none;
+        transition-delay: 0s, 0s, 0s, 0s, .34s;
+      }
+      .app-shell.sidebar-collapsed .sidebar-install-button { width: 100%; }
+      .main { height: auto; flex: 1 1 auto; min-height: 0; }
+      .content-section { height: 100%; padding: 28px 17px max(55px, env(safe-area-inset-bottom)); }
+      .profile-grid, .content-grid { grid-template-columns: 1fr; }
+      .resource-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .timeline-item { grid-template-columns: 1fr; gap: 10px; }
+      .updates { width: 100%; }
+      .feedback-layout { grid-template-columns: 1fr; }
+      .account-grid { grid-template-columns: 1fr; }
+      .comment-form { grid-template-columns: 1fr; }
+      .reply-form { margin-left: 15px; grid-template-columns: 1fr; }
+      .chat-form { flex-wrap: wrap; }
+      .chat-form button { width: 100%; }
+      .bubble { max-width: 92%; }
+      .image-view { padding: 10px; }
+      .image-nav { width: 42px; height: 42px; font-size: 1.7rem; }
+      .image-nav.previous { left: 5px; }
+      .image-nav.next { right: 5px; }
+    }
+
+    /*
+       桌面浏览器放大时 CSS 视口也会变窄，过去会误触上面的手机布局并把
+       .sidebar-note 直接隐藏。只有“主输入设备”同时支持悬停且为精细指针
+       （即真正的鼠标/触控板）时才保留左侧纵向栏。不能使用 any-pointer，
+       因为部分手机只要支持手写笔或外接输入就会被误判成电脑布局。
+    */
+    @media (max-width: 760px) and (hover: hover) and (pointer: fine) {
+      .app-shell { flex-direction: row; }
+      .sidebar {
+        width: 250px; height: 100dvh; max-height: none; flex: 0 0 250px;
+        padding: 34px 22px 24px; border-right: 1px solid rgba(255,255,255,.76);
+        border-bottom: 0; overflow-y: auto; overflow-x: hidden;
+        transition: width .46s cubic-bezier(.22,.72,.18,1),
+                    flex-basis .46s cubic-bezier(.22,.72,.18,1),
+                    padding .46s cubic-bezier(.22,.72,.18,1),
+                    border-color .24s ease, box-shadow .24s ease;
+      }
+      .sidebar-toggle { margin: -11px 0 16px -7px; }
+      .brand { margin: 0 0 28px; gap: 13px; }
+      .avatar-refresh { width: 66px; height: 66px; flex-basis: 66px; }
+      .brand h2 { font-size: 1.28rem; }
+      .brand small, .sidebar-note { display: block; }
+      .nav {
+        display: grid; gap: 7px; max-height: none; opacity: 1;
+        overflow: visible; padding-bottom: 0; transform: none; visibility: visible;
+      }
+      .nav button { width: 100%; flex: 0 0 auto; padding: 11px 13px; text-align: left; font-size: inherit; }
+      .nav-icon { width: 22px; flex: 0 0 22px; }
+      .sidebar-install-slot { padding: 8px 0 0; }
+      .app-shell.sidebar-collapsed .sidebar {
+        width: 76px; max-height: none; flex: 0 0 76px; padding: 34px 13px 24px;
+      }
+      .app-shell.sidebar-collapsed .sidebar-toggle { margin: -11px 0 16px 5px; }
+      .app-shell.sidebar-collapsed .nav {
+        display: grid; max-height: none; padding-bottom: 0; opacity: 1;
+        transform: none; visibility: visible; pointer-events: auto;
+      }
+      .main { height: 100dvh; flex: 1 1 auto; min-height: 0; }
+    }
+
+    @media (max-width: 480px) {
+      .resource-grid { grid-template-columns:1fr; }
+      .reader-body .article-link-card { grid-template-columns: 42px minmax(0,1fr); padding: 13px; }
+      .article-link-icon { width: 42px; height: 42px; border-radius: 13px; }
+      .article-link-action { grid-column: 2; }
+    }

@@ -3,25 +3,29 @@ import { initializeContentSecurity } from "../content/permission-graph.js";
 import { rows } from "../shared/values.js";
 import { schemaStatements } from "./tables.js";
 
-/*
- * 兼容已经在生产环境运行的旧 D1 数据库：CREATE TABLE IF NOT EXISTS 不会
- * 给旧表自动补字段，因此每次新增字段都要先读取 PRAGMA table_info，再执行
- * 一次安全的 ALTER TABLE。表名、字段名和定义均只来自本文件中的固定常量。
- */
-async function ensureColumn(env, table, column, definition) {
-  const result = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
-  if (rows(result).some((item) => item.name === column)) return;
-  try {
-    await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
-  } catch (error) {
-    /*
-     * Cloudflare 可能同时启动多个 Worker 实例：两个实例都先看到字段不存在，
-     * 随后只有第一个 ALTER 成功。第二个收到 duplicate column 时重新核对表结构；
-     * 字段确实已经建立就视为成功，其余数据库错误仍原样抛出。
-     */
-    const current = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
-    if (rows(current).some((item) => item.name === column)) return;
-    throw error;
+// 同一张表只读取一次字段列表。批处理减少冷启动消耗的 D1 请求数。
+async function findMissingColumns(env, definitions) {
+  const tables = [...new Set(definitions.map(([table]) => table))];
+  const results = await env.DB.batch(tables.map(table => env.DB.prepare(`PRAGMA table_info(${table})`)));
+  const namesByTable = new Map(tables.map((table, index) => [
+    table, new Set(rows(results[index]).map(column => column.name)),
+  ]));
+  return definitions.filter(([table, column]) => !namesByTable.get(table).has(column));
+}
+
+async function ensureColumns(env, definitions) {
+  let missing = await findMissingColumns(env, definitions);
+  while (missing.length) {
+    try {
+      await env.DB.batch(missing.map(([table, column, definition]) =>
+        env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)));
+      return;
+    } catch (error) {
+      // 其他 Worker 可能已补上部分字段。只在确实有进展时重试剩余字段。
+      const remaining = await findMissingColumns(env, missing);
+      if (remaining.length === missing.length) throw error;
+      missing = remaining;
+    }
   }
 }
 
@@ -35,7 +39,7 @@ export async function prepareStructure(env) {
   await env.DB.batch(schemaStatements.map((sql) => env.DB.prepare(sql)));
 
   // 旧站数据迁移：为文章、相册和图片补上所属“个人空间板块”。
-  for (const [table, column, definition] of [
+  await ensureColumns(env, [
     ["content", "section_id", "TEXT"],
     ["albums", "section_id", "TEXT"],
     ["media", "section_id", "TEXT"],
@@ -57,7 +61,7 @@ export async function prepareStructure(env) {
     ["media", "sha256", "TEXT"],
     ["media", "mosaic_object_key", "TEXT"],
     ["media", "upload_token", "TEXT"],
-  ]) await ensureColumn(env, table, column, definition);
+  ]);
   await initializeContentSecurity(env);
   await env.DB.batch([
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_media_hash ON media(sha256)"),
@@ -66,7 +70,7 @@ export async function prepareStructure(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_subsection_parent ON portfolio_subsections(parent_id)"),
     env.DB.prepare("DELETE FROM content_grants WHERE expires_at <= ?").bind(Date.now()),
   ]);
-  for (const [table, column, definition] of [
+  await ensureColumns(env, [
     ["albums", "visibility", "TEXT NOT NULL DEFAULT 'public'"],
     ["content", "visibility", "TEXT NOT NULL DEFAULT 'public'"],
     ["content", "subsection_id", "TEXT"],
@@ -88,12 +92,10 @@ export async function prepareStructure(env) {
     ["asset_folders", "access_mode", "TEXT NOT NULL DEFAULT 'public'"],
     ["asset_folders", "section_id", "TEXT NOT NULL DEFAULT 'section-resources'"],
     ["user_profiles", "admin_note", "TEXT NOT NULL DEFAULT ''"],
-  ]) await ensureColumn(env, table, column, definition);
-  // 留言只能由 Studio 中已验证的站长回复；旧数据库会在这里安全补齐字段。
-  for (const [table, column, definition] of [
+    // 留言只能由 Studio 中已验证的站长回复。
     ["feedback", "admin_reply", "TEXT NOT NULL DEFAULT ''"],
     ["feedback", "admin_replied_at", "TEXT"],
-  ]) await ensureColumn(env, table, column, definition);
+  ]);
   await env.DB.batch([
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_content_section ON content(section_id, status, published_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_albums_section ON albums(section_id, sort_order)"),
