@@ -1,9 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "xingyueji",
-  "main": "src/server/worker.js",
+  "main": "src/worker.js",
   "compatibility_date": "2026-08-06",
-  "build": { "command": "npm run build", "watch_dir": ["src/web", "scripts"] },
+  "build": { "command": "npm run build:assets" },
 
   // 正式站只允许通过自定义域名访问，关闭 workers.dev 与临时预览入口。
   "workers_dev": false,
@@ -18,7 +18,7 @@
     "enabled": true
   },
   "assets": {
-    "directory": "./dist/public",
+    "directory": "./public",
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     // 静态页面也先经过 Worker，确保 HTTP 跳转和安全响应头不会被绕过。

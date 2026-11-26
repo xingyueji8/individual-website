@@ -3,30 +3,25 @@
   "version": "2.3.0",
   "private": true,
   "scripts": {
-    "build": "node scripts/build-web.mjs",
-    "build:assets": "npm run build",
+    "build:assets": "node scripts/prepare-heic.mjs",
     "dev": "wrangler dev",
-    "check": "node --check src/server/worker.js && wrangler deploy --dry-run",
+    "check": "node --check src/worker.js && wrangler deploy --dry-run",
+    "test:studio": "node test/studio-ui.mjs",
+    "test:access": "node test/guest-mode-access.mjs && node test/security-boundaries.mjs",
+    "test:upload": "node test/resumable-upload.mjs",
+    "test:glass": "node test/glass-motion.mjs",
+    "test:i18n": "node test/i18n.mjs",
+    "test:organize": "node test/content-organize.mjs && node test/organize-ui.mjs",
+    "test:photos": "node test/photo-viewer-ui.mjs",
+    "test:pdf": "node test/article-pdf.mjs && node test/article-pdf-render.mjs",
+    "test:mobile": "node test/mobile-entry-ui.mjs",
+    "test:mobile-media": "node test/mobile-media.mjs && node test/video-playback.mjs",
+    "test:background": "node test/entry-background.mjs && node test/entry-background-ui.mjs",
+    "test:agent": "node test/site-agent.mjs && node test/site-agent-ui.mjs && node test/site-agent-interactions.mjs && node test/site-agent-visibility.mjs",
+    "test:shares": "node test/shares.mjs && node test/shares-ui.mjs",
+    "test": "npm run test:studio && npm run test:glass && npm run test:i18n && npm run test:access && npm run test:upload && npm run test:organize && npm run test:photos && npm run test:pdf && npm run test:mobile && npm run test:mobile-media && npm run test:background && npm run test:agent && npm run test:shares && npm run test:space",
     "deploy": "wrangler deploy",
-    "test": "node tests/run.mjs",
-    "test:studio": "node tests/run.mjs studio",
-    "test:access": "node tests/run.mjs access",
-    "test:upload": "node tests/run.mjs upload",
-    "test:glass": "node tests/run.mjs glass",
-    "test:i18n": "node tests/run.mjs i18n",
-    "test:organize": "node tests/run.mjs organize",
-    "test:photos": "node tests/run.mjs photos",
-    "test:pdf": "node tests/run.mjs pdf",
-    "test:mobile": "node tests/run.mjs mobile",
-    "test:mobile-media": "node tests/run.mjs mobile-media",
-    "test:background": "node tests/run.mjs background",
-    "test:agent": "node tests/run.mjs agent",
-    "test:shares": "node tests/run.mjs shares",
-    "test:space": "node tests/run.mjs space",
-    "test:build": "node tests/run.mjs build",
-    "preview:pdf": "node tests/manual/pdf-render.mjs",
-    "preview:space": "npm run build && node tests/manual/personal-space-preview.mjs",
-    "preview:photos": "npm run build && node tests/manual/photo-controls-browser.mjs"
+    "test:space": "node test/personal-space.mjs"
   },
   "devDependencies": {
     "linkedom": "0.18.12",
@@ -34,6 +29,5 @@
   },
   "dependencies": {
     "heic-to": "1.5.2"
-  },
-  "type": "module"
+  }
 }

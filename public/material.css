@@ -1,0 +1,1577 @@
+/*
+ * 星月集：实体玻璃材质层
+ * ------------------------------------------------------------------
+ * 大面积背景只使用纯色；色彩只承担板块与操作语义。渐变仅出现在玻璃
+ * 边缘的光学高光和折射遮罩中，不再作为页面或按钮的彩色填充。
+ */
+:root {
+  --xyj-page-cream: #ffffff;
+  --xyj-sidebar-light: rgba(232, 232, 232, .88);
+  --xyj-sidebar-background: var(--xyj-sidebar-light);
+  --xyj-night-page: #111b21;
+  --xyj-blue: #0f6baa;
+  --xyj-teal: #246f84;
+  --xyj-amber: #a86413;
+  --xyj-coral: #a9454f;
+  --xyj-navy: #284e78;
+  --xyj-steel: #356b7e;
+  --xyj-button-font: "汉仪颜简体", "汉仪颜楷简", "汉仪颜楷W", "HYYanKaiW", "DuBai Medium", "Dubai Medium", "Dubai", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --xyj-chatgpt-reading-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --xyj-content-radius: 14px;
+  --font-reading: var(--xyj-chatgpt-reading-font);
+  --xyj-readable-ink: #1b3036;
+  --xyj-readable-muted: #586b70;
+
+  --xyj-motion-rebound: .74s;
+  --xyj-motion-settle: .64s;
+  --xyj-frost-grain-opacity: .40;
+  --xyj-frost-fill: rgba(35, 96, 138, .50);
+  --xyj-frost-fill-hover: rgba(23, 101, 149, .64);
+  --xyj-frost-fill-active: rgba(10, 84, 137, .82);
+  --xyj-frost-line: rgba(255, 255, 255, .70);
+  --xyj-frost-text: #17363d;
+  --xyj-liquid-center: rgba(255, 255, 255, .075);
+  --xyj-liquid-center-strong: rgba(255, 255, 255, .16);
+  --xyj-liquid-edge-light: rgba(255, 255, 255, .82);
+  --xyj-liquid-edge-shade: rgba(40, 87, 98, .24);
+  --xyj-liquid-press-fill: rgba(255, 255, 255, .018);
+  --xyj-liquid-press-line: rgba(242, 254, 255, .62);
+
+  --cream: var(--xyj-page-cream);
+  --paper: rgba(255, 255, 255, .24);
+  --paper-deep: rgba(247, 239, 228, .78);
+  --ink: var(--xyj-readable-ink);
+  --muted: var(--xyj-readable-muted);
+  --line: rgba(68, 92, 98, .20);
+  --soft: rgba(220, 228, 232, .64);
+  --xyj-glass-surface: rgba(255, 255, 255, .16);
+  --xyj-glass-surface-strong: rgba(255, 255, 255, .25);
+  --xyj-glass-control: rgba(255, 255, 255, .10);
+  --xyj-glass-line: rgba(255, 255, 255, .58);
+}
+
+:root[data-theme="dark"] {
+  --xyj-readable-ink: #edf5f4;
+  --xyj-readable-muted: #aebfbe;
+  --xyj-frost-grain-opacity: .29;
+  --xyj-frost-fill: rgba(22, 72, 108, .72);
+  --xyj-frost-fill-hover: rgba(16, 89, 132, .82);
+  --xyj-frost-fill-active: rgba(10, 103, 158, .91);
+  --xyj-frost-line: rgba(205, 238, 239, .30);
+  --xyj-frost-text: #edf7f6;
+  --xyj-liquid-center: rgba(170, 220, 224, .035);
+  --xyj-liquid-center-strong: rgba(158, 211, 216, .075);
+  --xyj-liquid-edge-light: rgba(211, 247, 247, .38);
+  --xyj-liquid-edge-shade: rgba(0, 8, 12, .45);
+  --xyj-liquid-press-fill: rgba(188, 235, 238, .018);
+  --xyj-liquid-press-line: rgba(203, 241, 242, .34);
+
+  --cream: var(--xyj-night-page);
+  --paper: rgba(25, 42, 47, .36);
+  --paper-deep: rgba(17, 31, 36, .82);
+  --ink: var(--xyj-readable-ink);
+  --muted: var(--xyj-readable-muted);
+  --line: rgba(185, 221, 222, .17);
+  --soft: rgba(36, 49, 61, .74);
+  --xyj-glass-surface: rgba(126, 182, 188, .055);
+  --xyj-glass-surface-strong: rgba(126, 182, 188, .095);
+  --xyj-glass-control: rgba(126, 182, 188, .055);
+  --xyj-glass-line: rgba(205, 238, 239, .20);
+}
+
+/* 页面大底：白天为纯白，夜览为单一深蓝黑，不使用环境渐变。 */
+:root[data-theme="light"],
+:root[data-theme="light"] :is(body, .app-shell, .main, .content-section, .workspace, .login-shell) {
+  background-color: var(--xyj-page-cream) !important;
+  background-image: none !important;
+}
+:root[data-theme="dark"],
+:root[data-theme="dark"] :is(body, .app-shell, .main, .content-section, .workspace, .login-shell) {
+  background-color: var(--xyj-night-page) !important;
+  background-image: none !important;
+}
+:root[data-theme="light"] :is(.entry-screen, .entry-photo-background, .auth-photo-background) {
+  background-color: var(--xyj-page-cream);
+}
+:root[data-theme="dark"] :is(.entry-screen, .entry-photo-background, .auth-photo-background) {
+  background-color: #0a1318;
+}
+
+/* 侧栏使用带明显细颗粒的磨砂底板，颜色仍由背后的纯色环境透出。 */
+.sidebar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--xyj-sidebar-light) !important;
+  background-image: none !important;
+  border-color: rgba(255, 255, 255, .58) !important;
+  box-shadow:
+    12px 0 34px rgba(62, 70, 66, .10),
+    inset -1px 0 0 rgba(91, 106, 105, .14),
+    inset 1px 0 0 rgba(255, 255, 255, .72) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(1.12) contrast(1.035);
+  backdrop-filter: blur(25px) saturate(1.12) contrast(1.035);
+}
+:root[data-theme="dark"] { --xyj-sidebar-background: rgba(27, 48, 54, .78); }
+:root[data-theme="dark"] .sidebar {
+  background-color: var(--xyj-sidebar-background) !important;
+  border-color: rgba(202, 236, 238, .14) !important;
+  box-shadow:
+    12px 0 34px rgba(0, 0, 0, .26),
+    inset -1px 0 0 rgba(0, 0, 0, .30),
+    inset 1px 0 0 rgba(215, 246, 247, .10) !important;
+}
+.studio .side {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--ink);
+  background-color: var(--xyj-sidebar-light) !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.16);
+  backdrop-filter: blur(24px) saturate(1.16);
+}
+:root[data-theme="dark"] .studio .side {
+  background-color: rgba(17, 39, 45, .96) !important;
+}
+.studio .side :is(.side-brand small, .side-nav-group-title) {
+  color: var(--muted);
+}
+.sidebar::before,
+.studio .side::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='112' height='112' viewBox='0 0 112 112'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='4' seed='37' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.72'/%3E%3C/svg%3E") !important;
+  background-size: 112px 112px !important;
+  opacity: .17 !important;
+  mix-blend-mode: overlay !important;
+}
+:root[data-theme="dark"] :is(.sidebar, .studio .side)::before { opacity: .13 !important; }
+
+/* 多色只用于可辨识的导航语义，使用纯色透明填充，不使用彩色渐变。 */
+.nav button[data-section="home"] { --xyj-nav-rest: rgba(10,104,174,.58); --xyj-nav-hover: rgba(8,91,160,.73); --xyj-nav-active: rgba(4,75,139,.93); }
+.nav button[data-section="portfolio"] { --xyj-nav-rest: rgba(12,112,135,.56); --xyj-nav-hover: rgba(9,96,119,.72); --xyj-nav-active: rgba(5,78,101,.92); }
+.nav button[data-section="about"] { --xyj-nav-rest: rgba(169,102,18,.55); --xyj-nav-hover: rgba(151,85,10,.71); --xyj-nav-active: rgba(130,68,2,.91); }
+.nav button[data-section="feedback"] { --xyj-nav-rest: rgba(164,57,69,.54); --xyj-nav-hover: rgba(146,43,55,.71); --xyj-nav-active: rgba(126,31,43,.92); }
+.nav button[data-section="ai-helper"] { --xyj-nav-rest: rgba(43,83,151,.58); --xyj-nav-hover: rgba(34,69,133,.74); --xyj-nav-active: rgba(25,55,113,.93); }
+.nav button[data-section="settings"] { --xyj-nav-rest: rgba(39,99,121,.57); --xyj-nav-hover: rgba(29,83,104,.73); --xyj-nav-active: rgba(20,67,88,.92); }
+
+.studio .side-nav button[data-view="dashboard"],
+.studio .side-nav button[data-view="sections"],
+.studio .side-nav button[data-view="content"] { --xyj-nav-rest: rgba(10,104,174,.58); --xyj-nav-hover: rgba(8,115,188,.72); --xyj-nav-active: rgba(5,127,202,.91); }
+.studio .side-nav button[data-view="media"],
+.studio .side-nav button[data-view="assets"],
+.studio .side-nav button[data-view="comments"] { --xyj-nav-rest: rgba(12,112,135,.56); --xyj-nav-hover: rgba(10,126,151,.71); --xyj-nav-active: rgba(7,139,165,.90); }
+.studio .side-nav button[data-view="changelogs"],
+.studio .side-nav button[data-view="visitors"] { --xyj-nav-rest: rgba(169,102,18,.55); --xyj-nav-hover: rgba(181,111,20,.70); --xyj-nav-active: rgba(193,123,27,.90); }
+.studio .side-nav button[data-view="feedback"],
+.studio .side-nav button[data-view="messages"] { --xyj-nav-rest: rgba(164,57,69,.55); --xyj-nav-hover: rgba(177,63,75,.70); --xyj-nav-active: rgba(190,72,84,.90); }
+.studio .side-nav button[data-view="users"],
+.studio .side-nav button[data-view="settings"] { --xyj-nav-rest: rgba(43,83,151,.58); --xyj-nav-hover: rgba(51,95,168,.72); --xyj-nav-active: rgba(60,108,184,.91); }
+
+/* 六个导航图标共用同一个 22px 视觉框；字符图标加粗后与鲸鱼、信封保持同量级。 */
+.sidebar .nav-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  line-height: 1;
+}
+.sidebar .nav-icon-glyph {
+  font-family: "Arial Black", "Segoe UI Symbol", "SF Pro Text", sans-serif !important;
+  font-size: 1.12rem;
+  font-weight: 900;
+  font-synthesis: weight;
+  -webkit-text-stroke: .42px currentColor;
+  text-rendering: geometricPrecision;
+}
+.sidebar .nav-symbol {
+  display: block;
+  width: 21px;
+  height: 21px;
+  object-fit: contain;
+  filter: grayscale(1) brightness(.10) contrast(1.35);
+  transition: filter .42s ease, opacity .42s ease;
+}
+.sidebar .nav-symbol-envelope { width: 21px; height: 21px; }
+.sidebar .nav-symbol-bell { width: 21px; height: 21px; }
+.sidebar .nav-symbol-deepseek { width: 22px; height: 16px; }
+:root[data-theme="dark"] .sidebar .nav-symbol,
+.sidebar .nav button.active .nav-symbol {
+  filter: grayscale(1) brightness(0) invert(1) contrast(1.2);
+}
+
+/* 磨砂玻璃控件：高模糊、实色环境层、显著微颗粒及柔和内缘。 */
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger),
+  .entry-card button,
+  .entry-card .btn,
+  .auth-card button,
+  .auth-card .btn,
+  .login-card button,
+  .comment-composer .comment-submit
+) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--xyj-frost-text);
+  border-color: var(--xyj-frost-line) !important;
+  background-color: var(--xyj-nav-rest, var(--xyj-frost-fill)) !important;
+  background-image: none !important;
+  box-shadow:
+    0 12px 27px rgba(30, 63, 69, .16),
+    inset 0 1px 0 rgba(255, 255, 255, .86),
+    inset 1px 0 0 rgba(255, 255, 255, .35),
+    inset 0 -1px 0 rgba(33, 72, 78, .30) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.22) contrast(1.045) !important;
+  backdrop-filter: blur(18px) saturate(1.22) contrast(1.045) !important;
+}
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger),
+  .entry-card button,
+  .entry-card .btn,
+  .auth-card button,
+  .auth-card .btn,
+  .login-card button,
+  .comment-composer .comment-submit
+)::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 96% 90% at 50% 49%, transparent 0 58%, rgba(255,255,255,.055) 70%, rgba(255,255,255,.32) 94%, rgba(255,255,255,.52) 100%),
+    linear-gradient(112deg, rgba(255,255,255,.24), transparent 16% 82%, rgba(45,91,98,.12));
+  -webkit-mask-image: radial-gradient(ellipse 97% 92% at 50% 50%, transparent 0 53%, rgba(0,0,0,.10) 68%, #000 100%);
+  mask-image: radial-gradient(ellipse 97% 92% at 50% 50%, transparent 0 53%, rgba(0,0,0,.10) 68%, #000 100%);
+  transition: opacity var(--xyj-motion-settle) ease;
+}
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger),
+  .entry-card button,
+  .entry-card .btn,
+  .auth-card button,
+  .auth-card .btn,
+  .login-card button,
+  .comment-composer .comment-submit
+)::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  z-index: -1;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.08' numOctaves='4' seed='23' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.78'/%3E%3C/svg%3E") !important;
+  background-size: 96px 96px !important;
+  background-repeat: repeat !important;
+  opacity: var(--xyj-frost-grain-opacity) !important;
+  mix-blend-mode: soft-light;
+  transition: opacity var(--xyj-motion-settle) ease !important;
+}
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger),
+  .entry-card button,
+  .entry-card .btn,
+  .auth-card button,
+  .auth-card .btn,
+  .login-card button,
+  .comment-composer .comment-submit
+):hover {
+  background-color: var(--xyj-nav-hover, var(--xyj-frost-fill-hover)) !important;
+}
+:is(.sidebar .nav button.active, .studio .side-nav button.active) {
+  color: #fff !important;
+  background-color: var(--xyj-nav-active, var(--xyj-frost-fill-active)) !important;
+  border-color: rgba(255, 255, 255, .72) !important;
+}
+
+/*
+ * 侧栏按钮按下 / 回弹：中心近乎无色、模糊降低、边缘产生宽幅折射。
+ * 所有光学层都位于按钮自身边界内，没有额外外圈。
+ */
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger)
+):is(.is-control-pressed, .control-bounce-release) {
+  background-color: var(--xyj-liquid-press-fill) !important;
+  background-image: none !important;
+  border-color: var(--xyj-liquid-press-line) !important;
+  box-shadow:
+    0 16px 32px rgba(14, 42, 48, .15),
+    inset 0 2px 3px rgba(255, 255, 255, .68),
+    inset 2px 0 4px rgba(220, 250, 251, .28),
+    inset 0 -3px 5px rgba(32, 76, 84, .22),
+    inset -2px 0 4px rgba(255, 255, 255, .22) !important;
+  -webkit-backdrop-filter: blur(.35px) saturate(1.46) contrast(1.075) !important;
+  backdrop-filter: blur(.35px) saturate(1.46) contrast(1.075) !important;
+}
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger)
+):is(.is-control-pressed, .control-bounce-release)::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 94% 88% at 50% 48%, transparent 0 58%, rgba(255,255,255,.06) 69%, rgba(255,255,255,.46) 93%, rgba(255,255,255,.72) 100%),
+    linear-gradient(112deg, rgba(255,255,255,.50), transparent 14% 79%, rgba(73,139,151,.28));
+  -webkit-mask-image: radial-gradient(ellipse 96% 90% at 50% 50%, transparent 0 52%, rgba(0,0,0,.12) 65%, #000 100%);
+  mask-image: radial-gradient(ellipse 96% 90% at 50% 50%, transparent 0 52%, rgba(0,0,0,.12) 65%, #000 100%);
+}
+:is(
+  .sidebar .nav button,
+  .sidebar .sidebar-toggle,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .studio .side-footer .btn:not(.danger)
+):is(.is-control-pressed, .control-bounce-release)::after {
+  opacity: .018 !important;
+}
+
+/* 清澈液态玻璃面板：低填充、低模糊、高饱和折射及宽而柔和的实体边缘。 */
+:is(
+  .content-card,
+  .info-card,
+  .updates,
+  .usage-guide,
+  .feedback-form,
+  .feedback-board,
+  .feedback-item,
+  .account-card,
+  .settings-card,
+  .notification-card,
+  .message-card,
+  .notification-shell,
+  .notification-item,
+  .message-contact,
+  .resource-card,
+  .resource-view,
+  .reader-wrap,
+  .chat-shell,
+  .workspace .panel,
+  .workspace .stat,
+  .workspace .list-item,
+  .workspace .media-card,
+  .workspace .album-chip,
+  .workspace .feedback-admin-row,
+  .workspace .user-card,
+  .workspace .reset-card,
+  .workspace .asset-row,
+  .workspace .resource-picker-item,
+  body > .shell
+) {
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, .44) !important;
+  background-color: var(--xyj-liquid-center-strong) !important;
+  background-image: none !important;
+  box-shadow:
+    0 19px 44px rgba(53, 69, 68, .12),
+    inset 0 2px 3px rgba(255, 255, 255, .64),
+    inset 2px 0 4px rgba(255, 255, 255, .24),
+    inset 0 -3px 5px var(--xyj-liquid-edge-shade),
+    inset -2px 0 4px rgba(255, 255, 255, .17) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(1.38) contrast(1.045) !important;
+  backdrop-filter: blur(7px) saturate(1.38) contrast(1.045) !important;
+}
+:root[data-theme="dark"] :is(
+  .content-card, .info-card, .updates, .usage-guide, .feedback-form, .feedback-board,
+  .feedback-item, .account-card, .settings-card, .notification-card, .message-card,
+  .notification-shell, .notification-item, .message-contact, .resource-card,
+  .resource-view, .reader-wrap, .chat-shell, .workspace .panel, .workspace .stat,
+  .workspace .list-item, .workspace .media-card, .workspace .album-chip,
+  .workspace .feedback-admin-row, .workspace .user-card, .workspace .reset-card,
+  .workspace .asset-row, .workspace .resource-picker-item, body > .shell
+) {
+  border-color: rgba(205, 238, 239, .18) !important;
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, .25),
+    inset 0 2px 3px rgba(211, 247, 247, .20),
+    inset 2px 0 4px rgba(211, 247, 247, .08),
+    inset 0 -3px 5px rgba(0, 5, 9, .42),
+    inset -2px 0 4px rgba(211, 247, 247, .05) !important;
+}
+
+@supports ((-webkit-mask-image: linear-gradient(#000, #000)) or (mask-image: linear-gradient(#000, #000))) {
+  :is(
+    .entry-card,
+    .auth-card,
+    .login-card,
+    .usage-guide,
+    .updates,
+    .chat-shell,
+    .settings-card,
+    .workspace .panel,
+    .workspace .stat
+  ) {
+    position: relative;
+    isolation: isolate;
+  }
+  :is(
+    .entry-card,
+    .auth-card,
+    .login-card,
+    .usage-guide,
+    .updates,
+    .chat-shell,
+    .settings-card,
+    .workspace .panel,
+    .workspace .stat
+  )::after {
+    content: "";
+    display: block !important;
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      linear-gradient(138deg, rgba(255,255,255,.84), rgba(255,255,255,.16) 30%, rgba(53,115,127,.18) 72%, rgba(255,255,255,.58)),
+      radial-gradient(circle at 15% 9%, rgba(255,255,255,.78), transparent 26%);
+    box-shadow: inset 0 0 8px rgba(255,255,255,.26), inset 0 -3px 6px rgba(44,91,101,.18);
+    -webkit-backdrop-filter: blur(3px) saturate(1.52) contrast(1.08);
+    backdrop-filter: blur(3px) saturate(1.52) contrast(1.08);
+    -webkit-mask-image: radial-gradient(ellipse 96% 92% at 50% 49%, transparent 0 49%, rgba(0,0,0,.08) 60%, rgba(0,0,0,.42) 78%, #000 100%);
+    mask-image: radial-gradient(ellipse 96% 92% at 50% 49%, transparent 0 49%, rgba(0,0,0,.08) 60%, rgba(0,0,0,.42) 78%, #000 100%);
+    opacity: .84;
+  }
+}
+
+/* 输入区使用低对比微颗粒，保留清晰文字与系统原生选择控件。 */
+:is(input:not([type="checkbox"]):not([type="radio"]), textarea, .editor, .toolbar) {
+  border-color: rgba(255,255,255,.52) !important;
+  background-color: rgba(237, 238, 230, .48) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='116' height='116' viewBox='0 0 116 116'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.94' numOctaves='4' seed='29' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.15'/%3E%3C/svg%3E") !important;
+  background-size: 116px 116px !important;
+  box-shadow:
+    inset 0 2px 4px rgba(49,72,73,.12),
+    inset 0 1px 0 rgba(255,255,255,.70) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(1.14) !important;
+  backdrop-filter: blur(15px) saturate(1.14) !important;
+}
+:root[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]), textarea, .editor, .toolbar) {
+  color: var(--ink);
+  border-color: rgba(205,238,239,.18) !important;
+  background-color: rgba(20, 39, 44, .62) !important;
+  box-shadow:
+    inset 0 2px 4px rgba(0,4,8,.32),
+    inset 0 1px 0 rgba(211,247,247,.12) !important;
+}
+
+/* 主操作使用饱和但仍可透光的琉璃色，不靠彩色渐变制造层次。 */
+:is(.app-shell .main .btn, .app-shell .main .tab-button, dialog .btn, .workspace .btn, .home-link) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, .50) !important;
+  color: #0b3d5e;
+  background-color: rgba(22, 118, 196, .25) !important;
+  background-image: none !important;
+  box-shadow:
+    0 11px 27px rgba(33, 62, 66, .13),
+    inset 0 2px 3px rgba(255,255,255,.66),
+    inset 2px 0 4px rgba(255,255,255,.22),
+    inset 0 -3px 4px rgba(42,88,98,.22),
+    inset -2px 0 4px rgba(255,255,255,.16) !important;
+  -webkit-backdrop-filter: blur(.55px) saturate(1.38) contrast(1.06) !important;
+  backdrop-filter: blur(.55px) saturate(1.38) contrast(1.06) !important;
+}
+:is(.app-shell .main .btn:not(.ghost):not(.light):not(.danger), dialog .btn:not(.ghost):not(.light):not(.danger), .workspace .btn:not(.ghost):not(.danger)) {
+  color: #fff !important;
+  background-color: rgba(15, 78, 116, .88) !important;
+  box-shadow:
+    0 13px 29px rgba(12, 61, 91, .26),
+    inset 0 2px 3px rgba(255,255,255,.72),
+    inset 2px 0 4px rgba(255,255,255,.24),
+    inset 0 -3px 5px rgba(5,43,69,.58),
+    inset -2px 0 4px rgba(255,255,255,.16) !important;
+}
+:is(.app-shell .main .btn:not(.ghost):not(.light):not(.danger), dialog .btn:not(.ghost):not(.light):not(.danger), .workspace .btn:not(.ghost):not(.danger)):hover {
+  background-color: rgba(9, 66, 104, .94) !important;
+}
+:is(.app-shell .main .btn.ghost, .app-shell .main .btn.light, dialog .btn.ghost, dialog .btn.light, .workspace .btn.ghost, .workspace .btn.secondary) {
+  color: #24394c;
+  background-color: rgba(62, 86, 109, .25) !important;
+}
+:is(.app-shell .main .btn.ghost, .app-shell .main .btn.light, dialog .btn.ghost, dialog .btn.light, .workspace .btn.ghost, .workspace .btn.secondary):hover {
+  background-color: rgba(54, 80, 105, .38) !important;
+}
+:is(.app-shell .main .tab-button, .workspace .album-chip) {
+  color: #1d485e;
+  background-color: rgba(34, 100, 132, .24) !important;
+}
+:is(.app-shell .main .tab-button, .workspace .album-chip):hover {
+  background-color: rgba(31, 91, 122, .38) !important;
+}
+:is(.app-shell .main .tab-button.active, .workspace .album-chip.active) {
+  color: #fff !important;
+  background-color: rgba(28, 69, 108, .88) !important;
+}
+.home-link { background-color: rgba(22, 118, 196, .34) !important; }
+:root[data-theme="dark"] :is(.app-shell .main .btn, .app-shell .main .tab-button, dialog .btn, .workspace .btn, .home-link) {
+  color: #f7fcff !important;
+  border-color: rgba(220,245,247,.32) !important;
+  background-color: rgba(18, 104, 170, .55) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .62);
+}
+:root[data-theme="dark"] :is(.app-shell .main .btn:not(.ghost):not(.light):not(.danger), dialog .btn:not(.ghost):not(.light):not(.danger), .workspace .btn:not(.ghost):not(.danger)) {
+  background-color: rgba(19, 95, 134, .82) !important;
+}
+:root[data-theme="dark"] :is(.app-shell .main .btn:not(.ghost):not(.light):not(.danger), dialog .btn:not(.ghost):not(.light):not(.danger), .workspace .btn:not(.ghost):not(.danger)):hover {
+  background-color: rgba(20, 109, 151, .91) !important;
+}
+:root[data-theme="dark"] :is(.app-shell .main .btn.ghost, .app-shell .main .btn.light, dialog .btn.ghost, dialog .btn.light, .workspace .btn.ghost, .workspace .btn.secondary) {
+  background-color: rgba(57, 79, 103, .72) !important;
+}
+:root[data-theme="dark"] :is(.app-shell .main .tab-button.active, .workspace .album-chip.active) {
+  background-color: rgba(35, 81, 126, .90) !important;
+}
+:is(.app-shell .main .btn.danger, dialog .btn.danger, .workspace .btn.danger) {
+  color: #fff !important;
+  background-color: rgba(174, 49, 42, .82) !important;
+  box-shadow:
+    0 12px 28px rgba(132, 38, 33, .24),
+    inset 0 2px 3px rgba(255,255,255,.64),
+    inset 0 -3px 4px rgba(108, 25, 22, .54) !important;
+}
+:is(.app-shell .main .btn.danger, dialog .btn.danger, .workspace .btn.danger):hover {
+  background-color: rgba(160, 38, 33, .92) !important;
+}
+:root[data-theme="dark"] :is(.app-shell .main .btn.danger, dialog .btn.danger, .workspace .btn.danger) {
+  color: #fff !important;
+  background-color: rgba(190, 60, 51, .70) !important;
+}
+
+/* 页面内的小型操作也使用清晰的宝石色，避免只有侧栏有颜色。 */
+:is(.app-shell .main .text-button, .app-shell .main .icon-button) {
+  color: #0b4e72;
+  border-color: rgba(22,118,196,.38) !important;
+  background-color: rgba(22,118,196,.20) !important;
+}
+.app-shell .main .icon-button { color: #29465d; background-color: rgba(58,84,108,.24) !important; }
+.updates-more { color: #075f9e !important; }
+.article-link-action { color: #165f7a !important; }
+
+/* 夜览模式的所有真实按钮统一用亮字，避免文字落入同色玻璃底。 */
+:root[data-theme="dark"] :is(
+  button:not(.night-mode-switch),
+  a.btn,
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link
+) {
+  color: #f7fcff !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,.64);
+}
+:root[data-theme="dark"] :is(button, a.btn, .tab-button, .text-button, .icon-button):disabled {
+  color: rgba(247,252,255,.76) !important;
+  opacity: .70;
+}
+:root[data-theme="dark"] :is(.updates-more, .article-link-action) { color: #79dcff !important; }
+
+/* 色彩只留在控件与状态中；日间标题统一纯黑，夜览则统一中性亮色。 */
+:root[data-theme="light"] :is(
+  .app-shell .main,
+  .sidebar,
+  .studio .side,
+  .entry-card,
+  .auth-card,
+  .login-card,
+  .workspace,
+  body > .shell,
+  dialog:not(.image-dialog)
+) :is(h1, h2, h3, h4, h5, h6, .section-title) { color: #000 !important; }
+:root[data-theme="dark"] :is(
+  .app-shell .main,
+  .sidebar,
+  .studio .side,
+  .entry-card,
+  .auth-card,
+  .login-card,
+  .workspace,
+  body > .shell,
+  dialog:not(.image-dialog)
+) :is(h1, h2, h3, h4, h5, h6, .section-title) { color: #f4f7f7 !important; }
+.image-dialog :is(h1, h2, h3, h4, h5, h6, .section-title) { color: #fff !important; }
+
+/* ========================= 夜览模式滑动开关 ========================= */
+.night-mode-control {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 172px;
+  min-height: 52px;
+  padding: 8px 9px 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--xyj-frost-line);
+  border-radius: 21px;
+  color: var(--ink);
+  background-color: rgba(107, 138, 139, .25);
+  box-shadow:
+    0 13px 31px rgba(36, 62, 64, .16),
+    inset 0 1px 0 rgba(255,255,255,.80),
+    inset 0 -1px 0 rgba(36,75,81,.24);
+  -webkit-backdrop-filter: blur(19px) saturate(1.22) contrast(1.04);
+  backdrop-filter: blur(19px) saturate(1.22) contrast(1.04);
+}
+:root[data-theme="dark"] .night-mode-control {
+  color: #edf7f6;
+  border-color: rgba(205, 238, 239, .25);
+  background-color: rgba(53, 89, 96, .46);
+  box-shadow:
+    0 14px 32px rgba(0,0,0,.27),
+    inset 0 1px 0 rgba(211,247,247,.20),
+    inset 0 -1px 0 rgba(0,5,9,.35);
+}
+.night-mode-control::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.12' numOctaves='4' seed='41' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.80'/%3E%3C/svg%3E");
+  background-size: 88px 88px;
+  opacity: .32;
+  mix-blend-mode: soft-light;
+}
+.night-mode-control::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 97% 90% at 50% 49%, transparent 0 61%, rgba(255,255,255,.05) 73%, rgba(255,255,255,.34) 95%, rgba(255,255,255,.55) 100%),
+    linear-gradient(112deg, rgba(255,255,255,.25), transparent 16% 82%, rgba(45,91,98,.13));
+  -webkit-mask-image: radial-gradient(ellipse 98% 92% at 50% 50%, transparent 0 56%, rgba(0,0,0,.10) 70%, #000 100%);
+  mask-image: radial-gradient(ellipse 98% 92% at 50% 50%, transparent 0 56%, rgba(0,0,0,.10) 70%, #000 100%);
+}
+.night-mode-label {
+  position: relative;
+  z-index: 2;
+  font-size: .80rem;
+  font-weight: 850;
+  letter-spacing: .035em;
+  white-space: nowrap;
+}
+.night-mode-switch {
+  --xyj-knob-x: 0px;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 68px;
+  width: 68px;
+  height: 38px;
+  min-width: 68px;
+  min-height: 38px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(255,255,255,.65) !important;
+  border-radius: 999px;
+  color: transparent;
+  background-color: rgba(91, 122, 125, .30) !important;
+  background-image: none !important;
+  box-shadow:
+    inset 0 2px 5px rgba(46, 75, 77, .22),
+    inset 0 1px 0 rgba(255,255,255,.68),
+    0 5px 13px rgba(28, 55, 58, .13) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(1.18) !important;
+  backdrop-filter: blur(15px) saturate(1.18) !important;
+  transition:
+    transform .23s cubic-bezier(.20,.78,.22,1),
+    border-color .42s ease,
+    background-color .56s cubic-bezier(.18,.76,.20,1),
+    box-shadow .56s cubic-bezier(.18,.76,.20,1) !important;
+}
+:root[data-theme="dark"] .night-mode-switch {
+  border-color: rgba(205,238,239,.25) !important;
+  background-color: rgba(12, 33, 39, .62) !important;
+}
+.night-mode-switch::before {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(112deg, rgba(255,255,255,.44), transparent 16% 78%, rgba(55,112,124,.23)),
+    radial-gradient(ellipse 96% 88% at 50% 48%, transparent 0 67%, rgba(255,255,255,.30) 92%, rgba(255,255,255,.58) 100%);
+  -webkit-mask-image: radial-gradient(ellipse 97% 91% at 50% 50%, transparent 0 63%, rgba(0,0,0,.18) 73%, #000 100%);
+  mask-image: radial-gradient(ellipse 97% 91% at 50% 50%, transparent 0 63%, rgba(0,0,0,.18) 73%, #000 100%);
+}
+.night-mode-switch::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  z-index: 1;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='4' seed='17' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.78'/%3E%3C/svg%3E") !important;
+  background-size: 72px 72px !important;
+  opacity: .27 !important;
+  mix-blend-mode: soft-light;
+}
+.night-mode-fill {
+  position: absolute;
+  z-index: 2;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: 31px;
+  border-radius: 999px;
+  background-color: rgba(67,137,189,.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24);
+  transition:
+    width .58s cubic-bezier(.18,.82,.20,1),
+    background-color .48s ease,
+    box-shadow .48s ease;
+}
+.night-mode-switch.is-on { --xyj-knob-x: 30px; }
+.night-mode-switch.is-on .night-mode-fill {
+  width: 61px;
+  background-color: #3d8fd0;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.42),
+    inset 0 -2px 4px rgba(20,78,128,.28);
+}
+.night-mode-knob {
+  position: absolute;
+  z-index: 5;
+  top: 3px;
+  left: 3px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: rgba(235, 242, 238, .68);
+  box-shadow:
+    0 4px 10px rgba(31,57,59,.24),
+    inset 0 1px 0 rgba(255,255,255,.94),
+    inset 0 -1px 0 rgba(41,76,80,.26);
+  -webkit-backdrop-filter: blur(14px) saturate(1.20);
+  backdrop-filter: blur(14px) saturate(1.20);
+  transform: translate3d(var(--xyj-knob-x),0,0) scale(1);
+  transition:
+    transform .58s cubic-bezier(.18,.82,.20,1),
+    background-color .42s ease,
+    box-shadow .42s ease,
+    -webkit-backdrop-filter .42s ease,
+    backdrop-filter .42s ease;
+}
+:root[data-theme="dark"] .night-mode-knob { background-color: rgba(214, 232, 229, .58); }
+.night-mode-knob::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255,255,255,.92), transparent 24%),
+    radial-gradient(circle at 70% 78%, rgba(45,104,116,.26), transparent 38%);
+  -webkit-mask-image: radial-gradient(circle, transparent 0 54%, rgba(0,0,0,.18) 66%, #000 100%);
+  mask-image: radial-gradient(circle, transparent 0 54%, rgba(0,0,0,.18) 66%, #000 100%);
+}
+.night-mode-knob::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.18' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.68'/%3E%3C/svg%3E");
+  background-size: 56px 56px;
+  opacity: .22;
+  mix-blend-mode: soft-light;
+  transition: opacity .38s ease;
+}
+.night-mode-switch:is(.is-control-pressed, .control-bounce-release) .night-mode-knob {
+  background-color: transparent;
+  box-shadow:
+    0 7px 15px rgba(17,49,56,.20),
+    inset 0 2px 3px rgba(255,255,255,.72),
+    inset 2px 0 4px rgba(255,255,255,.30),
+    inset 0 -3px 5px rgba(38,88,99,.30),
+    inset -2px 0 4px rgba(255,255,255,.24);
+  -webkit-backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08);
+  backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08);
+  transform: translate3d(var(--xyj-knob-x),0,0) scale(1.13);
+}
+.night-mode-switch:is(.is-control-pressed, .control-bounce-release) .night-mode-knob::after { opacity: .015; }
+
+.floating-night-mode-control {
+  position: fixed;
+  z-index: 80;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+}
+.settings-night-mode-control {
+  width: 100%;
+  margin: 16px 0 12px;
+}
+.studio-topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.studio-night-mode-control { min-width: 166px; }
+
+/* 侧栏与页面按钮共用同一套较慢的按压、单次回弹和材质恢复节奏。 */
+:is(button, a.btn, .tab-button, .studio-link, [role="button"], .workspace .list-item, .side-footer a) {
+  transition:
+    transform .30s cubic-bezier(.20,.78,.22,1),
+    color .42s ease,
+    background-color var(--xyj-motion-settle) cubic-bezier(.20,.72,.20,1),
+    border-color .48s ease,
+    box-shadow var(--xyj-motion-settle) cubic-bezier(.20,.72,.20,1),
+    filter .48s ease,
+    opacity .42s ease,
+    -webkit-backdrop-filter var(--xyj-motion-settle) ease,
+    backdrop-filter var(--xyj-motion-settle) ease !important;
+}
+:is(
+  button,
+  a.btn,
+  .tab-button,
+  .studio-link,
+  [role="button"],
+  .content-card,
+  .photo-card,
+  .workspace .list-item,
+  .side-footer a
+):not(.image-nav).is-control-pressed {
+  transform: translate3d(0, 2px, 0) scale(.955) !important;
+}
+:is(
+  button,
+  a.btn,
+  .tab-button,
+  .studio-link,
+  [role="button"],
+  .content-card,
+  .photo-card,
+  .workspace .list-item,
+  .side-footer a
+):not(.image-nav).control-bounce-release {
+  animation: xyj-unified-control-rebound var(--xyj-motion-rebound) cubic-bezier(.16,.80,.22,1) both !important;
+}
+@keyframes xyj-unified-control-rebound {
+  0% { transform: translate3d(0, 2px, 0) scale(.955); }
+  56% { transform: translate3d(0, -3px, 0) scale(1.052); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* 页面内控件按下和回弹时也转为清澈液态玻璃，结束后平滑恢复琉璃色。 */
+:is(
+  .app-shell .main button,
+  .app-shell .main a.btn,
+  dialog button,
+  dialog a.btn,
+  .entry-card button,
+  .entry-card a.btn,
+  .auth-card button,
+  .auth-card a.btn,
+  .login-card button,
+  .login-card a.btn,
+  .workspace button,
+  .workspace a.btn,
+  .home-link
+):not(.night-mode-switch):is(.is-control-pressed, .control-bounce-release) {
+  background-color: var(--xyj-liquid-press-fill) !important;
+  border-color: var(--xyj-liquid-press-line) !important;
+  box-shadow:
+    0 15px 32px rgba(14,42,48,.16),
+    inset 0 2px 3px rgba(255,255,255,.74),
+    inset 2px 0 4px rgba(220,250,251,.32),
+    inset 0 -3px 5px rgba(32,76,84,.24),
+    inset -2px 0 4px rgba(255,255,255,.24) !important;
+  -webkit-backdrop-filter: blur(.28px) saturate(1.52) contrast(1.08) !important;
+  backdrop-filter: blur(.28px) saturate(1.52) contrast(1.08) !important;
+}
+:root[data-theme="light"] :is(
+  .app-shell .main button,
+  .app-shell .main a.btn,
+  dialog button,
+  dialog a.btn,
+  .entry-card button,
+  .auth-card button,
+  .login-card button,
+  .workspace button,
+  .workspace a.btn,
+  .home-link
+):not(.night-mode-switch):is(.is-control-pressed, .control-bounce-release) { color: #102f38 !important; }
+.harmony-light-bloom.is-releasing { animation-duration: .64s !important; }
+
+/* ========================= 无色玻璃按钮与字体分区 =========================
+   这一层放在所有旧按钮配色之后，并用只负责提高级联优先级的虚拟 ID
+   统一覆盖内联页面、公开站和 Studio 的历史样式；虚拟 ID 不对应真实节点。 */
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+) {
+  font-family: var(--xyj-button-font) !important;
+  font-weight: 650;
+  font-synthesis: weight;
+  color: #20343d !important;
+  text-shadow: none !important;
+  border-color: rgba(255, 255, 255, .66) !important;
+  background-color: rgba(255, 255, 255, .10) !important;
+  background-image: none !important;
+  box-shadow:
+    0 11px 27px rgba(29, 45, 52, .13),
+    inset 0 1px 0 rgba(255, 255, 255, .90),
+    inset 1px 0 0 rgba(255, 255, 255, .28),
+    inset 0 -1px 0 rgba(39, 52, 58, .22),
+    inset -1px 0 0 rgba(255, 255, 255, .18) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.06) contrast(1.025) !important;
+  backdrop-filter: blur(16px) saturate(1.06) contrast(1.025) !important;
+}
+/* 只改已有的玻璃折射伪层；侧栏收起键的 ::before 仍保留给移动端箭头。 */
+:is(
+  #xyj-neutral-glass-specificity,
+  .sidebar .nav button,
+  .sidebar .notification-bell,
+  .sidebar .studio-link,
+  .studio .side-nav button,
+  .studio .side-footer a,
+  .entry-card button,
+  .entry-card .btn,
+  .auth-card button,
+  .auth-card .btn,
+  .login-card button,
+  .login-card .btn,
+  .app-shell .main .btn,
+  .app-shell .main .tab-button,
+  .app-shell .main .sidebar-install-button,
+  dialog .btn,
+  .workspace .btn,
+  .home-link
+)::before {
+  background:
+    radial-gradient(ellipse 97% 92% at 50% 49%, transparent 0 59%, rgba(255,255,255,.07) 72%, rgba(255,255,255,.34) 94%, rgba(255,255,255,.58) 100%),
+    linear-gradient(108deg, rgba(255,255,255,.27), transparent 13% 82%, rgba(24,34,39,.12)) !important;
+}
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+) :is(span:not(.nav-icon):not(.nav-label):not(.sidebar-install-label), strong, small) {
+  font-family: var(--xyj-button-font) !important;
+  font-synthesis: weight;
+}
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+):hover {
+  color: #172b34 !important;
+  border-color: rgba(255, 255, 255, .82) !important;
+  background-color: rgba(255, 255, 255, .18) !important;
+}
+:root[data-theme="dark"] :is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+) {
+  color: #f3f8f9 !important;
+  border-color: rgba(218, 239, 242, .25) !important;
+  background-color: rgba(255, 255, 255, .065) !important;
+  box-shadow:
+    0 11px 27px rgba(0, 0, 0, .24),
+    inset 0 1px 0 rgba(230, 246, 248, .22),
+    inset 0 -1px 0 rgba(0, 0, 0, .34) !important;
+}
+
+/* 选中项使用真正的纯白底，并强制深色文字与黑色单色图标。 */
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+):is(.active, .selected, .is-selected, [aria-selected="true"], [aria-pressed="true"], [aria-current="page"]) {
+  color: #172a32 !important;
+  border-color: #fff !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  text-shadow: none !important;
+  box-shadow:
+    0 13px 30px rgba(28, 44, 51, .18),
+    inset 0 1px 0 #fff,
+    inset 0 -1px 0 rgba(62, 76, 82, .16) !important;
+}
+.sidebar .nav button.active .nav-symbol { filter: grayscale(1) brightness(.08) contrast(1.45); }
+
+/* 按住时像夜览滑纽一样略微放大、清空磨砂颗粒并出现横向折射光带。 */
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+):is(.is-control-pressed, .control-bounce-release) {
+  color: #162d36 !important;
+  border-color: rgba(245, 253, 255, .70) !important;
+  background-color: rgba(255, 255, 255, .018) !important;
+  background-image: linear-gradient(104deg, transparent 18%, rgba(255,255,255,.60) 46%, transparent 72%) !important;
+  background-size: 210% 100% !important;
+  box-shadow:
+    0 15px 32px rgba(14, 34, 42, .15),
+    inset 0 2px 3px rgba(255,255,255,.78),
+    inset 2px 0 4px rgba(255,255,255,.34),
+    inset 0 -3px 5px rgba(23,37,43,.24),
+    inset -2px 0 4px rgba(255,255,255,.25) !important;
+  -webkit-backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08) !important;
+  backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08) !important;
+}
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+).is-control-pressed {
+  transform: translate3d(0, 0, 0) scale(1.07) !important;
+  background-position: 100% 50% !important;
+}
+:is(
+  #xyj-neutral-glass-specificity,
+  button:not(.night-mode-switch),
+  .btn:not(.night-mode-switch),
+  .tab-button,
+  .text-button,
+  .icon-button,
+  .sidebar-install-button,
+  .studio-link,
+  .home-link,
+  .side-footer a,
+  [role="button"]
+).control-bounce-release {
+  animation:
+    xyj-switch-like-button-release var(--xyj-motion-rebound) cubic-bezier(.18,.82,.20,1) both,
+    xyj-liquid-lens-slide var(--xyj-motion-rebound) cubic-bezier(.18,.82,.20,1) both !important;
+}
+@keyframes xyj-switch-like-button-release {
+  0% { transform: translate3d(0, 0, 0) scale(1.07); }
+  56% { transform: translate3d(0, 1px, 0) scale(.985); }
+  80% { transform: translate3d(0, -1px, 0) scale(1.018); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes xyj-liquid-lens-slide {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+:is(#xyj-neutral-glass-specificity, .image-nav):active {
+  background-color: rgba(255, 255, 255, .018) !important;
+  -webkit-backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08) !important;
+  backdrop-filter: blur(.20px) saturate(1.55) contrast(1.08) !important;
+}
+
+/* 登录正文加大、加粗并保留宋体；标题进一步强化，按钮由上面的按钮字体覆盖。 */
+:is(.entry-card, .auth-card, .login-card) {
+  font-size: 1.035rem;
+  font-weight: 650;
+}
+:is(.entry-card, .auth-card, .login-card) :is(label, p, input, select, textarea, .notice, small, a:not(.btn)) {
+  font-family: var(--font-song) !important;
+  font-weight: 650 !important;
+  font-synthesis: weight;
+}
+.entry-card h1 {
+  font-family: var(--font-song) !important;
+  font-size: clamp(2rem, 6.3vw, 2.62rem) !important;
+  font-weight: 820 !important;
+}
+.auth-card .card-head h2 {
+  font-family: var(--font-song) !important;
+  font-size: clamp(2.12rem, 5.3vw, 2.95rem) !important;
+  font-weight: 820 !important;
+}
+.login-card h1 {
+  font-family: var(--font-song) !important;
+  font-size: 2.38rem !important;
+  font-weight: 820 !important;
+}
+.entry-card .entry-field { font-size: .93rem !important; font-weight: 720 !important; }
+.entry-card .entry-options { font-size: .86rem !important; font-weight: 650 !important; }
+.auth-card .field label { font-size: .89rem !important; font-weight: 720 !important; }
+.auth-card :is(.field small, .notice, .privacy-note, .remember) { font-weight: 650 !important; }
+.login-card .field label { font-size: .86rem !important; font-weight: 720 !important; }
+.login-card :is(.field small, .notice) { font-size: .84rem !important; font-weight: 650 !important; }
+
+/* 侧栏文案采用楷体；图标继续使用独立的单色图形字体/矢量资源。 */
+:is(
+  #xyj-sidebar-kai-specificity,
+  .sidebar .brand h2,
+  .sidebar .brand small,
+  .sidebar .nav-label,
+  .sidebar .sidebar-install-label,
+  .sidebar .sidebar-note,
+  .sidebar .studio-link,
+  .sidebar #site-version,
+  .studio .side-brand h1,
+  .studio .side-brand small,
+  .studio .side-nav button,
+  .studio .side-footer a
+) {
+  font-family: var(--font-kai) !important;
+  font-synthesis: weight;
+}
+
+@media (max-width: 760px) {
+  .floating-night-mode-control {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 158px;
+    min-height: 48px;
+    padding-left: 13px;
+  }
+  .studio-topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .studio-night-mode-control {
+    min-width: 158px;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .floating-night-mode-control {
+    min-width: 148px;
+    gap: 9px;
+  }
+  .night-mode-label { font-size: .74rem; }
+  .night-mode-switch {
+    flex-basis: 62px;
+    width: 62px;
+    min-width: 62px;
+  }
+  .night-mode-switch.is-on { --xyj-knob-x: 24px; }
+  .night-mode-switch.is-on .night-mode-fill { width: 55px; }
+}
+
+/* ================= 手机入口、统一圆角与二级控件精修 =================
+   登录键继续作为圆角基准；侧栏与个人空间只统一控件轮廓，不改变卡片。 */
+:root {
+  --xyj-login-control-radius: 999px;
+}
+:is(
+  #xyj-unified-radius-specificity,
+  .entry-card .entry-field input,
+  .entry-card .entry-primary,
+  .sidebar .nav button,
+  .sidebar .sidebar-install-button,
+  .sidebar .studio-link,
+  .app-shell .main button:not(.night-mode-switch),
+  .app-shell .main a.btn,
+  dialog button:not(.night-mode-switch):not(.image-nav),
+  dialog a.btn,
+  #portfolio .tab-button,
+  #portfolio .btn
+) {
+  border-radius: var(--xyj-login-control-radius) !important;
+}
+.sidebar :is(.sidebar-toggle, .notification-bell) { border-radius: 50% !important; }
+
+/* 铃铛的图形使用按钮自身的几何中心；数字角标仍独立定位在右上角。 */
+#notification-bell {
+  display: grid;
+  place-items: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+#notification-bell[hidden] { display: none !important; }
+#notification-bell > .nav-symbol-bell {
+  grid-area: 1 / 1;
+  place-self: center;
+  margin: 0 !important;
+}
+
+/* 主内容区与阅读/资源弹窗的按钮统一采用侧栏同款楷体，并完整复用个人
+   空间按钮的慢回弹和透明颗粒玻璃；选中态继续由上方规则保持纯白。 */
+:is(
+  #xyj-portfolio-glass-specificity,
+  #xyj-main-content-control-specificity,
+  .app-shell .main button:not(.night-mode-switch),
+  .app-shell .main a.btn,
+  dialog button:not(.night-mode-switch):not(.image-nav),
+  dialog a.btn,
+  #portfolio .tab-button,
+  #portfolio .btn
+) {
+  --xyj-motion-rebound: .94s;
+  --xyj-motion-settle: .82s;
+  font-family: var(--font-kai) !important;
+  font-weight: 650;
+  transition:
+    transform .38s cubic-bezier(.20,.78,.22,1),
+    color .56s ease,
+    background-color var(--xyj-motion-settle) cubic-bezier(.20,.72,.20,1),
+    border-color .62s ease,
+    box-shadow var(--xyj-motion-settle) cubic-bezier(.20,.72,.20,1),
+    filter .62s ease,
+    opacity .56s ease,
+    -webkit-backdrop-filter var(--xyj-motion-settle) ease,
+    backdrop-filter var(--xyj-motion-settle) ease !important;
+}
+:is(
+  .app-shell .main button:not(.night-mode-switch),
+  .app-shell .main a.btn,
+  dialog button:not(.night-mode-switch):not(.image-nav),
+  dialog a.btn,
+  #portfolio .tab-button,
+  #portfolio .btn
+) :is(span, strong, small) {
+  font-family: var(--font-kai) !important;
+  font-synthesis: weight;
+}
+:is(
+  #xyj-portfolio-glass-specificity,
+  #xyj-main-content-control-specificity,
+  .app-shell .main button:not(.night-mode-switch),
+  .app-shell .main a.btn,
+  dialog button:not(.night-mode-switch):not(.image-nav),
+  dialog a.btn,
+  #portfolio .tab-button,
+  #portfolio .btn
+):not(.active):not(.selected):not(.is-selected):not([aria-selected="true"]):not([aria-pressed="true"]):not([aria-current="page"]):not(.is-control-pressed):not(.control-bounce-release) {
+  color: #20343d !important;
+  border-color: rgba(255,255,255,.76) !important;
+  background-color: rgba(255,255,255,.048) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='108' height='108' viewBox='0 0 108 108'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.96' numOctaves='4' seed='53' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.16'/%3E%3C/svg%3E") !important;
+  background-size: 108px 108px !important;
+  background-repeat: repeat !important;
+  background-blend-mode: soft-light !important;
+  box-shadow:
+    0 13px 31px rgba(23,48,57,.12),
+    inset 0 2px 2px rgba(255,255,255,.92),
+    inset 2px 0 3px rgba(255,255,255,.32),
+    inset 0 -2px 3px rgba(37,58,66,.20),
+    inset -2px 0 3px rgba(255,255,255,.20) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.24) contrast(1.045) !important;
+  backdrop-filter: blur(12px) saturate(1.24) contrast(1.045) !important;
+}
+:root[data-theme="dark"] :is(
+  #xyj-portfolio-glass-specificity,
+  #xyj-main-content-control-specificity,
+  .app-shell .main button:not(.night-mode-switch),
+  .app-shell .main a.btn,
+  dialog button:not(.night-mode-switch):not(.image-nav),
+  dialog a.btn,
+  #portfolio .tab-button,
+  #portfolio .btn
+):not(.active):not(.selected):not(.is-selected):not([aria-selected="true"]):not([aria-pressed="true"]):not([aria-current="page"]):not(.is-control-pressed):not(.control-bounce-release) {
+  color: #f3f8f9 !important;
+  border-color: rgba(218,239,242,.27) !important;
+  background-color: rgba(255,255,255,.032) !important;
+  box-shadow:
+    0 13px 31px rgba(0,0,0,.23),
+    inset 0 2px 2px rgba(230,246,248,.24),
+    inset 0 -2px 3px rgba(0,0,0,.34) !important;
+}
+
+/* 个人空间按钮尺寸层级：文章、图片和文件资源的小板块统一更紧凑。
+   这里只调整字号与留白，字体、圆角、玻璃层和回弹继续沿用共同样式。 */
+#portfolio #portfolio-tabs > .tab-button {
+  min-height: 46px;
+  padding: 10px 18px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+#portfolio #portfolio-panel-host :is(.portfolio-subtabs, .album-tabs) > .tab-button {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: .875rem;
+  line-height: 1.4;
+}
+/* 触屏保留至少 44px 的点击高度，大板块仍高于小板块。 */
+@media (pointer: coarse) {
+  #portfolio #portfolio-tabs > .tab-button { min-height: 52px; }
+  #portfolio #portfolio-panel-host :is(.portfolio-subtabs, .album-tabs) > .tab-button { min-height: 44px; }
+}
+
+/* 通知信箱由脚本在页面载入后创建，因此按对话框作用域统一其按钮文字。 */
+#notification-dialog :is(button, .btn, .tab-button, .message-contact),
+#notification-dialog :is(button, .btn, .tab-button, .message-contact) :is(span, strong, small) {
+  font-family: var(--font-kai) !important;
+  font-synthesis: weight;
+}
+
+/* 主内容卡片收紧到同一组 14px 圆角；登录框、输入框、侧栏按钮和夜览
+   滑纽均不属于内容框，因此继续保留各自已经确认的轮廓。 */
+:is(
+  #xyj-content-frame-radius-specificity,
+  .app-shell .main .usage-guide,
+  .app-shell .main .updates,
+  .app-shell .main .timeline-item,
+  .app-shell .main .content-card,
+  .app-shell .main .info-card,
+  .app-shell .main .resource-card,
+  .app-shell .main .feedback-form,
+  .app-shell .main .feedback-board,
+  .app-shell .main .feedback-item,
+  .app-shell .main .account-card,
+  .app-shell .main .settings-card,
+  .app-shell .main .chat-shell,
+  dialog .reader-wrap,
+  dialog .resource-view,
+  dialog .resource-viewer,
+  dialog .notification-shell,
+  dialog .notification-item,
+  dialog .message-card,
+  dialog .message-contact,
+  .reader-body .article-link-card
+) {
+  border-radius: var(--xyj-content-radius) !important;
+}
+
+/* 正文采用 ChatGPT 同类的系统无衬线字体栈；标题与按钮分别继续使用
+   已确认的楷体，不在这里改动颜色、字号或加粗程度。 */
+:is(
+  #xyj-chatgpt-reading-specificity,
+  .app-shell .main p:not(.eyebrow),
+  #usage-guide-content,
+  #usage-guide-content p,
+  .timeline-item p,
+  .reader-body,
+  .reader-body p,
+  .reader-body li,
+  .reader-body blockquote,
+  .reader-body td,
+  .reader-body th
+) {
+  font-family: var(--xyj-chatgpt-reading-font) !important;
+}
+
+@media (max-width: 760px) and (hover: none),
+       (max-width: 760px) and (pointer: coarse) {
+  /* 登录卡片随内容自然增高，外层负责滚动；验证码再高也不会裁掉入口按钮。 */
+  #entry-screen {
+    align-items: flex-start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    padding: max(70px, calc(env(safe-area-inset-top) + 60px)) 14px max(20px, env(safe-area-inset-bottom)) !important;
+  }
+  #entry-screen .entry-card {
+    width: min(100%, 720px);
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin-block: 0 auto !important;
+    padding: 22px 18px !important;
+    overflow: hidden !important;
+  }
+  #entry-screen .entry-form { gap: 9px !important; margin-top: 14px !important; }
+  #entry-screen .guest-turnstile-wrap { margin: 0 auto 6px !important; }
+  #entry-screen .entry-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-top: 7px !important;
+  }
+  #entry-screen .entry-actions .btn {
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: .86rem;
+    white-space: nowrap;
+  }
+
+  /* 顶栏未操作时直接融入同一块玻璃底板；按压期间仍恢复液态折射反馈。 */
+  :is(
+    #xyj-mobile-topbar-specificity,
+    .sidebar .nav button:not(.active):not(.is-control-pressed):not(.control-bounce-release),
+    #sidebar-toggle:not(.is-control-pressed):not(.control-bounce-release),
+    #notification-bell:not(.is-control-pressed):not(.control-bounce-release)
+  ) {
+    border-color: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  :is(
+    #xyj-mobile-topbar-specificity,
+    .sidebar .nav button:not(.active):not(.is-control-pressed):not(.control-bounce-release),
+    #notification-bell:not(.is-control-pressed):not(.control-bounce-release)
+  )::before,
+  :is(
+    #xyj-mobile-topbar-specificity,
+    .sidebar .nav button:not(.active):not(.is-control-pressed):not(.control-bounce-release),
+    #sidebar-toggle:not(.is-control-pressed):not(.control-bounce-release),
+    #notification-bell:not(.is-control-pressed):not(.control-bounce-release)
+  )::after {
+    opacity: 0 !important;
+    background: none !important;
+  }
+
+  /* 后加载的玻璃伪层曾把 content 重置为空；移动端明确恢复上下三角。 */
+  #sidebar-toggle::before {
+    content: "▲" !important;
+    position: absolute !important;
+    z-index: 2 !important;
+    inset: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: inherit;
+    color: currentColor;
+    background: none !important;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+    font-size: 1.05rem !important;
+    line-height: 1 !important;
+    opacity: 1 !important;
+  }
+  .app-shell.sidebar-collapsed #sidebar-toggle::before { content: "▼" !important; }
+}
+
+/* 照片查看器始终是暗底，与页面当前主题无关。这里用查看器 ID 加作用域
+   权重覆盖通用玻璃按钮（包括多重 :not 状态选择器），避免白字再次被
+   日间深色字覆盖。按压时也限制高光亮度，保持文字与玻璃底的对比度。 */
+#image-dialog :is(#xyj-photo-control-specificity, button, a.btn) {
+  color: #fff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .86) !important;
+}
+#image-dialog :is(#xyj-photo-control-specificity, button, a.btn) :is(span, strong, small) {
+  color: inherit !important;
+  text-shadow: inherit !important;
+}
+#image-dialog :is(#xyj-photo-control-specificity, button, a.btn):is(.active, .selected, .is-selected, [aria-selected="true"], [aria-pressed="true"], [aria-current="page"]):not(.is-control-pressed):not(.control-bounce-release) {
+  color: #172a32 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  text-shadow: none !important;
+}
+#image-dialog :is(#xyj-photo-control-specificity, button, a.btn):is(.is-control-pressed, .control-bounce-release) {
+  color: #fff !important;
+  background-color: rgba(0, 0, 0, .10) !important;
+  background-image: linear-gradient(104deg, transparent 18%, rgba(255,255,255,.16) 46%, transparent 72%) !important;
+}
+#image-dialog :is(#xyj-photo-control-specificity, button, a.btn):disabled {
+  opacity: .75 !important;
+}
+/* 左右切换键叠在照片上：深色中性玻璃保证白色照片上也能看清白箭头，
+   不修改 transform，因此仍固定在图片左右两侧的垂直中心。 */
+#image-dialog :is(#xyj-photo-control-specificity, .image-nav) {
+  background-color: rgba(0, 0, 0, .62) !important;
+  background-image: none !important;
+  opacity: 1;
+}
+#image-dialog :is(#xyj-photo-control-specificity, .image-nav):active {
+  background-color: rgba(0, 0, 0, .58) !important;
+}
+#image-dialog #image-boundary-notice {
+  background-color: rgba(0, 0, 0, .72);
+}
+#image-dialog :is(#image-zoom-level, #image-caption, #image-boundary-message) {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .86);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .night-mode-fill,
+  .night-mode-knob,
+  .night-mode-switch { transition: none !important; }
+}

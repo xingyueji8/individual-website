@@ -1,3 +1,0 @@
-# Only for local Wrangler development. Set your own value locally.
-ADMIN_PASSWORD=local-studio-example
-SESSION_SECRET=local-development-example-not-for-production
