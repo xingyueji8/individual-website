@@ -76,6 +76,7 @@ const startup = index.slice(index.lastIndexOf('if (sessionStorage.getItem("xyj_r
 const startupBody = startup.slice(0, startup.indexOf("</script>"));
 const order = [];
 vm.runInNewContext(startupBody, { sessionStorage: { getItem: () => null },
+  androidLoginRequested: false,
   initializeGuestProtection: () => { order.push("verification"); return Promise.resolve(); },
   initializeEntryPhotoBackground: () => order.push("background"),
   boot: () => { order.push("session"); return new Promise(() => {}); },

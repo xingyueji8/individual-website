@@ -264,6 +264,15 @@ export const schemaStatements = [
   )
   `,
   `
+  CREATE TABLE IF NOT EXISTS android_login_codes (
+    code_hash TEXT PRIMARY KEY,
+    challenge TEXT NOT NULL,
+    session_hash TEXT NOT NULL REFERENCES user_sessions(token_hash) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  )
+  `,
+  `
   CREATE TABLE IF NOT EXISTS admin_sessions (
     token_hash TEXT PRIMARY KEY,
     access_email TEXT NOT NULL DEFAULT '',
@@ -484,6 +493,7 @@ export const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS idx_profile_section_access_user ON profile_section_access_users(user_id, section_key)",
   "CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_user_sessions_seen ON user_sessions(last_seen_at, expires_at)",
+  "CREATE INDEX IF NOT EXISTS idx_android_login_expiry ON android_login_codes(expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_admin_sessions_expiry ON admin_sessions(expires_at, revoked_at)",
   "CREATE INDEX IF NOT EXISTS idx_login_events_user ON login_events(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_guest_visits_day ON guest_visits(visit_day, last_seen_at)",

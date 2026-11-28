@@ -1,4 +1,5 @@
 /** 公开 API 和用户接口路由；业务实现由对应功能文件负责。 */
+import { authorizeAndroidLogin, redeemAndroidLogin } from "../accounts/android-login.js";
 import { enterGuestWebsite, runtimeSecurityHeartbeat, trackGuestWebsite } from "../accounts/guest-activity.js";
 import {
   authSession,
@@ -187,6 +188,12 @@ export async function handleApi(request, env, url, ctx) {
   }
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
     return loginUser(request, env);
+  }
+  if (url.pathname === "/api/auth/app/authorize" && request.method === "POST") {
+    return authorizeAndroidLogin(request, env);
+  }
+  if (url.pathname === "/api/auth/app/redeem" && request.method === "POST") {
+    return redeemAndroidLogin(request, env);
   }
   if (url.pathname === "/api/auth/session" && request.method === "GET") {
     return authSession(request, env);

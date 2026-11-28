@@ -1,4 +1,8 @@
 /* Sidebar pet and site Agent. Loaded last so every glass surface follows the site theme. */
+:root[data-android-app] .agent-desktop-settings { display: none !important; }
+@media (max-width: 760px), (pointer: coarse) {
+  .agent-desktop-settings { display: none !important; }
+}
 .sidebar > .agent-pet-stage {
   --pet-x: 0px;
   --pet-y: 0px;

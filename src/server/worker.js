@@ -1,4 +1,5 @@
 /** Worker 的公开入口：只决定请求去 API、媒体服务还是静态页面。 */
+import { androidAppLinks } from "./accounts/android-login.js";
 import { guestSessionCookie } from "./accounts/guest-session.js";
 import { requireMediaVisitor } from "./accounts/website-access.js";
 import { ensureSchema } from "./db/initialize.js";
@@ -18,6 +19,9 @@ export default {
       if (gateResponse) return gateResponse;
       if (request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: SECURITY_HEADERS });
+      }
+      if (url.pathname === "/.well-known/assetlinks.json" && request.method === "GET") {
+        return androidAppLinks();
       }
       if (/^\/share\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
         const response = responseWithSecurityHeaders(await env.ASSETS.fetch(new Request(new URL("/share", url), request)));

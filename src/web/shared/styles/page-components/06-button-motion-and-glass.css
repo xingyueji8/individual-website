@@ -314,10 +314,6 @@
 .sidebar > *,
 .studio .side > * { position: relative; z-index: 1; }
 
-/* 白光释放稍慢于旧版，但按住时仍停留，不会提前消失。 */
-.harmony-light-bloom.is-releasing {
-  animation-duration: .46s !important;
-}
 
 @media (prefers-reduced-motion: reduce) {
   :is(button, a.btn, .tab-button, .studio-link, [role="button"], .workspace .list-item, .side-footer a) {

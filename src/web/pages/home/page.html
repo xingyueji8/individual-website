@@ -113,6 +113,13 @@
         </div>
         <p id="entry-notice" class="notice" aria-live="polite"></p>
       </form>
+      <div id="android-approval" class="entry-form" hidden>
+        <p id="android-approval-account"></p>
+        <button id="android-approve" class="btn entry-primary" type="button">确认登录 App</button>
+        <a id="android-return" class="btn entry-primary" hidden>返回星月集 App</a>
+        <a class="entry-link" href="/">取消</a>
+        <p id="android-approval-status" class="notice" role="status"></p>
+      </div>
     </div>
   </section>
 
@@ -563,6 +570,7 @@
 <!-- @include scripts/article-pdf.js -->
 <!-- @include scripts/feedback.js -->
 <!-- @include scripts/assistant.js -->
+<!-- @include scripts/android-authorization.js -->
 <!-- @include scripts/startup.js -->
 <!-- @include shared:button-motion.js -->
 <!-- @include scripts/control-motion.js -->

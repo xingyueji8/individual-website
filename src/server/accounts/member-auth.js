@@ -155,6 +155,7 @@ export async function authSession(request, env) {
   return json({
     authenticated: Boolean(user),
     user: user ? publicUser(user) : null,
+    ...(user ? { expiresAt: user.expires_at } : {}),
   }, 200, { "Cache-Control": "no-store" });
 }
 
@@ -209,7 +210,8 @@ export async function changeUserPassword(request, env) {
     env.DB.prepare(`UPDATE password_reset_requests SET status='expired', token_hash=NULL
       WHERE user_id=? AND status IN ('pending','approved')`).bind(user.id),
   ]);
-  const session = await createUserSession(request, env, user.id, false);
+  const remember = Date.parse(user.expires_at) - Date.parse(user.session_created_at) > 7 * 24 * 60 * 60 * 1000;
+  const session = await createUserSession(request, env, user.id, remember);
   await recordLoginEvent(env, request, "password_change", user.id, user.username_normalized);
   await createNotification(env, user.id, {
     type: "account", title: "密码修改成功",

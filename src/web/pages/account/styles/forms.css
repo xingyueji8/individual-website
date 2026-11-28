@@ -116,9 +116,6 @@
       border-color: rgba(30,135,158,.62) !important;
     }
 
-    /*
-       白光在按下时立刻出现，而不是等松手；范围较小，不会遮住相邻表单。
-    */
     .harmony-light-bloom {
       --bloom-size: 72px;
       position: fixed; z-index: 2147483646; left: 0; top: 0;
@@ -133,7 +130,6 @@
       filter: blur(1.8px); mix-blend-mode: screen;
       animation: auth-light-hold-in .11s cubic-bezier(.18,.72,.2,1) both;
     }
-    .harmony-light-bloom.is-releasing { animation: auth-light-diffuse .30s cubic-bezier(.12,.68,.18,1) both; }
     .harmony-light-bloom::before,
     .harmony-light-bloom::after {
       content: ""; position: absolute; pointer-events: none; border-radius: inherit;
@@ -144,11 +140,6 @@
     @keyframes auth-light-hold-in {
       from { opacity: .24; transform: translate(-50%, -50%) scale(.20) rotate(-4deg); }
       to { opacity: .68; transform: translate(-50%, -50%) scale(.82) rotate(0); }
-    }
-    @keyframes auth-light-diffuse {
-      0% { opacity: .68; transform: translate(-50%, -50%) scale(.82) rotate(0); }
-      52% { opacity: .34; transform: translate(-50%, -50%) scale(1.03) rotate(4deg); }
-      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.38, 1.28) rotate(7deg); filter: blur(3px); }
     }
 
     @media (prefers-reduced-motion: reduce) {

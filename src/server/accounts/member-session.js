@@ -43,18 +43,27 @@ export async function recordLoginEvent(env, request, eventType, userId = null, u
   ).run();
 }
 
-export async function createUserSession(request, env, userId, remember = false) {
+export async function createUserSession(request, env, userId, remember = false, sourceSessionHash = "") {
   const token = randomToken();
   const tokenHash = await sha256(token);
   const ttl = remember ? USER_SESSION_REMEMBER_TTL_SECONDS : USER_SESSION_TTL_SECONDS;
   const timestamp = nowIso();
   const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
   const meta = await clientMeta(request);
-  await env.DB.prepare(`
+  const fields = [tokenHash, userId, timestamp, timestamp, expiresAt, meta.ipHash, meta.ipHint, meta.userAgent];
+  const guard = sourceSessionHash ? `WHERE EXISTS (
+    SELECT 1 FROM user_sessions s JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = ? AND s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ?
+      AND u.status <> 'disabled'
+  )` : "";
+  const inserted = await env.DB.prepare(`
     INSERT INTO user_sessions
       (token_hash, user_id, created_at, last_seen_at, expires_at, revoked_at, ip_hash, ip_hint, user_agent)
-    VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
-  `).bind(tokenHash, userId, timestamp, timestamp, expiresAt, meta.ipHash, meta.ipHint, meta.userAgent).run();
+    SELECT ?, ?, ?, ?, ?, NULL, ?, ?, ? ${guard}
+  `).bind(...fields, ...(sourceSessionHash ? [sourceSessionHash, userId, timestamp] : [])).run();
+  if (sourceSessionHash && inserted.meta?.changes !== 1) {
+    throw new HttpError(401, "网站会话已失效，请重新确认登录");
+  }
   // 未勾选“保持登录”时不写 Max-Age，浏览器关闭后 Cookie 随会话结束。
   return { token, ttl, cookieMaxAge: remember ? ttl : null };
 }

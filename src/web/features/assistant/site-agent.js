@@ -11,6 +11,9 @@
   const mainStatus = document.getElementById("chat-status");
   if (!appShell || !sidebar || !sidebarNav || !sidebarNote || !mainMessages || !mainForm || !mainInput || !mainStatus) return;
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const mobile = matchMedia("(max-width: 760px), (pointer: coarse)");
+  const androidApp = document.documentElement.hasAttribute("data-android-app");
+  const petUnavailable = () => androidApp || mobile.matches;
   const DESKTOP_HIDDEN_KEY = "xyj_desktop_assistant_hidden";
   const DESKTOP_SESSION_KEY = "xyj_desktop_assistant_hidden_session";
   const visibilityChoice = document.getElementById("desktop-assistant-close-dialog");
@@ -33,7 +36,6 @@
   sprite.setAttribute("aria-hidden", "true");
   pet.append(sprite);
   stage.append(pet);
-  sidebar.append(stage);
 
   /* Keep the full AI page intact. The pet owns a separate, deliberately small chat. */
   const panel = document.createElement("section");
@@ -139,7 +141,8 @@
   }
 
   function applyDesktopVisibility(hidden) {
-    desktopHidden = Boolean(hidden);
+    const unavailable = petUnavailable();
+    desktopHidden = unavailable || Boolean(hidden);
     if (desktopHidden) {
       closeAgent();
       freezePetMotion();
@@ -152,6 +155,16 @@
       dialogResize = null;
       panel.classList.remove("is-resizing");
       document.body.classList.remove("agent-dialog-resizing");
+    }
+    const settings = document.querySelector(".agent-desktop-settings");
+    if (settings) settings.hidden = unavailable;
+    if (unavailable) {
+      pet.remove();
+      stage.remove();
+    } else {
+      if (!stage.isConnected) sidebar.append(stage);
+      if (!petDetached && !pet.isConnected) stage.append(pet);
+      if (petDetached && !pet.isConnected) document.body.append(pet);
     }
     stage.hidden = desktopHidden;
     pet.hidden = desktopHidden;
@@ -190,6 +203,7 @@
 
   document.querySelectorAll("[data-desktop-assistant-switch]").forEach(button => {
     button.addEventListener("click", () => {
+      if (petUnavailable()) return;
       if (desktopHidden) restoreDesktopAssistant();
       else if (visibilityChoice && !visibilityChoice.open) visibilityChoice.showModal();
     });
@@ -1179,6 +1193,7 @@
     petLayoutObserver.observe(sidebarNote);
   }
   applyDesktopVisibility(desktopHidden);
+  mobile.addEventListener?.("change", () => applyDesktopVisibility(readDesktopHidden()));
   requestAnimationFrame(() => {
     layoutStage();
     schedulePet(900);

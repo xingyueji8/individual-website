@@ -31,7 +31,7 @@ assert.match(css, /feTurbulence/);
 assert.match(css, /--xyj-liquid-press-fill/);
 assert.match(css, /\.is-control-pressed,\s*\.control-bounce-release/);
 assert.match(css, /blur\(\.35px\)\s+saturate\(1\.46\)/);
-assert.match(css, /\.harmony-light-bloom\.is-releasing\s*\{\s*animation-duration:\s*\.64s/);
+assert.doesNotMatch(css, /\.harmony-light-bloom\.is-releasing/);
 assert.match(css, /\.night-mode-switch\.is-on\s*\{\s*--xyj-knob-x:\s*30px/);
 assert.match(css, /\.night-mode-switch\.is-on \.night-mode-fill[\s\S]*?background-color:\s*#3d8fd0/);
 assert.match(css, /\.night-mode-switch:is\(\.is-control-pressed, \.control-bounce-release\) \.night-mode-knob[\s\S]*?blur\(\.20px\)/);
@@ -235,7 +235,8 @@ for (const [path, html] of pages) {
   } else {
     assert.match(html, /let delay = 820;/, `${path} must keep the rebound class for the full animation`);
   }
-  assert.match(html, /bloom\.remove\(\), 700\)/, `${path} must allow the longer light release to finish`);
+  assert.match(html, /pressedBloom\?\.remove\(\)/, `${path} removes the light on release`);
+  assert.match(html, /!control\.matches\("button"\)/, `${path} limits the light to buttons`);
   assert.doesNotMatch(html, /control\.classList\.remove\("control-bounce-release"\), 340/);
 
   if (path === "dist/public/index.html") {

@@ -68,14 +68,14 @@
       onNotice: text => { document.getElementById("entry-notice").textContent = text; },
     });
 
-    function showEntryScreen() {
+    function showEntryScreen({ verify = true } = {}) {
       window.SiteAgent?.close({ clear: true });
       if (state.runtimeSecurity.blocked) return;
       stopRuntimeBotProtection();
       entryScreen.hidden = false;
       appShell.hidden = true;
       document.body.classList.add("entry-active");
-      initializeGuestProtection().catch((error) => {
+      if (verify) initializeGuestProtection().catch((error) => {
         document.getElementById("entry-notice").textContent = error.message;
       });
     }

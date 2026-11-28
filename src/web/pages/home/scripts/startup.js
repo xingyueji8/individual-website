@@ -4,6 +4,7 @@
         const requestedBeforeEntry = state.entryRequestedSection || requestedSectionFromLocation();
         const session = await api("/api/auth/session").catch(() => ({ authenticated: false, user: null }));
         state.auth = session;
+        if (showAndroidApproval(session)) return;
 
         /*
          * 旧版曾把游客选择永久写入 localStorage，导致以后访问都会绕过登录首页。

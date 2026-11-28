@@ -134,9 +134,6 @@
       /* 按住期间停留在 hold-in 的末帧，白光不会自行消散。 */
       animation: harmony-light-hold-in .11s cubic-bezier(.18,.72,.2,1) both;
     }
-    .harmony-light-bloom.is-releasing {
-      animation: harmony-light-diffuse .30s cubic-bezier(.12,.68,.18,1) both;
-    }
     .harmony-light-bloom::before,
     .harmony-light-bloom::after {
       content: ""; position: absolute; pointer-events: none; border-radius: inherit;
@@ -147,11 +144,6 @@
     @keyframes harmony-light-hold-in {
       from { opacity: .24; transform: translate(-50%, -50%) scale(.20) rotate(-4deg); }
       to   { opacity: .68; transform: translate(-50%, -50%) scale(.82) rotate(0); }
-    }
-    @keyframes harmony-light-diffuse {
-      0%   { opacity: .68; transform: translate(-50%, -50%) scale(.82) rotate(0); }
-      52%  { opacity: .34; transform: translate(-50%, -50%) scale(1.03) rotate(4deg); }
-      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.38, 1.28) rotate(7deg); filter: blur(3px); }
     }
 
     /*

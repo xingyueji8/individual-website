@@ -1,10 +1,6 @@
-    /*
-     * 在控件中心或实际按下点生成一团小范围白光。节点会停留在按下状态的
-     * 末帧，只有 pointerup / keyup / cancel 后才开始消散；因此无论按住多久，
-     * 光都不会提前消失。范围限制在 48–118px，避免遮住周围内容。
-     */
+    /* 小范围白光跟随真正的按钮，松手即移除。 */
     function emitHarmonyLightBloom(control, point = null) {
-      if (!control || matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+      if (!control.matches("button") || matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
       const rect = control.getBoundingClientRect();
       const hasPointerPoint = Number.isFinite(point?.x) && Number.isFinite(point?.y);
       const x = hasPointerPoint ? point.x : rect.left + rect.width / 2;
@@ -20,15 +16,8 @@
       return bloom;
     }
 
-    function releaseHarmonyLightBloom(bloom) {
-      if (!bloom?.isConnected || bloom.classList.contains("is-releasing")) return;
-      bloom.classList.add("is-releasing");
-      bloom.addEventListener("animationend", () => bloom.remove(), { once: true });
-      window.setTimeout(() => bloom.remove(), 700);
-    }
-
     /*
-     * 全站晶体玻璃按钮动效：按下时压缩，松手后只回弹一次，同时释放白光。
+     * 全站晶体玻璃按钮动效：按下时压缩，松手后只回弹一次。
      * 事件委托同时覆盖以后由 JavaScript 新建的专栏、相册、评论和图片卡片。
      */
     function installLiquidGlassControlMotion({
@@ -79,25 +68,27 @@
           control.classList.remove("is-control-pressed");
           playBounce(control);
         }
-        releaseHarmonyLightBloom(pressedBloom);
+        pressedBloom?.remove();
         pressedBloom = null;
       };
 
       const cancelPress = () => {
         pressedControl?.classList.remove("is-control-pressed");
-        releaseHarmonyLightBloom(pressedBloom);
+        pressedBloom?.remove();
         pressedControl = null;
         pressedBloom = null;
       };
       document.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !event.isPrimary) return;
         const control = findControl(event.target);
         if (!canAnimate(control)) return;
+        cancelPress();
         pressedControl = control;
         beginPress(control);
-        releaseHarmonyLightBloom(pressedBloom);
         pressedBloom = emitHarmonyLightBloom(control, { x: event.clientX, y: event.clientY });
       });
-      window.addEventListener("pointerup", () => {
+      window.addEventListener("pointerup", (event) => {
+        if (event.button !== 0 || !event.isPrimary) return;
         release(pressedControl);
         pressedControl = null;
       });
@@ -106,9 +97,9 @@
         if (!['Enter', ' '].includes(event.key) || event.repeat) return;
         const control = findControl(event.target);
         if (canAnimate(control)) {
+          cancelPress();
           pressedControl = control;
           beginPress(control);
-          releaseHarmonyLightBloom(pressedBloom);
           pressedBloom = emitHarmonyLightBloom(control);
         }
       });

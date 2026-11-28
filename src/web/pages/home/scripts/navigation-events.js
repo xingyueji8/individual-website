@@ -142,7 +142,7 @@
 
     /*
      * 头像点击刷新：
-     * 1. 保留 1.18 秒完整果冻形变，并同时释放小范围白光；
+     * 1. 保留 1.18 秒完整果冻形变；
      * 2. 动画进行到接近一半时便开始刷新，不再等待完整动画结束；
      * 3. 新页面启动时会自动移除这个临时参数。
      */
@@ -153,7 +153,6 @@
       avatar.classList.remove("jelly");
       void avatar.offsetWidth;
       avatar.classList.add("jelly");
-      emitHarmonyLightBloom(avatar);
 
       // 1.18 秒动画的视觉中点约为 560ms；减少动态偏好的用户只等待 60ms。
       // replace 会保留当前板块 URL，因此刷新后仍停留在用户正在浏览的板块。

@@ -312,4 +312,3 @@
   .workspace a.btn,
   .home-link
 ):not(.night-mode-switch):is(.is-control-pressed, .control-bounce-release) { color: #102f38 !important; }
-.harmony-light-bloom.is-releasing { animation-duration: .64s !important; }

@@ -3,7 +3,9 @@
       handleRuntimeBotDetected("本标签页此前因异常自动化行为被终止，请将其关闭后重新访问。");
     } else {
       // Prepare verification in parallel with session detection, never after it.
-      initializeGuestProtection().catch(() => {});
-      initializeEntryPhotoBackground();
+      if (!androidLoginRequested) {
+        initializeGuestProtection().catch(() => {});
+        initializeEntryPhotoBackground();
+      }
       boot();
     }

@@ -4,6 +4,7 @@ export const suites = {
     "web/studio-ui.mjs"
   ],
   "access": [
+    "server/android-login.mjs",
     "server/database-startup.mjs",
     "server/guest-mode-access.mjs",
     "server/security-boundaries.mjs"
