@@ -14,7 +14,7 @@ const storage = data => ({ getItem: key => data.get(key) ?? null, setItem: (key,
 
 // Each load gets a fresh DOM and script instance, while browser/visit storage
 // is retained independently. This exercises real controls and reload behavior.
-function loadAgent(session = visit, blockedStorage = false) {
+function loadAgent(session = visit, blockedStorage = false, mobile = false) {
   const window = parseHTML(html);
   const { document, HTMLElement } = window;
   document.querySelector(".app-shell").hidden = false;
@@ -34,7 +34,7 @@ function loadAgent(session = visit, blockedStorage = false) {
   HTMLElement.prototype.showModal = function () { this.open = true; this.setAttribute("open", ""); };
   HTMLElement.prototype.close = function () { this.open = false; this.removeAttribute("open"); this.dispatchEvent(new window.Event("close")); };
   const timers = new Map(); let nextTimer = 0;
-  window.matchMedia = () => ({ matches: false, addEventListener() {} });
+  window.matchMedia = query => ({ matches: mobile && query.includes("pointer: coarse"), addEventListener() {} });
   const unavailable = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); }, removeItem() { throw new Error("blocked"); } };
   const context = vm.createContext({
     window, document, console, Element: window.Element, HTMLElement, CustomEvent: window.CustomEvent,
@@ -79,6 +79,13 @@ function choose(app, mode) {
   assert.match(app.notice.textContent, /您可在‘AI助手’板块通过按钮再次打开。/);
   assertVisibility(app, false);
 }
+
+const phone = loadAgent(new Map(), false, true);
+assert.equal(phone.pet, null);
+assert.equal(phone.stage, null);
+assert.equal(phone.document.querySelector(".agent-desktop-settings").hidden, true);
+assert.equal(typeof phone.window.SiteAgent.submit, "function");
+assert.equal(phone.timers.size, 0);
 
 const first = loadAgent();
 assertVisibility(first, true);

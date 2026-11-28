@@ -11,7 +11,7 @@
   const mainStatus = document.getElementById("chat-status");
   if (!appShell || !sidebar || !sidebarNav || !sidebarNote || !mainMessages || !mainForm || !mainInput || !mainStatus) return;
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const mobile = matchMedia("(max-width: 760px), (pointer: coarse)");
+  const mobile = matchMedia("(pointer: coarse), (max-width: 760px) and (hover: none)");
   const androidApp = document.documentElement.hasAttribute("data-android-app");
   const petUnavailable = () => androidApp || mobile.matches;
   const DESKTOP_HIDDEN_KEY = "xyj_desktop_assistant_hidden";
